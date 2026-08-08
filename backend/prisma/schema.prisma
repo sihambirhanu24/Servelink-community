@@ -1,0 +1,239 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Teacher {
+  id                 String              @id @default(cuid())
+  firstName          String
+  lastName           String
+  email              String              @unique
+  password           String
+  profileImage       String?
+  subject            String?
+  verified           Boolean             @default(false)
+  level              TeacherLevelType    @default(LEVEL_1)
+  status             TeacherStatus       @default(ACTIVE)
+  school             String
+  woreda             String
+  zone               String
+  region             String
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  communityBookmarks CommunityBookmark[]
+  comments           CommunityComment[]
+  communityLikes     CommunityLike[]
+  communityMembers   CommunityMember[]
+  posts              CommunityPost[]
+  communityReports   CommunityReport[]
+  notifications      Notification[]
+}
+
+model Admin {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Community {
+  id               String            @id @default(cuid())
+  name             String
+  type             CommunityType
+  school           String?
+  woreda           String?
+  zone             String?
+  region           String?
+  description      String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  communityMembers CommunityMember[]
+  posts            CommunityPost[]
+}
+
+model CommunityMember {
+  id String @id @default(cuid())
+
+  teacherId   String
+  communityId String
+
+  status MembershipStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+
+  teacher   Teacher   @relation(fields: [teacherId], references: [id])
+  community Community @relation(fields: [communityId], references: [id])
+
+  @@unique([teacherId, communityId])
+}
+
+model Category {
+  id        String          @id @default(cuid())
+  name      String          @unique
+  createdAt DateTime        @default(now())
+  posts     CommunityPost[]
+}
+
+model Tag {
+  id    String    @id @default(cuid())
+  name  String    @unique
+  posts PostTag[]
+}
+
+model CommunityPost {
+  id                 String              @id @default(cuid())
+  title              String
+  description        String
+  teacherId          String
+  communityId        String
+  categoryId         String
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  attachments        Attachment[]
+  communityBookmarks CommunityBookmark[]
+  comments           CommunityComment[]
+  communityLikes     CommunityLike[]
+  category           Category            @relation(fields: [categoryId], references: [id])
+  community          Community           @relation(fields: [communityId], references: [id])
+  teacher            Teacher             @relation(fields: [teacherId], references: [id])
+  communityReports   CommunityReport[]
+  tags               PostTag[]
+}
+
+model Attachment {
+  id        String         @id @default(cuid())
+  url       String
+  fileName  String
+  fileSize  Int
+  type      AttachmentType
+  postId    String
+  createdAt DateTime       @default(now())
+  post      CommunityPost  @relation(fields: [postId], references: [id])
+}
+
+model CommunityComment {
+  id        String        @id @default(cuid())
+  content   String
+  teacherId String
+  postId    String
+  parentId  String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  post      CommunityPost @relation(fields: [postId], references: [id])
+  teacher   Teacher       @relation(fields: [teacherId], references: [id])
+}
+
+model CommunityLike {
+  id        String        @id @default(cuid())
+  teacherId String
+  postId    String
+  createdAt DateTime      @default(now())
+  post      CommunityPost @relation(fields: [postId], references: [id])
+  teacher   Teacher       @relation(fields: [teacherId], references: [id])
+
+  @@unique([teacherId, postId])
+}
+
+model CommunityBookmark {
+  id        String        @id @default(cuid())
+  teacherId String
+  postId    String
+  createdAt DateTime      @default(now())
+  post      CommunityPost @relation(fields: [postId], references: [id])
+  teacher   Teacher       @relation(fields: [teacherId], references: [id])
+
+  @@unique([teacherId, postId])
+}
+
+model CommunityReport {
+  id          String        @id @default(cuid())
+  reason      ReportReason
+  description String?
+  teacherId   String
+  postId      String
+  createdAt   DateTime      @default(now())
+  post        CommunityPost @relation(fields: [postId], references: [id])
+  teacher     Teacher       @relation(fields: [teacherId], references: [id])
+}
+
+model PostTag {
+  postId String
+  tagId  String
+  post   CommunityPost @relation(fields: [postId], references: [id])
+  tag    Tag           @relation(fields: [tagId], references: [id])
+
+  @@id([postId, tagId])
+}
+
+enum TeacherLevelType {
+  LEVEL_1
+  LEVEL_2
+  LEVEL_3
+  LEVEL_4
+  LEVEL_5
+}
+
+enum TeacherStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum CommunityType {
+  SCHOOL
+  WOREDA
+  ZONE
+  REGION
+  NATIONAL
+}
+
+enum ReportReason {
+  SPAM
+  ABUSE
+  FAKE_INFORMATION
+  OTHER
+}
+
+enum AttachmentType {
+  IMAGE
+  PDF
+  DOCX
+  VIDEO
+}
+
+enum MembershipStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Notification {
+  id          String           @id @default(cuid())
+  receiverId  String
+  receiver    Teacher          @relation(fields: [receiverId], references: [id], onDelete: Cascade)
+  senderId    String?
+  senderName  String?
+  title       String
+  message     String
+  type        NotificationType
+  referenceId String?
+  isRead      Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+enum NotificationType {
+  LIKE
+  COMMENT
+  BOOKMARK
+  COMMUNITY_JOIN
+  LEVEL_UPGRADE
+  REPORT
+  SYSTEM
+  REPLY
+}

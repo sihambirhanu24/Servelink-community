@@ -1,0 +1,10 @@
+export enum NotificationEvent {
+  LIKE = 'LIKE',
+  COMMENT = 'COMMENT',
+  BOOKMARK = 'BOOKMARK',
+  COMMUNITY_JOIN = 'COMMUNITY_JOIN',
+  LEVEL_UPGRADE = 'LEVEL_UPGRADE',
+  REPORT = 'REPORT',
+  SYSTEM = 'SYSTEM',
+  REPLY = 'REPLY',
+}
