@@ -274,11 +274,29 @@ uploadAttachment(
     postId,
   );
 }
-@Get(":id")
+
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
+@Get('woreda-schools')
+getWoredaSchools(@CurrentUser() user: any) {
+  return this.communityService.getWoredaSchools(user.sub);
+}
+
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
+@Get('accessible')
+getAccessibleCommunities(@CurrentUser() user: any) {
+  return this.communityService.getAccessibleCommunities(user.sub);
+}
+
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
+@Get(':id')
 getCommunity(
-  @Param("id") id: string,
+  @Param('id') id: string,
+  @CurrentUser() user: any,
 ) {
-  return this.communityService.getCommunity(id);
+  return this.communityService.getAccessibleCommunityById(id, user.sub);
 }
 
 // ─── Community-type routes (level-gated) ─────────────────────────────────────

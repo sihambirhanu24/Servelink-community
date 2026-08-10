@@ -226,15 +226,31 @@ export class CommunityService {
   ) {
     const skip = (filters.page - 1) * filters.limit;
 
+    // Build the list of community IDs this teacher can actually access
+    const accessible = await this.getAccessibleCommunities(teacherId);
+    const accessibleIds = accessible.communities.map((c) => c.id);
+
+    // If a specific communityId was requested, verify it's in the accessible set
+    let communityFilter: string | undefined = undefined;
+    if (filters.communityId) {
+      if (!accessibleIds.includes(filters.communityId)) {
+        return []; // Requested community is out of scope — return empty silently
+      }
+      communityFilter = filters.communityId;
+    }
+
     const posts = await this.prisma.communityPost.findMany({
       where: {
+        // Only posts from communities this teacher can access
+        communityId: communityFilter
+          ? communityFilter
+          : { in: accessibleIds },
         ...(filters.search && {
           OR: [
             { title: { contains: filters.search, mode: 'insensitive' } },
             { description: { contains: filters.search, mode: 'insensitive' } },
           ],
         }),
-        ...(filters.communityId && { communityId: filters.communityId }),
         ...(filters.categoryId && { categoryId: filters.categoryId }),
       },
       include: {
@@ -309,19 +325,11 @@ export class CommunityService {
   }
 
   async getCommunities(teacherId: string) {
-    const teacher = await this.prisma.teacher.findUnique({
-      where: { id: teacherId },
-      select: { level: true },
-    });
-
-    const communities = await this.prisma.community.findMany({
-      include: {
-        _count: { select: { communityMembers: true, posts: true } },
-      },
-      orderBy: { name: 'asc' },
-    });
-
-    return { teacherLevel: teacher?.level, communities };
+    const accessible = await this.getAccessibleCommunities(teacherId);
+    return {
+      teacherLevel: accessible.teacherLevel,
+      communities: accessible.communities,
+    };
   }
 
   async getCategories() {
@@ -583,5 +591,197 @@ export class CommunityService {
       distinct: ['teacherId'],
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  async getWoredaSchools(teacherId: string) {
+    const teacher = await this.prisma.teacher.findUnique({
+      where: { id: teacherId },
+      select: { level: true, woreda: true },
+    });
+    if (!teacher) throw new NotFoundException('Teacher not found');
+
+    const teacherLevelNum = CommunityService.LEVEL_ORDER[teacher.level] ?? 1;
+    if (teacherLevelNum < 2) {
+      throw new ForbiddenException(
+        'Level 2 or above required to access Woreda school communities.',
+      );
+    }
+
+    const woreda = teacher.woreda?.trim();
+
+    const where: any = { type: 'SCHOOL' };
+    if (woreda) {
+      where.OR = [
+        { woreda: { equals: woreda, mode: 'insensitive' } },
+        { school: { equals: woreda, mode: 'insensitive' } },
+      ];
+    }
+
+    const communities = await this.prisma.community.findMany({
+      where,
+      include: {
+        _count: { select: { communityMembers: true, posts: true } },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    if (!communities.length && woreda) {
+      const fallback = await this.prisma.community.findMany({
+        where: { type: 'SCHOOL' },
+        include: { _count: { select: { communityMembers: true, posts: true } } },
+        orderBy: { name: 'asc' },
+      });
+      return { woreda, schools: fallback };
+    }
+
+    return { woreda, schools: communities };
+  }
+
+  async getAccessibleCommunities(teacherId: string) {
+    const teacher = await this.prisma.teacher.findUnique({
+      where: { id: teacherId },
+      select: { level: true, school: true, woreda: true, zone: true, region: true },
+    });
+    if (!teacher) throw new NotFoundException('Teacher not found');
+
+    const levelNum = CommunityService.LEVEL_ORDER[teacher.level] ?? 1;
+
+    // Build OR conditions for each unlocked type, scoped to the teacher's geography
+    const orClauses: any[] = [];
+
+    // SCHOOL always accessible (level 1+), scoped to teacher's school
+    if (levelNum >= 1 && teacher.school) {
+      orClauses.push({
+        type: 'SCHOOL',
+        OR: [
+          { school: { equals: teacher.school, mode: 'insensitive' } },
+          { woreda: { equals: teacher.woreda || '_none_', mode: 'insensitive' } },
+        ],
+      });
+    } else if (levelNum >= 1) {
+      orClauses.push({ type: 'SCHOOL' });
+    }
+
+    // WOREDA accessible at level 2+, scoped to teacher's woreda
+    if (levelNum >= 2 && teacher.woreda) {
+      orClauses.push({
+        type: 'WOREDA',
+        woreda: { equals: teacher.woreda, mode: 'insensitive' },
+      });
+    } else if (levelNum >= 2) {
+      orClauses.push({ type: 'WOREDA' });
+    }
+
+    // ZONE accessible at level 3+, scoped to teacher's zone
+    if (levelNum >= 3 && teacher.zone) {
+      orClauses.push({
+        type: 'ZONE',
+        zone: { equals: teacher.zone, mode: 'insensitive' },
+      });
+    } else if (levelNum >= 3) {
+      orClauses.push({ type: 'ZONE' });
+    }
+
+    // REGION accessible at level 4+, scoped to teacher's region
+    if (levelNum >= 4 && teacher.region) {
+      orClauses.push({
+        type: 'REGION',
+        region: { equals: teacher.region, mode: 'insensitive' },
+      });
+    } else if (levelNum >= 4) {
+      orClauses.push({ type: 'REGION' });
+    }
+
+    // NATIONAL accessible at level 5+ — no geographic filter
+    if (levelNum >= 5) {
+      orClauses.push({ type: 'NATIONAL' });
+    }
+
+    if (orClauses.length === 0) {
+      return { teacherLevel: teacher.level, communities: [], unlockedTypes: [] };
+    }
+
+    const communities = await this.prisma.community.findMany({
+      where: { OR: orClauses },
+      include: { _count: { select: { communityMembers: true, posts: true } } },
+      orderBy: [{ type: 'asc' }, { name: 'asc' }],
+    });
+
+    const unlockedTypes = ['SCHOOL', 'WOREDA', 'ZONE', 'REGION', 'NATIONAL'].filter(
+      (t) => (CommunityService.TYPE_MIN_LEVEL[t] ?? 99) <= levelNum,
+    );
+
+    return { teacherLevel: teacher.level, communities, unlockedTypes };
+  }
+
+  async getAccessibleCommunityById(communityId: string, teacherId: string) {
+    const [community, teacher] = await Promise.all([
+      this.prisma.community.findUnique({
+        where: { id: communityId },
+        include: {
+          posts: {
+            include: { teacher: true, category: true, comments: true, communityLikes: true },
+            orderBy: { createdAt: 'desc' },
+          },
+          communityMembers: {
+            include: {
+              teacher: { select: { id: true, firstName: true, lastName: true, profileImage: true, level: true } },
+            },
+          },
+          _count: { select: { posts: true, communityMembers: true } },
+        },
+      }),
+      this.prisma.teacher.findUnique({
+        where: { id: teacherId },
+        select: { level: true, school: true, woreda: true, zone: true, region: true },
+      }),
+    ]);
+
+    if (!community) throw new NotFoundException('Community not found');
+    if (!teacher) throw new NotFoundException('Teacher not found');
+
+    const levelNum = CommunityService.LEVEL_ORDER[teacher.level] ?? 1;
+    const requiredLevel = CommunityService.TYPE_MIN_LEVEL[community.type] ?? 99;
+
+    if (levelNum < requiredLevel) {
+      throw new ForbiddenException(
+        `Your level does not have access to ${community.type} communities.`,
+      );
+    }
+
+    // Geographic scope check — for non-NATIONAL communities, verify geographic match
+    if (community.type !== 'NATIONAL') {
+      const geoMatch = this.isInGeographicScope(community, teacher);
+      if (!geoMatch) {
+        throw new ForbiddenException(
+          'This community is outside your authorized geographic scope.',
+        );
+      }
+    }
+
+    return community;
+  }
+
+  private isInGeographicScope(
+    community: { type: string; school?: string | null; woreda?: string | null; zone?: string | null; region?: string | null },
+    teacher: { school?: string | null; woreda?: string | null; zone?: string | null; region?: string | null },
+  ): boolean {
+    const ci = (a: string | null | undefined, b: string | null | undefined) =>
+      !!a && !!b && a.trim().toLowerCase() === b.trim().toLowerCase();
+
+    switch (community.type) {
+      case 'SCHOOL':
+        return ci(community.school, teacher.school) || ci(community.woreda, teacher.woreda);
+      case 'WOREDA':
+        return ci(community.woreda, teacher.woreda);
+      case 'ZONE':
+        return ci(community.zone, teacher.zone);
+      case 'REGION':
+        return ci(community.region, teacher.region);
+      case 'NATIONAL':
+        return true;
+      default:
+        return false;
+    }
   }
 }

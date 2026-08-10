@@ -6,7 +6,6 @@ import {
   GraduationCap,
   Building2,
   Globe,
-  Lock,
   CheckCircle2,
   Users,
   PenSquare,
@@ -136,7 +135,7 @@ export function CommunitySideRail() {
         <SectionHeading>Community Access</SectionHeading>
         {teacherLoading ? (
           <div className="space-y-2">
-            {[1, 2, 3, 4, 5].map((i) => (
+            {[1, 2, 3].map((i) => (
               <div key={i} className="flex items-center gap-2 animate-pulse">
                 <div className="h-5 w-5 rounded-full bg-slate-200 shrink-0" />
                 <div className="h-3 flex-1 rounded bg-slate-200" />
@@ -146,66 +145,36 @@ export function CommunitySideRail() {
           </div>
         ) : (
           <div className="space-y-1.5">
-            {communityTypes.map((type, i) => {
-              const required = TYPE_MIN_LEVEL[type];
-              const unlocked = teacherLevelNum >= required;
-              const Icon = TYPE_ICON[type];
-              const isLast = i === communityTypes.length - 1;
+            {communityTypes
+              .filter((type) => teacherLevelNum >= (TYPE_MIN_LEVEL[type] ?? 99))
+              .map((type, i, arr) => {
+                const Icon = TYPE_ICON[type];
+                const isLast = i === arr.length - 1;
 
-              return (
-                <div key={type} className="flex items-center gap-2.5">
-                  <div className="relative flex shrink-0 flex-col items-center">
-                    <div
-                      className={`flex h-5 w-5 items-center justify-center rounded-full transition-colors ${
-                        unlocked ? 'bg-[#043658]' : 'bg-slate-100'
-                      }`}
-                    >
-                      {unlocked ? (
+                return (
+                  <div key={type} className="flex items-center gap-2.5">
+                    <div className="relative flex shrink-0 flex-col items-center">
+                      <div className="flex h-5 w-5 items-center justify-center rounded-full bg-[#043658]">
                         <CheckCircle2 className="h-3 w-3 text-white" />
-                      ) : (
-                        <Lock className="h-2.5 w-2.5 text-slate-400" />
+                      </div>
+                      {!isLast && (
+                        <div className="mt-0.5 h-3.5 w-px bg-[#043658]/25" />
                       )}
                     </div>
-                    {!isLast && (
-                      <div
-                        className={`mt-0.5 h-3.5 w-px ${
-                          unlocked ? 'bg-[#043658]/25' : 'bg-slate-100'
-                        }`}
-                      />
-                    )}
-                  </div>
-
-                  <div className="flex min-w-0 flex-1 items-center justify-between">
-                    <div className="flex min-w-0 items-center gap-1.5">
-                      <Icon
-                        className={`h-3 w-3 shrink-0 ${
-                          unlocked ? 'text-[#043658]' : 'text-slate-300'
-                        }`}
-                      />
-                      <span
-                        className={`truncate text-xs ${
-                          unlocked
-                            ? 'font-medium text-[#043658]'
-                            : 'text-slate-400'
-                        }`}
-                      >
-                        {TYPE_LABEL[type]}
-                      </span>
-                    </div>
-
-                    {unlocked ? (
+                    <div className="flex min-w-0 flex-1 items-center justify-between">
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <Icon className="h-3 w-3 shrink-0 text-[#043658]" />
+                        <span className="truncate text-xs font-medium text-[#043658]">
+                          {TYPE_LABEL[type]}
+                        </span>
+                      </div>
                       <span className="ml-2 shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-emerald-700">
                         Available
                       </span>
-                    ) : (
-                      <span className="ml-2 shrink-0 text-[9px] font-medium text-slate-400">
-                        Lvl {required}
-                      </span>
-                    )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
           </div>
         )}
       </Card>

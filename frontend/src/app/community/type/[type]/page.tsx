@@ -13,7 +13,7 @@ import {
 } from '@/hooks/useCommunityType';
 import { CommunityTypeHeader, CommunityTypeHeaderSkeleton } from '@/components/community/CommunityTypeHeader';
 import { CommunityTypeRail } from '@/components/community/CommunityTypeRail';
-import { CommunityPostComposer } from '@/components/community/CommunityPostComposer';
+
 import { CommunityMembersTab } from '@/components/community/CommunityMembersTab';
 import { CommunityAboutTab } from '@/components/community/CommunityAboutTab';
 import PostCard from '@/components/post/PostCard';
@@ -165,7 +165,7 @@ export default function CommunityTypePage({ params }: PageProps) {
               {/* Tab content */}
               {activeTab === 'posts' && (
                 <div className="space-y-4">
-                  <CommunityPostComposer />
+
 
                   {postsLoading && <PostFeedSkeleton />}
 

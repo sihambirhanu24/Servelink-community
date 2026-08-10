@@ -259,3 +259,25 @@ export const getMembersByType = async (type: string): Promise<CommunityTypeMembe
   const { data } = await api.get(`/community/type/${type}/members`);
   return data as CommunityTypeMemberRow[];
 };
+
+// ─── Woreda school communities ────────────────────────
+
+export interface WoredaSchool {
+  id: string;
+  name: string;
+  type: string;
+  school?: string | null;
+  woreda?: string | null;
+  description?: string | null;
+  _count: { communityMembers: number; posts: number };
+}
+
+export interface WoredaSchoolsResponse {
+  woreda: string;
+  schools: WoredaSchool[];
+}
+
+export const getWoredaSchools = async (): Promise<WoredaSchoolsResponse> => {
+  const { data } = await api.get('/community/woreda-schools');
+  return data as WoredaSchoolsResponse;
+};
