@@ -37,3 +37,4 @@ npm-debug.log*
 # Uploads
 backend/uploads/
 uploads/
+frontend/tsconfig.tsbuildinfo
