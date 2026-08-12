@@ -41,15 +41,7 @@ export default function CommunityTypeHero({
             </p>
           </div>
 
-          <Link
-            href={createHref}
-            id="community-hero-create-post"
-            className="group inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-[#FFC107] px-6 py-4 text-sm font-bold text-[#043658] shadow-[0_12px_24px_-12px_rgba(255,193,7,0.8)] transition duration-200 hover:-translate-y-1 hover:bg-[#ffd04a]"
-          >
-            <Plus className="h-5 w-5" />
-            Create Post
-            <ArrowUpRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-          </Link>
+
         </div>
       </div>
     </section>

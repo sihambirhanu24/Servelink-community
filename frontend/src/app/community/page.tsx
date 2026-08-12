@@ -65,13 +65,7 @@ function CommunityPageHeader() {
         )}
       </div>
 
-      <Link
-        href="/community/create"
-        className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-[#043658] px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[#043658]/30"
-      >
-        <PenSquare className="h-4 w-4" aria-hidden="true" />
-        Create Post
-      </Link>
+     
     </div>
   );
 }
@@ -112,7 +106,6 @@ export default function CommunityPage() {
 
           </div>
 
-          {/* Mobile-only rail — rendered below the feed on small screens */}
           <div className="mt-5 lg:hidden">
             <CommunitySideRail />
           </div>

@@ -309,13 +309,6 @@ export function CommunitySideRail() {
         <SectionHeading>Quick Actions</SectionHeading>
         <div className="space-y-1">
           <Link
-            href="/community/create"
-            className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium text-slate-600 transition-colors hover:bg-[#FFC107]/10 hover:text-[#043658] focus:outline-none focus:ring-2 focus:ring-[#043658]/20"
-          >
-            <PenSquare className="h-3.5 w-3.5 shrink-0 text-[#043658]" />
-            Create Post
-          </Link>
-          <Link
             href="/bookmarks"
             className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-[#043658] focus:outline-none focus:ring-2 focus:ring-[#043658]/20"
           >

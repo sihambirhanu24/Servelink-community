@@ -3,6 +3,7 @@
 import { use, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, RefreshCw } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 import { DashboardSidebar } from '@/components/layout/Sidebar';
 import Topbar from '@/components/layout/Topbar';
@@ -59,6 +60,7 @@ export default function CommunityTypePage({ params }: PageProps) {
   const { type } = use(params);
   const [activeTab, setActiveTab] = useState<Tab>('posts');
   const queryClient = useQueryClient();
+  const router = useRouter();
 
   const {
     data: communityData,
@@ -148,11 +150,10 @@ export default function CommunityTypePage({ params }: PageProps) {
                     key={tab.id}
                     type="button"
                     onClick={() => setActiveTab(tab.id)}
-                    className={`relative px-4 py-3 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#043658]/20 ${
-                      activeTab === tab.id
-                        ? 'text-[#043658]'
-                        : 'text-slate-500 hover:text-slate-700'
-                    }`}
+                    className={`relative px-4 py-3 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#043658]/20 ${activeTab === tab.id
+                      ? 'text-[#043658]'
+                      : 'text-slate-500 hover:text-slate-700'
+                      }`}
                   >
                     {tab.label}
                     {activeTab === tab.id && (
@@ -198,12 +199,12 @@ export default function CommunityTypePage({ params }: PageProps) {
                           {type.toLowerCase()} community.
                         </p>
                       </div>
-                      <a
-                        href="/community/create"
-                        className="rounded-lg bg-[#043658] px-4 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-90"
+                      <button
+                        onClick={() => router.push('/posts')}
+                        className="mt-1 rounded-lg bg-[#043658] px-4 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[#043658]/30"
                       >
                         Create Post
-                      </a>
+                      </button>
                     </div>
                   )}
 
@@ -216,9 +217,9 @@ export default function CommunityTypePage({ params }: PageProps) {
                         category: post.category ?? undefined,
                         teacher: post.teacher
                           ? {
-                              ...post.teacher,
-                              profileImage: post.teacher.profileImage ?? undefined,
-                            }
+                            ...post.teacher,
+                            profileImage: post.teacher.profileImage ?? undefined,
+                          }
                           : undefined,
                         comments: (post.comments ?? []) as Array<unknown>,
                       }}

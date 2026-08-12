@@ -1,110 +1,233 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import {
+  ChevronLeft,
+  MessageCircle,
+  Users,
+  Loader,
+  RefreshCw,
+  School,
+  MapPin,
+  Globe,
+} from 'lucide-react';
 import { DashboardSidebar } from '@/components/layout/Sidebar';
-import { ConversationList } from '@/components/community/chat/ConversationList';
-import { ChatThreadHeader } from '@/components/community/chat/ChatThreadHeader';
-import { ChatMessageBubble, ChatMessageData } from '@/components/community/chat/ChatMessageBubble';
-import { ChatMessageInput } from '@/components/community/chat/ChatMessageInput';
-import { GroupInfoPanel } from '@/components/community/chat/GroupInfoPanel';
+import Topbar from '@/components/layout/Topbar';
+import { useAuth } from '@/context/AuthContext';
+import { fetchAccessibleChatGroups, type ChatGroup } from '@/services/chat';
 
-// TODO: replace with real data once the Group Messaging module exists —
-// this needs its own backend (Conversation, Message, ConversationMember
-// tables) plus a websocket/polling layer for live updates. This page is
-// UI-only for now, mirroring the mock-data pattern used everywhere else.
-const MOCK_MESSAGES: ChatMessageData[] = [
-  {
-    id: '1',
-    isOwnMessage: false,
-    authorName: 'Dr. Elias Thorne',
-    levelBadge: 'Level 10 Educator',
-    timestamp: '10:42 AM',
-    text: "Good morning colleagues! I've just uploaded the revised curriculum for the Quantum Mechanics module. Please take a look at the pedagogical shifts in Section 3.",
-    reactions: { likeCount: 12, commentCount: 4 },
+// Community type → colour + icon
+const TYPE_CONFIG: Record<
+  string,
+  { label: string; colour: string; bg: string; icon: React.ReactNode }
+> = {
+  SCHOOL: {
+    label: 'School',
+    colour: 'text-blue-700',
+    bg: 'bg-blue-50 border-blue-200',
+    icon: <School className="w-5 h-5" />,
   },
-  {
-    id: '2',
-    isOwnMessage: false,
-    authorName: 'Dr. Elias Thorne',
-    levelBadge: 'Level 10 Educator',
-    timestamp: '10:42 AM',
-    attachment: { name: 'Quantum_Mechanics_V2.pdf', size: '4.2 MB · PDF Document' },
+  WOREDA: {
+    label: 'Woreda',
+    colour: 'text-emerald-700',
+    bg: 'bg-emerald-50 border-emerald-200',
+    icon: <MapPin className="w-5 h-5" />,
   },
-  {
-    id: '3',
-    isOwnMessage: true,
-    authorName: 'Me',
-    levelBadge: 'Level 9 Member',
-    timestamp: '10:45 AM',
-    text: 'Thank you, Elias! The integration of the simulator in Section 3 looks fantastic. I think the students will really benefit from the visual feedback loops.',
+  ZONE: {
+    label: 'Zone',
+    colour: 'text-amber-700',
+    bg: 'bg-amber-50 border-amber-200',
+    icon: <MapPin className="w-5 h-5" />,
   },
-  {
-    id: '4',
-    isOwnMessage: false,
-    authorName: 'Prof. Julian Vance',
-    levelBadge: 'Dean of Sciences',
-    timestamp: '11:02 AM',
-    text: "Agreed. Let's schedule a brief sync tomorrow to discuss the pilot implementation.",
+  REGION: {
+    label: 'Region',
+    colour: 'text-purple-700',
+    bg: 'bg-purple-50 border-purple-200',
+    icon: <Globe className="w-5 h-5" />,
   },
-];
+  NATIONAL: {
+    label: 'National',
+    colour: 'text-rose-700',
+    bg: 'bg-rose-50 border-rose-200',
+    icon: <Globe className="w-5 h-5" />,
+  },
+};
 
-export default function GroupChatPage() {
-  const [activeId, setActiveId] = useState('1');
-  const [messages, setMessages] = useState(MOCK_MESSAGES);
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
 
-  const handleSend = (text: string) => {
-    setMessages((currentMessages) => [
-      ...currentMessages,
-      {
-        id: `message-${currentMessages.length + 1}`,
-        isOwnMessage: true,
-        authorName: 'Me',
-        levelBadge: 'Level 9 Member',
-        timestamp: 'Just now',
-        text,
-      },
-    ]);
-  };
+export default function ChatLandingPage() {
+  const router = useRouter();
+  const { user, token } = useAuth();
+  const [groups, setGroups] = useState<ChatGroup[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    if (!token) { setIsLoading(false); return; }
+    setIsLoading(true);
+    setError(null);
+    try {
+      const data = await fetchAccessibleChatGroups();
+      setGroups(data);
+    } catch (e: any) {
+      setError(e?.response?.data?.message ?? 'Failed to load chat groups. Please retry.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [token]);  // token, not user?.id — axios interceptor carries the auth
+
+  useEffect(() => { load(); }, [load]);
+
+  if (isLoading) {
+    return (
+      <div className="h-screen overflow-hidden bg-slate-50">
+        <DashboardSidebar />
+        <Topbar />
+        <main className="mt-16 lg:ml-64 h-[calc(100vh-4rem)] flex items-center justify-center">
+          <div className="text-center">
+            <Loader className="h-8 w-8 animate-spin mx-auto text-[#043658] mb-3" />
+            <p className="text-slate-600 text-sm">Loading your communities…</p>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
-    <div className="h-screen bg-slate-50 flex overflow-hidden lg:ml-64">
+    <div className="h-screen overflow-hidden bg-slate-50">
       <DashboardSidebar />
+      <Topbar />
 
-      <ConversationList activeId={activeId} onSelect={setActiveId} />
-
-      <div className="flex-1 flex flex-col bg-white">
-        <ChatThreadHeader
-          groupName="National STEM Educators Hub"
-          memberCount="2.4k"
-          activeNowCount="142"
-        />
-
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          <p className="text-center text-xs font-semibold text-slate-400 uppercase tracking-wide">
-            Monday, October 23
-          </p>
-            {messages.map((message) => (
-            <ChatMessageBubble key={message.id} message={message} />
-          ))}
+      <main className="mt-16 lg:ml-64 h-[calc(100vh-4rem)] overflow-y-auto">
+        {/* Header */}
+        <div className="sticky top-0 bg-white border-b border-slate-100 px-6 py-3 z-10">
+          <div className="flex items-center justify-between">
+            <Link
+              href="/community"
+              className="inline-flex items-center gap-1 text-xs font-medium text-[#043658] hover:opacity-70"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Back to Communities
+            </Link>
+            <button
+              onClick={load}
+              className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-[#043658]"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              Refresh
+            </button>
+          </div>
+          <div className="mt-2">
+            <h1 className="text-xl font-semibold text-slate-900">Community Chat</h1>
+            <p className="text-sm text-slate-500">
+              Your accessible chat groups based on your level and location
+            </p>
+          </div>
         </div>
 
-        <ChatMessageInput
-          groupName="National STEM Educators Hub"
-          onSend={handleSend}
-        />
-      </div>
+        <div className="px-6 py-6">
+          {error ? (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
+              <p className="text-red-700 mb-3">{error}</p>
+              <button
+                onClick={load}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
+              >
+                Retry
+              </button>
+            </div>
+          ) : groups.length === 0 ? (
+            <div className="text-center py-16">
+              <MessageCircle className="h-16 w-16 text-slate-300 mx-auto mb-4" />
+              <h2 className="text-lg font-semibold text-slate-900 mb-2">
+                No Communities Found
+              </h2>
+              <p className="text-slate-500 text-sm max-w-sm mx-auto mb-6">
+                Your community chat groups are being set up. Make sure your school,
+                woreda, zone, and region are correctly set in your profile, then retry.
+              </p>
+              <button
+                onClick={load}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-[#043658] text-white rounded-lg hover:bg-[#043658]/90 text-sm"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Retry
+              </button>
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {groups.map((group) => {
+                const cfg = TYPE_CONFIG[group.type] ?? TYPE_CONFIG['NATIONAL'];
+                return (
+                  <button
+                    key={group.id}
+                    onClick={() => router.push(`/community/chat/${group.id}`)}
+                    className={`text-left bg-white rounded-xl border p-5 hover:shadow-md transition-all group ${cfg.bg}`}
+                  >
+                    {/* Top row: icon + name + unread badge */}
+                    <div className="flex items-start gap-3">
+                      <div className={`mt-0.5 ${cfg.colour}`}>{cfg.icon}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <h3 className="font-semibold text-slate-900 truncate text-sm group-hover:text-[#043658]">
+                            {group.name}
+                          </h3>
+                          {group.unreadCount > 0 && (
+                            <span className="flex-shrink-0 bg-[#043658] text-white text-xs font-bold rounded-full px-2 py-0.5 min-w-[1.25rem] text-center">
+                              {group.unreadCount > 99 ? '99+' : group.unreadCount}
+                            </span>
+                          )}
+                        </div>
+                        <p className={`text-xs font-medium mt-0.5 ${cfg.colour}`}>
+                          {cfg.label} Community
+                        </p>
+                      </div>
+                    </div>
 
-      <GroupInfoPanel
-        initials="NS"
-        name="National STEM Educators Hub"
-        foundedLabel="Founded September 2023"
-        about="A collaborative hub for national-level educators focused on advancing STEM pedagogy through research, shared resources, and peer-to-peer mentorship."
-        mediaCount={12}
-        activeMembers={[
-          { id: '1', name: 'Dr. Elias Thorne', roleLabel: 'Level 10 Educator' },
-          { id: '2', name: 'Prof. Julian Vance', roleLabel: 'Dean of Sciences' },
-        ]}
-      />
+                    {/* Last message */}
+                    <div className="mt-3 min-h-[2.5rem]">
+                      {group.lastMessage ? (
+                        <div>
+                          <p className="text-xs text-slate-600 line-clamp-2">
+                            <span className="font-medium">{group.lastMessage.senderName}:</span>{' '}
+                            {group.lastMessage.content}
+                          </p>
+                          <p className="text-xs text-slate-400 mt-1">
+                            {timeAgo(group.lastMessage.createdAt)}
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-slate-400 italic">No messages yet</p>
+                      )}
+                    </div>
+
+                    {/* Footer */}
+                    <div className="mt-3 pt-3 border-t border-slate-200 flex items-center justify-between">
+                      <div className="flex items-center gap-1 text-xs text-slate-500">
+                        <MessageCircle className="w-3.5 h-3.5" />
+                        <span>Open Chat</span>
+                      </div>
+                      <span className="text-xs text-slate-400 group-hover:text-[#043658] transition-colors">
+                        →
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </main>
     </div>
   );
 }

@@ -184,7 +184,7 @@ export function CommunityTypeRail({ currentType, community }: Props) {
         <Heading>Quick Actions</Heading>
         <div className="space-y-0.5">
           {[
-            { href: '/community/create', icon: PenSquare, label: 'Create Post', accent: true },
+            { href: '/posts', icon: PenSquare, label: 'Create Post', accent: true },
             { href: '/bookmarks', icon: Bookmark, label: 'My Bookmarks', accent: false },
             { href: '/profile/posts', icon: FileText, label: 'My Posts', accent: false },
             { href: '/community/my-communities', icon: Users, label: 'My Communities', accent: false },

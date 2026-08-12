@@ -22,7 +22,7 @@ export function CommunityPostComposer() {
         <Avatar name={name} profileImage={profileImage} size="sm" className="shrink-0" />
         <button
           type="button"
-          onClick={() => router.push('/community/create')}
+          onClick={() => router.push('/posts')}
           className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-left text-sm text-slate-400 transition-colors hover:border-[#043658]/30 hover:bg-white focus:outline-none focus:ring-2 focus:ring-[#043658]/20"
         >
           Share something with your community…
@@ -37,7 +37,7 @@ export function CommunityPostComposer() {
           <button
             key={label}
             type="button"
-            onClick={() => router.push('/community/create')}
+            onClick={() => router.push('/posts')}
             className="flex flex-1 items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-50 hover:text-[#043658] focus:outline-none focus:ring-2 focus:ring-[#043658]/20"
           >
             <Icon className="h-3.5 w-3.5 shrink-0" />

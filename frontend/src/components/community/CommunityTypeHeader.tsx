@@ -52,17 +52,10 @@ export function CommunityTypeHeader({ community, type }: Props) {
   const teacherLevel = profile?.level ?? user?.level ?? 'LEVEL_1';
   const levelNum = LEVEL_ORDER[teacherLevel] ?? 1;
 
-  // Woreda-level teachers (Level 2+) viewing the School community page
-  // should see the list of schools in their Woreda, not a non-existent chat.
-  const chatHref =
-    type.toUpperCase() === 'SCHOOL' && levelNum >= 2
-      ? '/community/type/woreda/schools'
-      : `/community/type/${type.toLowerCase()}/chat`;
-
-  const chatLabel =
-    type.toUpperCase() === 'SCHOOL' && levelNum >= 2
-      ? 'School Chats'
-      : 'Community Chat';
+  // Route logic for Community Chat button:
+  // Every type now goes to /community/type/:type/chat which is the real chat room.
+  const chatHref = `/community/type/${type.toLowerCase()}/chat`;
+  const chatLabel = 'Community Chat';
 
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
@@ -104,7 +97,7 @@ export function CommunityTypeHeader({ community, type }: Props) {
           <span className="sm:hidden">Chat</span>
         </Link>
         <Link
-          href="/community/create"
+          href="/posts"
           className="flex items-center gap-1.5 rounded-lg bg-[#043658] px-3 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[#043658]/30"
         >
           <PenSquare className="h-3.5 w-3.5" />

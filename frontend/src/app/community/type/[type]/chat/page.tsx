@@ -1,336 +1,551 @@
 'use client';
 
-import { use, useMemo, useState } from 'react';
+/**
+ * /community/type/[type]/chat
+ *
+ * Resolves the teacher's actual community for this type (school / woreda /
+ * zone / region / national) and renders the real persistent chat room.
+ *
+ * It uses:
+ *  - GET /api/community/type/:type  → community.id
+ *  - GET /api/community/:id/chat/messages?page=1&limit=50  → history
+ *  - GET /api/community/:id/chat/info  → metadata
+ *  - Socket.IO /chat namespace  → real-time
+ *
+ * No fake messages. No hardcoded data. No useState-only storage.
+ */
+
+import { use, useEffect, useRef, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
 import {
-  ArrowLeft, BookOpen, Atom, FlaskConical, Globe, History,
-  Laptop, LineChart, MessageCircle, Search, Shield, Users,
-  Dumbbell, Calculator, BookMarked, Languages, Star,
+  ChevronLeft,
+  Send,
+  Loader,
+  Wifi,
+  WifiOff,
+  MoreVertical,
+  AlertCircle,
+  RefreshCw,
+  Users,
 } from 'lucide-react';
 import { DashboardSidebar } from '@/components/layout/Sidebar';
 import Topbar from '@/components/layout/Topbar';
-import { useProfile } from '@/hooks/useProfile';
 import { useAuth } from '@/context/AuthContext';
+import { getCommunitiesByType } from '@/services/community';
+import {
+  chatSocket,
+  fetchChatMessages,
+  type ChatMessage,
+} from '@/services/chat';
 
-interface PageProps {
-  params: Promise<{ type: string }>;
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+const TYPE_LABEL: Record<string, string> = {
+  school: 'School',
+  woreda: 'Woreda',
+  zone: 'Zone',
+  region: 'Regional',
+  national: 'National',
+};
+
+const TYPE_COLOUR: Record<string, string> = {
+  school:   'bg-blue-600',
+  woreda:   'bg-emerald-600',
+  zone:     'bg-amber-600',
+  region:   'bg-purple-600',
+  national: 'bg-rose-600',
+};
+
+const LEVEL_SHORT: Record<string, string> = {
+  LEVEL_1: 'L1', LEVEL_2: 'L2', LEVEL_3: 'L3', LEVEL_4: 'L4', LEVEL_5: 'L5',
+};
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function fmtTime(iso: string) {
+  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-// ── Dept config ────────────────────────────────────────
-interface DeptConfig {
-  slug: string;
-  name: string;
-  shortName: string;
-  description: string;
-  icon: React.ElementType;
-  color: string;
+function fmtDateLabel(iso: string) {
+  const d = new Date(iso);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (d.toDateString() === today.toDateString())     return 'Today';
+  if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  return d.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
 }
 
-const DEPARTMENTS: DeptConfig[] = [
-  { slug: 'mathematics',   name: 'Mathematics',          shortName: 'Math',    description: 'Lesson plans, activities, assessments and teaching strategies.',   icon: Calculator,   color: 'bg-blue-50 text-blue-600'   },
-  { slug: 'english',       name: 'English',               shortName: 'English', description: 'Language teaching, reading, writing resources and assessments.',    icon: BookOpen,     color: 'bg-emerald-50 text-emerald-600' },
-  { slug: 'amharic',       name: 'Amharic',               shortName: 'አማ',     description: 'Amharic language, literature, reading and writing education.',       icon: Languages,    color: 'bg-orange-50 text-orange-600'  },
-  { slug: 'physics',       name: 'Physics',               shortName: 'Physics', description: 'Physics concepts, experiments, resources and classroom activities.', icon: Atom,         color: 'bg-purple-50 text-purple-600'  },
-  { slug: 'chemistry',     name: 'Chemistry',             shortName: 'Chem',    description: 'Chemistry experiments, lab activities and teaching strategies.',     icon: FlaskConical, color: 'bg-pink-50 text-pink-600'    },
-  { slug: 'biology',       name: 'Biology',               shortName: 'Bio',     description: 'Biology lessons, experiments, resources and classroom activities.',  icon: BookMarked,   color: 'bg-teal-50 text-teal-600'    },
-  { slug: 'geography',     name: 'Geography',             shortName: 'Geo',     description: 'Geography lessons, maps, field activities and resources.',           icon: Globe,        color: 'bg-sky-50 text-sky-600'      },
-  { slug: 'history',       name: 'History',               shortName: 'History', description: 'History teaching resources, discussions and classroom activities.',   icon: History,      color: 'bg-amber-50 text-amber-700'  },
-  { slug: 'civics',        name: 'Civics',                shortName: 'Civics',  description: 'Civics education, citizenship, discussions and teaching materials.',  icon: Shield,       color: 'bg-indigo-50 text-indigo-600' },
-  { slug: 'ict',           name: 'ICT / Computer Science',shortName: 'ICT',     description: 'Technology, programming, digital learning and ICT resources.',        icon: Laptop,       color: 'bg-violet-50 text-violet-600' },
-  { slug: 'business',      name: 'Business',              shortName: 'Bus.',    description: 'Business education, entrepreneurship and classroom activities.',      icon: LineChart,    color: 'bg-yellow-50 text-yellow-700'},
-  { slug: 'economics',     name: 'Economics',             shortName: 'Econ',    description: 'Economics lessons, teaching strategies, examples and assessments.',   icon: LineChart,    color: 'bg-lime-50 text-lime-700'    },
-  { slug: 'pe',            name: 'Physical Education',    shortName: 'P.E.',    description: 'Physical education activities, sports resources and strategies.',     icon: Dumbbell,     color: 'bg-red-50 text-red-600'      },
-  { slug: 'general',       name: 'General / Primary',     shortName: 'General', description: 'Connect with teachers across general and primary education.',         icon: Users,        color: 'bg-slate-100 text-slate-600' },
-];
+function needsDateSep(prev: ChatMessage | undefined, curr: ChatMessage) {
+  if (!prev) return true;
+  return new Date(prev.createdAt).toDateString() !== new Date(curr.createdAt).toDateString();
+}
 
-// Normalise subject string to a dept slug for matching
-function subjectToSlug(subject?: string | null): string | null {
-  if (!subject) return null;
-  const s = subject.toLowerCase().trim();
-  for (const d of DEPARTMENTS) {
-    if (s.includes(d.slug) || d.slug.includes(s) || s.includes(d.name.toLowerCase())) {
-      return d.slug;
-    }
+// ─── Avatar ───────────────────────────────────────────────────────────────────
+
+function Avatar({ name, image }: { name: string; image?: string | null }) {
+  const initials = name.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase();
+  if (image) {
+    return (
+      <img
+        src={image}
+        alt={name}
+        className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+      />
+    );
   }
-  return null;
-}
-
-type FilterKey = 'all' | 'mine' | 'active';
-
-// ── Dept card ──────────────────────────────────────────
-function DeptCard({
-  dept, isMine, type, teacherCount,
-}: {
-  dept: DeptConfig;
-  isMine: boolean;
-  type: string;
-  teacherCount: number;
-}) {
-  const router = useRouter();
-  const Icon = dept.icon;
-
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.2 }}
-      onClick={() => router.push(`/community/type/${type}/chat/${dept.slug}`)}
-      className={`group relative flex cursor-pointer flex-col rounded-xl border bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${
-        isMine
-          ? 'border-[#043658]/30 ring-1 ring-[#043658]/15'
-          : 'border-[#E2E8F0] hover:border-[#043658]/25'
-      }`}
-    >
-      {isMine && (
-        <span className="absolute right-3 top-3 flex items-center gap-1 rounded-full bg-[#FFC107]/20 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[#7a5900]">
-          <Star className="h-2.5 w-2.5" /> My Dept
-        </span>
-      )}
-
-      <div className="flex items-start gap-3">
-        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${dept.color}`}>
-          <Icon className="h-5 w-5" />
-        </div>
-        <div className="min-w-0 flex-1 pr-12">
-          <p className="truncate text-sm font-bold text-[#043658]">{dept.name}</p>
-          <p className="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-slate-500">{dept.description}</p>
-        </div>
-      </div>
-
-      <div className="mt-3 flex items-center justify-between">
-        <div className="flex items-center gap-3 text-[10px] text-slate-400">
-          <span className="flex items-center gap-1">
-            <Users className="h-3 w-3" />
-            {teacherCount} teachers
-          </span>
-          <span className="flex items-center gap-1">
-            <MessageCircle className="h-3 w-3" />
-            Chat
-          </span>
-        </div>
-        <span className="rounded-lg bg-[#043658] px-2.5 py-1 text-[10px] font-semibold text-white opacity-0 transition-opacity group-hover:opacity-100">
-          Open →
-        </span>
-      </div>
-    </motion.div>
+    <div className="w-8 h-8 rounded-full bg-[#043658] text-white text-xs font-semibold flex items-center justify-center flex-shrink-0">
+      {initials}
+    </div>
   );
 }
 
-// ── Page ───────────────────────────────────────────────
-export default function DepartmentSelectPage({ params }: PageProps) {
+// ─── Bubble ───────────────────────────────────────────────────────────────────
+
+function Bubble({ msg, isOwn }: { msg: ChatMessage; isOwn: boolean }) {
+  return (
+    <div className={`flex gap-2 ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}>
+      {!isOwn && <Avatar name={msg.senderName} image={msg.senderProfileImage} />}
+      <div className={`max-w-[70%] flex flex-col ${isOwn ? 'items-end' : 'items-start'}`}>
+        {!isOwn && (
+          <div className="flex items-center gap-1.5 mb-0.5">
+            <span className="text-xs font-semibold text-slate-700">{msg.senderName}</span>
+            <span className="text-[10px] text-slate-400 bg-slate-100 px-1 rounded">
+              {LEVEL_SHORT[msg.senderLevel] ?? msg.senderLevel}
+            </span>
+          </div>
+        )}
+        <div
+          className={`px-3.5 py-2 rounded-2xl text-sm leading-relaxed break-words ${
+            isOwn
+              ? 'bg-[#043658] text-white rounded-tr-sm'
+              : 'bg-white border border-slate-200 text-slate-800 rounded-tl-sm'
+          }`}
+        >
+          {msg.content}
+          {msg.editedAt && (
+            <span className={`ml-1 text-[10px] ${isOwn ? 'text-white/60' : 'text-slate-400'}`}>
+              (edited)
+            </span>
+          )}
+        </div>
+        <span className="text-[10px] text-slate-400 mt-0.5">{fmtTime(msg.createdAt)}</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+interface Props { params: Promise<{ type: string }> }
+
+export default function TypeChatPage({ params }: Props) {
   const { type } = use(params);
-  const { user } = useAuth();
-  const { data: profile } = useProfile();
-  const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<FilterKey>('all');
+  const { user, token } = useAuth();
 
-  const teacherSubject = profile?.subject ?? null;
-  const mySlug = subjectToSlug(teacherSubject);
+  // Community resolution
+  const [communityId, setCommunityId]   = useState<string | null>(null);
+  const [communityName, setCommunityName] = useState('');
+  const [resolving, setResolving]       = useState(true);
+  const [resolveError, setResolveError] = useState<string | null>(null);
+  const [onlineCount, setOnlineCount]   = useState<number | null>(null);
 
-  const communityLabel: Record<string, string> = {
-    school: 'School', woreda: 'Woreda', zone: 'Zone',
-    region: 'Regional', national: 'National',
-  };
+  // Messages
+  const [messages, setMessages]         = useState<ChatMessage[]>([]);
+  const [loadingMsgs, setLoadingMsgs]   = useState(false);
+  const [total, setTotal]               = useState(0);
+  const [page, setPage]                 = useState(1);
+  const [loadingMore, setLoadingMore]   = useState(false);
 
-  // Simple deterministic teacher count per dept (real data would come from API)
-  function teacherCount(slug: string): number {
-    const seed = slug.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
-    return 12 + (seed % 40);
+  // Input
+  const [input, setInput]   = useState('');
+  const [sending, setSending] = useState(false);
+  const [connected, setConnected] = useState(false);
+  const [joinError, setJoinError] = useState<string | null>(null);
+  const [showSidebar, setShowSidebar] = useState(false);
+
+  const bottomRef   = useRef<HTMLDivElement>(null);
+  const inputRef    = useRef<HTMLTextAreaElement>(null);
+  const messagesEl  = useRef<HTMLDivElement>(null);
+  const seenIds     = useRef(new Set<string>());
+
+  const typeLabel   = TYPE_LABEL[type] ?? type;
+  const typeColour  = TYPE_COLOUR[type] ?? 'bg-[#043658]';
+
+  const scrollBottom = useCallback((smooth = false) => {
+    bottomRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'instant' });
+  }, []);
+
+  // ── Step 1: resolve communityId from type ─────────────────────────────────
+  // We depend on `token` (not user.id) because the axios interceptor attaches
+  // the token to every request — it is set before `user` state is populated.
+  // Guarding on user?.id caused an infinite spinner: resolve() returned early
+  // on the first render (user=null), set resolving=false was skipped, and the
+  // effect never re-ran with the real user because the dep didn't change.
+  const resolve = useCallback(async () => {
+    if (!token) return;           // token not ready yet — wait for next render
+    setResolving(true);
+    setResolveError(null);
+    try {
+      const resp = await getCommunitiesByType(type);
+      setCommunityId(resp.community.id);
+      setCommunityName(resp.community.name);
+    } catch (e: any) {
+      setResolveError(
+        e?.response?.data?.message ??
+        `You don't have access to the ${typeLabel} community yet.`,
+      );
+    } finally {
+      setResolving(false);
+    }
+  }, [type, token, typeLabel]);   // re-run when token becomes available
+
+  useEffect(() => { resolve(); }, [resolve]);
+
+  // ── Step 2: load message history via REST once communityId is known ───────
+  useEffect(() => {
+    if (!communityId) return;
+    setLoadingMsgs(true);
+    fetchChatMessages(communityId, 1, 50)
+      .then(({ messages: msgs, total: t }) => {
+        seenIds.current = new Set(msgs.map((m) => m.id));
+        setMessages(msgs);
+        setTotal(t);
+        setPage(1);
+        setTimeout(() => scrollBottom(), 80);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingMsgs(false));
+  }, [communityId, scrollBottom]);
+
+  // Load-older on scroll to top
+  const loadOlder = useCallback(async () => {
+    if (!communityId || loadingMore || messages.length >= total) return;
+    setLoadingMore(true);
+    try {
+      const np = page + 1;
+      const { messages: older } = await fetchChatMessages(communityId, np, 50);
+      const fresh = older.filter((m) => !seenIds.current.has(m.id));
+      fresh.forEach((m) => seenIds.current.add(m.id));
+      setMessages((prev) => [...fresh, ...prev]);
+      setPage(np);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [communityId, loadingMore, messages.length, total, page]);
+
+  const handleScroll = useCallback(() => {
+    const el = messagesEl.current;
+    if (el && el.scrollTop < 80) loadOlder();
+  }, [loadOlder]);
+
+  // ── Step 3: Socket.IO ─────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!communityId || !token || !user?.id) return;
+    let mounted = true;
+
+    const onConn   = () => { if (mounted) { setConnected(true);  chatSocket.joinCommunity(communityId); } };
+    const onDisc   = () => { if (mounted) setConnected(false); };
+    const onJoined = (p: any) => { if (mounted) { setOnlineCount(p.onlineCount ?? null); setJoinError(null); } };
+
+    const onNew = (msg: ChatMessage) => {
+      if (!mounted) return;
+      if (seenIds.current.has(msg.id)) return;
+      seenIds.current.add(msg.id);
+      setMessages((prev) => [...prev, msg]);
+      setTimeout(() => scrollBottom(true), 40);
+    };
+
+    const onUpdated  = (m: ChatMessage) => { if (mounted) setMessages((p) => p.map((x) => x.id === m.id ? m : x)); };
+    const onDeleted  = ({ messageId }: { messageId: string }) => { if (mounted) setMessages((p) => p.filter((x) => x.id !== messageId)); };
+    const onPresence = (d: { communityId: string; onlineCount: number }) => { if (mounted && d.communityId === communityId) setOnlineCount(d.onlineCount); };
+    const onError    = (e: { code?: string; message: string }) => { if (mounted && e.code === 'FORBIDDEN') setJoinError(e.message); };
+
+    chatSocket.on('connected',       onConn);
+    chatSocket.on('disconnected',    onDisc);
+    chatSocket.on('community:joined', onJoined);
+    chatSocket.on('message:new',     onNew);
+    chatSocket.on('message:updated', onUpdated);
+    chatSocket.on('message:deleted', onDeleted);
+    chatSocket.on('presence:update', onPresence);
+    chatSocket.on('error',           onError);
+
+    if (chatSocket.isConnected()) {
+      setConnected(true);
+      chatSocket.joinCommunity(communityId);
+    } else {
+      chatSocket.connect(token).catch(() => {});
+    }
+
+    return () => {
+      mounted = false;
+      chatSocket.leaveCommunity(communityId);
+      chatSocket.off('connected',       onConn);
+      chatSocket.off('disconnected',    onDisc);
+      chatSocket.off('community:joined', onJoined);
+      chatSocket.off('message:new',     onNew);
+      chatSocket.off('message:updated', onUpdated);
+      chatSocket.off('message:deleted', onDeleted);
+      chatSocket.off('presence:update', onPresence);
+      chatSocket.off('error',           onError);
+    };
+  }, [communityId, token, user?.id, scrollBottom]);
+
+  // ── Send ──────────────────────────────────────────────────────────────────
+  const handleSend = useCallback(() => {
+    const content = input.trim();
+    if (!content || !connected || sending || !communityId) return;
+    chatSocket.sendMessage(communityId, content);
+    setInput('');
+    inputRef.current?.focus();
+  }, [input, connected, sending, communityId]);
+
+  const handleKey = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+  }, [handleSend]);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Resolving state
+  if (resolving) {
+    return (
+      <div className="h-screen overflow-hidden bg-slate-50">
+        <DashboardSidebar />
+        <Topbar />
+        <main className="mt-16 lg:ml-64 h-[calc(100vh-4rem)] flex items-center justify-center">
+          <div className="text-center">
+            <Loader className="h-7 w-7 animate-spin mx-auto text-[#043658] mb-3" />
+            <p className="text-sm text-slate-500">Loading {typeLabel} community…</p>
+          </div>
+        </main>
+      </div>
+    );
   }
 
-  const filtered = useMemo(() => {
-    let list = DEPARTMENTS;
-    if (filter === 'mine' && mySlug) {
-      list = list.filter(d => d.slug === mySlug);
-    }
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      list = list.filter(d =>
-        d.name.toLowerCase().includes(q) ||
-        d.description.toLowerCase().includes(q) ||
-        d.slug.includes(q),
-      );
-    }
-    return list;
-  }, [search, filter, mySlug]);
+  // Access error state
+  if (resolveError) {
+    return (
+      <div className="h-screen overflow-hidden bg-slate-50">
+        <DashboardSidebar />
+        <Topbar />
+        <main className="mt-16 lg:ml-64 h-[calc(100vh-4rem)] flex items-center justify-center px-6">
+          <div className="max-w-sm text-center">
+            <AlertCircle className="h-12 w-12 text-slate-300 mx-auto mb-4" />
+            <h2 className="text-base font-semibold text-slate-800 mb-2">
+              Community Unavailable
+            </h2>
+            <p className="text-sm text-slate-500 mb-6">{resolveError}</p>
+            <div className="flex items-center justify-center gap-3">
+              <button
+                onClick={resolve}
+                className="flex items-center gap-1.5 px-4 py-2 bg-[#043658] text-white text-sm rounded-lg hover:opacity-90"
+              >
+                <RefreshCw className="w-3.5 h-3.5" /> Retry
+              </button>
+              <Link
+                href={`/community/type/${type}`}
+                className="px-4 py-2 border border-slate-200 text-slate-700 text-sm rounded-lg hover:bg-slate-50"
+              >
+                Back to Community
+              </Link>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
-  const myDept = mySlug ? DEPARTMENTS.find(d => d.slug === mySlug) : null;
-
+  // ─── Full chat UI ─────────────────────────────────────────────────────────
   return (
-    <div className="h-screen overflow-hidden bg-[#F7FAFC]">
+    <div className="h-screen overflow-hidden bg-slate-50">
       <DashboardSidebar />
       <Topbar />
 
-      <main className="mt-16 lg:ml-64 h-[calc(100vh-4rem)] overflow-y-auto">
-        <div className="mx-auto max-w-5xl px-4 py-5 sm:px-6 lg:px-8">
+      <main className="mt-16 lg:ml-64 h-[calc(100vh-4rem)] flex">
 
-          {/* Back + header */}
-          <div className="mb-5">
+        {/* ── Chat column ── */}
+        <div className="flex flex-col flex-1 min-w-0 bg-white">
+
+          {/* Header */}
+          <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-100 shrink-0">
             <Link
               href={`/community/type/${type}`}
-              className="mb-3 inline-flex items-center gap-1.5 text-xs font-medium text-slate-400 transition-colors hover:text-[#043658]"
+              className="text-slate-400 hover:text-[#043658] transition-colors"
             >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              Back to {communityLabel[type] ?? type} Community
+              <ChevronLeft className="w-5 h-5" />
             </Link>
 
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-[#FFC107]">
-                  {communityLabel[type] ?? type} Community
-                </p>
-                <h1 className="mt-1 text-xl font-bold text-[#043658]">
-                  Department Communities
-                </h1>
-                <p className="mt-0.5 text-sm text-slate-500">
-                  Connect with teachers in your department and collaborate on teaching, resources, and ideas.
-                </p>
+            <div
+              className={`w-9 h-9 rounded-full ${typeColour} text-white font-bold text-sm flex items-center justify-center shrink-0`}
+            >
+              {communityName.slice(0, 2).toUpperCase()}
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <h1 className="text-sm font-semibold text-slate-900 truncate">{communityName}</h1>
+              <div className="flex items-center gap-2 text-xs text-slate-500">
+                <span>{typeLabel} Community</span>
+                {onlineCount !== null && (
+                  <>
+                    <span>·</span>
+                    <span className="flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                      {onlineCount} online
+                    </span>
+                  </>
+                )}
               </div>
-
-              {myDept && (
-                <Link
-                  href={`/community/type/${type}/chat/${myDept.slug}`}
-                  className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-[#043658] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#032d4a] hover:-translate-y-0.5"
-                >
-                  <MessageCircle className="h-4 w-4" />
-                  Open My Department
-                </Link>
-              )}
             </div>
-          </div>
 
-          {/* School communities shortcut (Woreda level only) */}
-          {type === 'woreda' && (
-            <div className="mb-5">
-              <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                School Communities
-              </p>
-              <Link
-                href="/community/type/woreda/schools"
-                className="group flex items-center justify-between rounded-xl border border-[#E2E8F0] bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#043658]/30 hover:shadow-md"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#043658]">
-                    <Users className="h-5 w-5 text-[#FFC107]" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-[#043658]">Schools in My Woreda</p>
-                    <p className="text-xs text-slate-500">Browse and join school communities in your Woreda</p>
-                  </div>
-                </div>
-                <span className="rounded-lg bg-[#043658] px-3 py-1.5 text-xs font-semibold text-white opacity-0 transition-opacity group-hover:opacity-100">
-                  Browse Schools →
-                </span>
-              </Link>
-            </div>
-          )}
-
-          {/* Department communities header */}
-          <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-            Department Communities
-          </p>
-
-          {/* Search + filter */}
-          <div className="mb-4 flex flex-wrap items-center gap-2">
-            <div className="relative flex-1 min-w-[180px]">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Search departments..."
-                className="h-9 w-full rounded-lg border border-[#E2E8F0] bg-white pl-9 pr-3 text-sm text-[#043658] placeholder:text-slate-400 focus:border-[#043658]/40 focus:outline-none focus:ring-2 focus:ring-[#043658]/10"
-              />
-            </div>
-            {(['all', 'mine', 'active'] as FilterKey[]).map(f => (
+            <div className="flex items-center gap-2">
+              {connected
+                ? <Wifi className="w-4 h-4 text-emerald-500" />
+                : <WifiOff className="w-4 h-4 text-slate-300" />
+              }
               <button
-                key={f}
-                type="button"
-                onClick={() => setFilter(f)}
-                disabled={f === 'mine' && !mySlug}
-                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-                  filter === f
-                    ? 'bg-[#043658] text-white font-semibold'
-                    : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                }`}
+                onClick={() => setShowSidebar((v) => !v)}
+                className="text-slate-400 hover:text-[#043658] transition-colors"
               >
-                {f === 'all' ? 'All Departments' : f === 'mine' ? 'My Department' : 'Most Active'}
+                <MoreVertical className="w-5 h-5" />
               </button>
-            ))}
+            </div>
           </div>
 
-          {/* My department highlight */}
-          {myDept && filter !== 'mine' && !search && (
-            <div className="mb-5">
-              <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                Your Department
+          {/* Access / join error banner */}
+          {joinError && (
+            <div className="flex items-center gap-2 bg-red-50 border-b border-red-200 px-4 py-2 text-xs text-red-700">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+              {joinError}
+            </div>
+          )}
+
+          {/* Messages */}
+          <div
+            ref={messagesEl}
+            onScroll={handleScroll}
+            className="flex-1 overflow-y-auto px-4 py-4 space-y-3 bg-slate-50/40"
+          >
+            {loadingMore && (
+              <div className="flex justify-center py-2">
+                <Loader className="w-4 h-4 animate-spin text-slate-300" />
+              </div>
+            )}
+
+            {loadingMsgs ? (
+              <div className="flex items-center justify-center h-full">
+                <Loader className="w-6 h-6 animate-spin text-slate-300" />
+              </div>
+            ) : messages.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-center gap-2">
+                <div className="text-3xl">💬</div>
+                <p className="text-sm font-medium text-slate-600">No messages yet</p>
+                <p className="text-xs text-slate-400">Start the conversation in {communityName}</p>
+              </div>
+            ) : (
+              messages.map((msg, i) => (
+                <div key={msg.id}>
+                  {needsDateSep(messages[i - 1], msg) && (
+                    <div className="flex items-center gap-3 py-2">
+                      <div className="flex-1 h-px bg-slate-200" />
+                      <span className="text-[10px] text-slate-400 font-medium px-2">
+                        {fmtDateLabel(msg.createdAt)}
+                      </span>
+                      <div className="flex-1 h-px bg-slate-200" />
+                    </div>
+                  )}
+                  <Bubble msg={msg} isOwn={msg.senderId === user?.id} />
+                </div>
+              ))
+            )}
+            <div ref={bottomRef} />
+          </div>
+
+          {/* Input */}
+          <div className="px-4 py-3 border-t border-slate-100 bg-white shrink-0">
+            {!connected && (
+              <p className="text-xs text-amber-600 text-center mb-1.5 flex items-center justify-center gap-1">
+                <WifiOff className="w-3 h-3" /> Reconnecting to chat…
               </p>
-              <DeptCard
-                dept={myDept}
-                isMine
-                type={type}
-                teacherCount={teacherCount(myDept.slug)}
+            )}
+            <div className="flex items-end gap-2">
+              <textarea
+                ref={inputRef}
+                value={input}
+                rows={1}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKey}
+                disabled={!connected}
+                placeholder={connected ? `Message ${communityName}… (Enter to send)` : 'Connecting…'}
+                className="flex-1 resize-none rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#043658]/30 focus:border-[#043658] transition disabled:opacity-50 max-h-32 overflow-y-auto"
               />
+              <button
+                onClick={handleSend}
+                disabled={!input.trim() || !connected || sending}
+                className="w-10 h-10 rounded-xl bg-[#043658] text-white flex items-center justify-center hover:bg-[#043658]/90 disabled:opacity-40 disabled:cursor-not-allowed transition shrink-0"
+              >
+                {sending ? <Loader className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              </button>
             </div>
-          )}
-
-          {/* All departments grid */}
-          {!(filter === 'mine' && mySlug && !search) && (
-            <>
-              {myDept && filter !== 'mine' && !search && (
-                <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                  Other Departments
-                </p>
-              )}
-
-              {filtered.length === 0 ? (
-                <div className="flex flex-col items-center rounded-xl border border-dashed border-slate-200 bg-white py-16 text-center">
-                  <MessageCircle className="h-8 w-8 text-slate-300" />
-                  <p className="mt-3 font-semibold text-[#043658]">
-                    {search ? 'No departments match your search.' : 'No departments available yet.'}
-                  </p>
-                  <p className="mt-1 max-w-xs text-sm text-slate-400">
-                    {search
-                      ? 'Try a different keyword.'
-                      : 'Your Woreda administrator will make department communities available when they are ready.'}
-                  </p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {filtered
-                    .filter(d => !myDept || d.slug !== myDept.slug || filter === 'mine' || !!search)
-                    .map(dept => (
-                      <DeptCard
-                        key={dept.slug}
-                        dept={dept}
-                        isMine={dept.slug === mySlug}
-                        type={type}
-                        teacherCount={teacherCount(dept.slug)}
-                      />
-                    ))}
-                </div>
-              )}
-            </>
-          )}
-
-          {/* Mine-only filtered view */}
-          {filter === 'mine' && mySlug && !search && (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {filtered.map(dept => (
-                <DeptCard
-                  key={dept.slug}
-                  dept={dept}
-                  isMine
-                  type={type}
-                  teacherCount={teacherCount(dept.slug)}
-                />
-              ))}
-            </div>
-          )}
-
+            <p className="text-[10px] text-slate-400 mt-1 ml-1">Shift + Enter for new line</p>
+          </div>
         </div>
+
+        {/* ── Right sidebar ── */}
+        {showSidebar && communityId && (
+          <aside className="w-68 shrink-0 border-l border-slate-100 bg-white overflow-y-auto hidden lg:block">
+            <div className="p-5">
+              <div
+                className={`w-14 h-14 rounded-full ${typeColour} text-white font-bold text-lg flex items-center justify-center mx-auto mb-3`}
+              >
+                {communityName.slice(0, 2).toUpperCase()}
+              </div>
+              <h2 className="text-sm font-bold text-slate-900 text-center">{communityName}</h2>
+              <p className="text-xs text-slate-500 text-center mt-0.5">{typeLabel} Community</p>
+
+              {onlineCount !== null && (
+                <div className="mt-4 flex items-center gap-2 text-xs text-slate-600 justify-center">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                  {onlineCount} member{onlineCount !== 1 ? 's' : ''} online
+                </div>
+              )}
+
+              <div className="mt-5 space-y-3 text-xs text-slate-600">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">
+                    Stats
+                  </p>
+                  <p>{messages.length} messages loaded</p>
+                  {total > messages.length && (
+                    <button
+                      onClick={loadOlder}
+                      className="mt-1 text-[#043658] hover:underline"
+                    >
+                      Load {total - messages.length} older messages
+                    </button>
+                  )}
+                </div>
+
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">
+                    Navigation
+                  </p>
+                  <Link
+                    href={`/community/type/${type}`}
+                    className="block text-[#043658] hover:underline mb-1"
+                  >
+                    ← {typeLabel} Community Feed
+                  </Link>
+                  <Link
+                    href="/community/chat"
+                    className="block text-[#043658] hover:underline"
+                  >
+                    All Chat Groups
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </aside>
+        )}
       </main>
     </div>
   );

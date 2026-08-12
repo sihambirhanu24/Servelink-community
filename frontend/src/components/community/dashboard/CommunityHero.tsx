@@ -53,14 +53,10 @@ export default function CommunityHero({ community }: CommunityHeroProps) {
             <p className="mt-5 max-w-2xl text-base leading-7 text-white/75 sm:text-lg">{description}</p>
           </div>
 
-          <Link
-            href="/community/create"
-            className="group inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-[#FFC107] px-6 py-4 text-sm font-bold text-[#043658] shadow-[0_12px_24px_-12px_rgba(255,193,7,0.8)] transition duration-200 hover:-translate-y-1 hover:bg-[#ffd04a]"
-          >
-            <Plus className="h-5 w-5" />
-            Create Post
-            <ArrowUpRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-          </Link>
+          {/* <button type="button" onClick={() => setComposerOpen(o => !o)}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-[#043658] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#032d4a] hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98]">
+              {composerOpen ? <><X className="h-4 w-4"/> Cancel</> : <><Plus className="h-4 w-4"/> Create Post</>}
+            </button> */}
         </div>
       </div>
 
