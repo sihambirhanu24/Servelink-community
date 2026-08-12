@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, RefreshCw } from 'lucide-react';
@@ -19,6 +20,13 @@ export default function DashboardPage() {
   const queryClient = useQueryClient();
   const { data, isLoading, isError, refetch } = useDashboard();
 
+  // Redirect to admin if not a teacher — use useEffect to avoid render-time navigation
+  useEffect(() => {
+    if (data && !data.teacher) {
+      router.replace('/admin');
+    }
+  }, [data, router]);
+
   if (isLoading) {
     return <DashboardSkeleton />;
   }
@@ -34,24 +42,30 @@ export default function DashboardPage() {
             Couldn&apos;t load your dashboard.
           </p>
           <p className="mt-1 text-xs text-slate-400">
-            Check your connection and try again.
+            Make sure you&apos;re logged in, then try again.
           </p>
         </div>
-        <button
-          onClick={() => refetch()}
-          className="flex items-center gap-2 rounded-lg bg-[#043658] px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[#043658]/30"
-        >
-          <RefreshCw className="h-4 w-4" />
-          Try Again
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => refetch()}
+            className="flex items-center gap-2 rounded-lg bg-[#043658] px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[#043658]/30"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Try Again
+          </button>
+          <button
+            onClick={() => router.push('/auth/login')}
+            className="flex items-center gap-2 rounded-lg bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition-opacity hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-slate-300"
+          >
+            Log In
+          </button>
+        </div>
       </div>
     );
   }
 
   if (!data.teacher) {
-    if (typeof window !== 'undefined') {
-      router.replace('/admin');
-    }
+    // The useEffect above will handle the redirect, just return null while it processes
     return null;
   }
 

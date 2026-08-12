@@ -15,8 +15,20 @@ const nextConfig: NextConfig = {
         port: "4000",
         pathname: "/uploads/**",
       },
+      {
+        protocol: "http",
+        hostname: "localhost",
+        port: "5000",
+        pathname: "/uploads/**",
+      },
     ],
+  },
+  // Suppress middleware deprecation warning - middleware is still the correct approach
+  // for protecting admin routes with cookie-based auth
+  experimental: {
+    middlewareWarning: false,
   },
 };
 
 export default nextConfig;
+
