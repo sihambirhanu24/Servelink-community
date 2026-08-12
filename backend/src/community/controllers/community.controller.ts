@@ -38,15 +38,14 @@ export class CommunityController {
 
 
   @ApiBearerAuth()
-@ApiOperation({
-  summary: 'Create a new community post',
-})
-@ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
-@Get()
-getCommunities(@CurrentUser() user: any) {
-  return this.communityService.getCommunities(user.sub);
-}
+  @ApiOperation({
+    summary: 'Get all communities for teacher',
+  })
+  @UseGuards(JwtAuthGuard)
+  @Get()
+  getCommunities(@CurrentUser() user: any) {
+    return this.communityService.getCommunities(user.sub);
+  }
 @ApiOperation({
   summary: "Get all categories",
 })
@@ -289,17 +288,7 @@ getAccessibleCommunities(@CurrentUser() user: any) {
   return this.communityService.getAccessibleCommunities(user.sub);
 }
 
-@ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
-@Get(':id')
-getCommunity(
-  @Param('id') id: string,
-  @CurrentUser() user: any,
-) {
-  return this.communityService.getAccessibleCommunityById(id, user.sub);
-}
-
-// ─── Community-type routes (level-gated) ─────────────────────────────────────
+// ─── Community-type routes (level-gated) - must come BEFORE ':id' ─────────────────────────────────────
 
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
@@ -323,6 +312,7 @@ getPostsByType(
   @Query("page") page = "1",
   @Query("limit") limit = "20",
 ) {
+  console.log(`[getPostsByType] type=${type}, page=${page}, limit=${limit}`);
   return this.communityService.getPostsByType(user.sub, type, {
     search,
     categoryId,
@@ -340,6 +330,17 @@ getMembersByType(
   @CurrentUser() user: any,
 ) {
   return this.communityService.getMembersByType(user.sub, type);
+}
+
+
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
+@Get(':id')
+getCommunity(
+  @Param('id') id: string,
+  @CurrentUser() user: any,
+) {
+  return this.communityService.getAccessibleCommunityById(id, user.sub);
 }
 
 }

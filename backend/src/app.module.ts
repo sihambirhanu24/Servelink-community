@@ -13,6 +13,8 @@ import { ProfileModule } from './profile/profile.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { EngagementModule } from './engagement/engagement.module';
 import { TeacherModule } from "./teacher/teacher.module";
+import { DatabaseService } from './database/database.service';
+import { ChatModule } from './chat/chat.module';
 
 import { MailModule } from "./mail/mail.module";
 import { ConfigModule } from '@nestjs/config'
@@ -50,9 +52,10 @@ import { join } from "path";
   FileModule,
   SharedModule,
   TeacherModule,
+  ChatModule,
 
   MailModule,
-]
-
+],
+providers: [DatabaseService],
 })
 export class AppModule {}

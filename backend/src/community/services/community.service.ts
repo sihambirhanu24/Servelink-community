@@ -496,13 +496,14 @@ export class CommunityService {
   ) {
     const teacher = await this.prisma.teacher.findUnique({
       where: { id: teacherId },
-      select: { level: true },
+      select: { level: true, school: true, woreda: true, zone: true, region: true },
     });
     if (!teacher) throw new NotFoundException('Teacher not found');
 
     const teacherLevelNum = CommunityService.LEVEL_ORDER[teacher.level] ?? 1;
+    const normalizedType = type.toUpperCase();
     const requiredLevel =
-      CommunityService.TYPE_MIN_LEVEL[type.toUpperCase()] ?? 99;
+      CommunityService.TYPE_MIN_LEVEL[normalizedType] ?? 99;
 
     if (teacherLevelNum < requiredLevel) {
       throw new ForbiddenException(
@@ -512,9 +513,38 @@ export class CommunityService {
 
     const skip = (filters.page - 1) * filters.limit;
 
+    // ── Build a geographic community filter so that each type only returns
+    //    posts from the community that actually belongs to this teacher. ────
+    let communityWhere: any = { type: normalizedType as any };
+
+    if (normalizedType === 'SCHOOL' && teacher.school) {
+      communityWhere = {
+        type: 'SCHOOL',
+        OR: [
+          { school: { equals: teacher.school, mode: 'insensitive' } },
+          { name:   { equals: teacher.school, mode: 'insensitive' } },
+        ],
+      };
+    } else if (normalizedType === 'WOREDA' && teacher.woreda) {
+      communityWhere = {
+        type: 'WOREDA',
+        woreda: { equals: teacher.woreda, mode: 'insensitive' },
+      };
+    } else if (normalizedType === 'ZONE' && teacher.zone) {
+      communityWhere = {
+        type: 'ZONE',
+        zone: { equals: teacher.zone, mode: 'insensitive' },
+      };
+    } else if (normalizedType === 'REGION' && teacher.region) {
+      communityWhere = {
+        type: 'REGION',
+        region: { equals: teacher.region, mode: 'insensitive' },
+      };
+    }
+
     const posts = await this.prisma.communityPost.findMany({
       where: {
-        community: { type: type.toUpperCase() as any },
+        community: communityWhere,
         ...(filters.search && {
           OR: [
             { title: { contains: filters.search, mode: 'insensitive' } },
@@ -650,46 +680,53 @@ export class CommunityService {
     const orClauses: any[] = [];
 
     // SCHOOL always accessible (level 1+), scoped to teacher's school
-    if (levelNum >= 1 && teacher.school) {
-      orClauses.push({
-        type: 'SCHOOL',
-        OR: [
-          { school: { equals: teacher.school, mode: 'insensitive' } },
-          { woreda: { equals: teacher.woreda || '_none_', mode: 'insensitive' } },
-        ],
-      });
-    } else if (levelNum >= 1) {
-      orClauses.push({ type: 'SCHOOL' });
+    if (levelNum >= 1) {
+      if (teacher.school) {
+        orClauses.push({
+          type: 'SCHOOL',
+          school: { equals: teacher.school, mode: 'insensitive' },
+        });
+      } else {
+        // If teacher has no school set, show all SCHOOL communities
+        orClauses.push({ type: 'SCHOOL' });
+      }
     }
 
     // WOREDA accessible at level 2+, scoped to teacher's woreda
-    if (levelNum >= 2 && teacher.woreda) {
-      orClauses.push({
-        type: 'WOREDA',
-        woreda: { equals: teacher.woreda, mode: 'insensitive' },
-      });
-    } else if (levelNum >= 2) {
-      orClauses.push({ type: 'WOREDA' });
+    if (levelNum >= 2) {
+      if (teacher.woreda) {
+        orClauses.push({
+          type: 'WOREDA',
+          woreda: { equals: teacher.woreda, mode: 'insensitive' },
+        });
+      } else {
+        // If teacher has no woreda set, show all WOREDA communities
+        orClauses.push({ type: 'WOREDA' });
+      }
     }
 
     // ZONE accessible at level 3+, scoped to teacher's zone
-    if (levelNum >= 3 && teacher.zone) {
-      orClauses.push({
-        type: 'ZONE',
-        zone: { equals: teacher.zone, mode: 'insensitive' },
-      });
-    } else if (levelNum >= 3) {
-      orClauses.push({ type: 'ZONE' });
+    if (levelNum >= 3) {
+      if (teacher.zone) {
+        orClauses.push({
+          type: 'ZONE',
+          zone: { equals: teacher.zone, mode: 'insensitive' },
+        });
+      } else {
+        orClauses.push({ type: 'ZONE' });
+      }
     }
 
     // REGION accessible at level 4+, scoped to teacher's region
-    if (levelNum >= 4 && teacher.region) {
-      orClauses.push({
-        type: 'REGION',
-        region: { equals: teacher.region, mode: 'insensitive' },
-      });
-    } else if (levelNum >= 4) {
-      orClauses.push({ type: 'REGION' });
+    if (levelNum >= 4) {
+      if (teacher.region) {
+        orClauses.push({
+          type: 'REGION',
+          region: { equals: teacher.region, mode: 'insensitive' },
+        });
+      } else {
+        orClauses.push({ type: 'REGION' });
+      }
     }
 
     // NATIONAL accessible at level 5+ — no geographic filter
