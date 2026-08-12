@@ -31,6 +31,11 @@ model Teacher {
   posts              CommunityPost[]
   communityReports   CommunityReport[]
   notifications      Notification[]
+  chatMessages       ChatMessage[]
+  chatReactions      ChatReaction[]
+  chatMessageReads   ChatMessageRead[]
+  pinnedMessages     PinnedMessage[]
+  chatUnreadCounts   ChatUnreadCount[]
 }
 
 model Admin {
@@ -55,6 +60,7 @@ model Community {
   updatedAt        DateTime          @updatedAt
   communityMembers CommunityMember[]
   posts            CommunityPost[]
+  chatRoom         ChatRoom?
 }
 
 model CommunityMember {
@@ -236,4 +242,111 @@ enum NotificationType {
   REPORT
   SYSTEM
   REPLY
+  CHAT_MESSAGE
+}
+
+model ChatRoom {
+  id                String          @id @default(cuid())
+  communityId       String          @unique
+  community         Community       @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  messages          ChatMessage[]
+  pinnedMessages    PinnedMessage[]
+  unreadCounts      ChatUnreadCount[]
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([communityId])
+}
+
+model ChatMessage {
+  id                String              @id @default(cuid())
+  chatRoomId        String
+  chatRoom          ChatRoom            @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  senderId          String
+  sender            Teacher             @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  content           String
+  replyToId         String?
+  replyTo           ChatMessage?        @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies           ChatMessage[]       @relation("MessageReplies")
+  editedAt          DateTime?
+  deletedAt         DateTime?
+  attachments       ChatAttachment[]
+  reactions         ChatReaction[]
+  readBy            ChatMessageRead[]
+  pinnedMessage     PinnedMessage?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@index([chatRoomId])
+  @@index([senderId])
+  @@index([createdAt])
+  @@index([deletedAt])
+}
+
+model ChatAttachment {
+  id          String    @id @default(cuid())
+  messageId   String
+  message     ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  url         String
+  fileName    String
+  fileSize    Int
+  type        AttachmentType
+  createdAt   DateTime  @default(now())
+
+  @@index([messageId])
+}
+
+model ChatReaction {
+  id        String    @id @default(cuid())
+  messageId String
+  message   ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  teacherId String
+  teacher   Teacher   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  reaction  String    // emoji like "👍", "❤️", "😂", etc.
+  createdAt DateTime  @default(now())
+
+  @@unique([messageId, teacherId, reaction])
+  @@index([messageId])
+  @@index([teacherId])
+}
+
+model ChatMessageRead {
+  id        String    @id @default(cuid())
+  messageId String
+  message   ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  teacherId String
+  teacher   Teacher   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  readAt    DateTime  @default(now())
+
+  @@unique([messageId, teacherId])
+  @@index([messageId])
+  @@index([teacherId])
+}
+
+model PinnedMessage {
+  id        String    @id @default(cuid())
+  chatRoomId String
+  chatRoom  ChatRoom  @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  messageId String    @unique
+  message   ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  pinnedBy  String
+  pinnedByTeacher Teacher @relation(fields: [pinnedBy], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+
+  @@index([chatRoomId])
+  @@index([messageId])
+}
+
+model ChatUnreadCount {
+  id        String    @id @default(cuid())
+  chatRoomId String
+  chatRoom  ChatRoom  @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  teacherId String
+  teacher   Teacher   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  count     Int       @default(0)
+  updatedAt DateTime  @updatedAt
+
+  @@unique([chatRoomId, teacherId])
+  @@index([chatRoomId])
+  @@index([teacherId])
 }
