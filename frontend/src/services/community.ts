@@ -24,6 +24,11 @@ export const getCommunities = async () => {
   return data.communities;
 };
 
+export const getAccessibleCommunities = async () => {
+  const { data } = await api.get("/community/accessible");
+  return data.communities;
+};
+
 export const getCategories = async () => {
   const { data } = await api.get("/community/categories");
   return data;

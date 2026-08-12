@@ -51,8 +51,8 @@ export function StatsRow() {
       value: String(joinedCount),
       label: 'Communities',
       sublabel: joinedCount === 1 ? 'Joined' : 'Joined',
-      onClick: () => router.push('/community/my-communities'),
-      clickable: true,
+      // onClick: () => router.push('/community/my-communities'),
+      // clickable: true,
     },
     {
       icon: Heart,

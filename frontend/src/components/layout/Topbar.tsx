@@ -6,7 +6,7 @@ import { useProfile } from "@/hooks/useProfile";
 import { Avatar } from "@/components/common/Avatar";
 import { Menu, Transition } from "@headlessui/react";
 import { Fragment } from "react";
-import { MessageCircle, Search, User, Settings, LogOut, ChevronDown, PenSquare } from "lucide-react";
+import { MessageCircle, Search, User, Settings, LogOut, ChevronDown, Plus } from "lucide-react";
 import Link from "next/link";
 import { NotificationBell } from "@/components/notification/NotificationBell";
 
@@ -37,21 +37,22 @@ export default function Topbar() {
 
       <div className="flex items-center gap-1 sm:gap-2">
         <Link
-          href="/community/create"
+          href="/posts"
           aria-label="Create post"
           title="Create Post"
-          className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#FFC107]/15 text-[#043658] transition-colors hover:bg-[#FFC107]/30 focus:outline-none focus:ring-2 focus:ring-[#FFC107]/50"
+          className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#d6d3d1]/15 text-[#043658] transition-colors hover:bg-[#FFC107]/30 focus:outline-none focus:ring-2 focus:ring-[#FFC107]/50"
         >
-          <PenSquare className="h-4.5 w-4.5" aria-hidden="true" />
+        
+          <Plus className="h-4.5 w-4.5" aria-hidden="true" />
         </Link>
 
-        <Link
+        {/* <Link
           href="/community/chat"
           aria-label="Open messages"
           className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-[#043658] focus:outline-none focus:ring-2 focus:ring-[#043658]/30"
         >
           <MessageCircle className="h-5 w-5" />
-        </Link>
+        </Link> */}
 
         <NotificationBell />
 

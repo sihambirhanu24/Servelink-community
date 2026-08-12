@@ -195,7 +195,6 @@ const SavedCard = memo(function SavedCard({ post, onRemove, isRemoving }: { post
   );
 });
 
-// ── Empty state ────────────────────────────────────────
 function EmptyState({ hasFilters, onClear }: { hasFilters: boolean; onClear: () => void }) {
   return (
     <div className="flex flex-col items-center rounded-xl border border-dashed border-slate-200 bg-white px-8 py-16 text-center">
@@ -401,9 +400,27 @@ export default function BookmarksPage() {
                   {f === "all" ? "All" : f === "images" ? "Images" : f === "pdf" ? "PDF" : f === "docx" ? "DOCX" : "Discussions"}
                 </button>
               ))}
-              <select value={communityFilter} onChange={e => setCommunityFilter(e.target.value)} className="h-8 rounded-lg border border-[#E2E8F0] bg-white px-2 text-xs text-[#043658] focus:outline-none">
+              <select value={communityFilter} onChange={e => setCommunityFilter(e.target.value)} className="h-8 w-36 rounded-lg border border-[#E2E8F0] bg-white px-2 text-xs text-[#043658] focus:outline-none">
                 <option value="all">All Communities</option>
                 {communityOptions.map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+              <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} className="h-8 rounded-lg border border-[#E2E8F0] bg-white px-2 text-xs text-[#043658] focus:outline-none">
+                <option value="all">All Categories</option>
+                <option value="Lesson Plans">Lesson Plans</option>
+                <option value="Teaching Strategies">Teaching Strategies</option>
+                <option value="Learning Activities">Learning Activities</option>
+                <option value="Assessments & Exams">Assessments & Exams</option>
+                <option value="Teaching Resources">Teaching Resources</option>
+                <option value="Curriculum & Syllabus">Curriculum & Syllabus</option>
+                <option value="Classroom Management">Classroom Management</option>
+                <option value="Educational Technology">Educational Technology</option>
+                <option value="Student Support">Student Support</option>
+                <option value="Professional Development">Professional Development</option>
+                <option value="STEM & Innovation">STEM & Innovation</option>
+                <option value="Best Practices">Best Practices</option>
+                <option value="Discussion & Questions">Discussion & Questions</option>
+                <option value="Announcements">Announcements</option>
+                <option value="General">General</option>
               </select>
               <select value={sort} onChange={e => setSort(e.target.value as SortKey)} className="h-8 rounded-lg border border-[#E2E8F0] bg-white px-2 text-xs text-[#043658] focus:outline-none">
                 <option value="newest-saved">Recently Saved</option>

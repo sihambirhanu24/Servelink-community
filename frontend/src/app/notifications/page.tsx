@@ -22,7 +22,6 @@ import {
 import { getDateGroup, getNotificationRoute, getRelativeTime } from '@/lib/notification-utils';
 import type { Notification, NotificationFilterType, NotificationType } from '@/types/notification';
 
-// ── Type config ────────────────────────────────────────
 const TYPE_CONFIG: Record<NotificationType, { icon: React.ElementType; bg: string; color: string; label: string }> = {
   LIKE:           { icon: Heart,           bg: 'bg-rose-50',     color: 'text-rose-500',    label: 'Like'      },
   COMMENT:        { icon: MessageCircle,   bg: 'bg-blue-50',     color: 'text-blue-500',    label: 'Comment'   },

@@ -7,7 +7,10 @@ import PostCard from '@/components/post/PostCard';
 import { memo } from 'react';
 
 async function getRecentPosts() {
-  const { data } = await api.get('/community/posts?limit=5');
+  // Fetch only SCHOOL-type posts so Woreda/Zone/etc. posts don't appear here
+  const { data } = await api.get('/community/type/school/posts', {
+    params: { limit: 5, page: 1 },
+  });
   return data;
 }
 
