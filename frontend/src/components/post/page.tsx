@@ -74,7 +74,7 @@ export default function MyPostsPage() {
         </h1>
 
         <button
-          onClick={() => router.push("/post")}
+          onClick={() => router.push('/posts')}
           className="rounded-lg bg-blue-600 px-5 py-3 font-medium text-white hover:bg-blue-700"
         >
           Create Post

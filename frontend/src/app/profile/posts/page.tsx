@@ -276,7 +276,7 @@ function EmptyState({ hasFilters }: { hasFilters: boolean }) {
       </p>
       {!hasFilters && (
         <Link
-          href="/community/create"
+          href="/posts"
           className="mt-7 inline-flex items-center gap-2 rounded-full bg-[#043658] px-6 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-[#032742]"
         >
           <Plus className="h-4 w-4" />
@@ -398,7 +398,7 @@ export default function ProfilePostsPage() {
                 </>
               )}
               <Link
-                href="/community/create"
+                href="/posts"
                 className="inline-flex items-center gap-2 rounded-full bg-[#043658] px-4 py-2.5 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-[#032742]"
               >
                 <Plus className="h-4 w-4" />

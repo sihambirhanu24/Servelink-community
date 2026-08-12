@@ -12,14 +12,13 @@ import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
 import { useDashboard } from "@/hooks/useDashboard";
-import { getCategories, getCommunities, getPosts, createPost, uploadAttachment } from "@/services/community";
+import { getCategories, getAccessibleCommunities, getCommunities, getPosts, createPost, uploadAttachment } from "@/services/community";
 import { DashboardSidebar } from "@/components/layout/Sidebar";
 import Topbar from "@/components/layout/Topbar";
 import PostCard from "@/components/post/PostCard";
 
 // ── Types ─────────────────────────────────────────────
 type SortKey = "newest" | "oldest" | "most-likes" | "most-comments";
-type PostType = "Discussion" | "Question" | "Resource" | "Announcement";
 
 interface Post {
   id: string;
@@ -43,7 +42,6 @@ const TYPE_MIN_LEVEL: Record<string, number> = { SCHOOL:1, WOREDA:2, ZONE:3, REG
 const TYPE_LABEL: Record<string, string> = { SCHOOL:"School Community", WOREDA:"Woreda Community", ZONE:"Zone Community", REGION:"Regional Community", NATIONAL:"National Community" };
 const TYPE_ROUTE: Record<string, string> = { SCHOOL:"/community/type/school", WOREDA:"/community/type/woreda", ZONE:"/community/type/zone", REGION:"/community/type/region", NATIONAL:"/community/type/national" };
 const TYPE_ICON: Record<string, React.ElementType> = { SCHOOL:GraduationCap, WOREDA:Building2, ZONE:Building2, REGION:Globe, NATIONAL:Globe };
-const POST_TYPES: PostType[] = ["Discussion", "Question", "Resource", "Announcement"];
 const TRENDING_TAGS = ["#STEMEducation","#Mathematics","#ClassroomManagement","#Assessment","#DigitalLearning","#LessonPlanning","#ActiveLearning"];
 const MemoPostCard = memo(PostCard);
 
@@ -104,7 +102,6 @@ function PostComposer({ communities, categories, onSuccess, onCancel }: Composer
   const level = (profile?.level ?? user?.level ?? "LEVEL_1").replace("_", " ");
   const initial = name.charAt(0).toUpperCase() || "T";
 
-  const [postType, setPostType] = useState<PostType>("Discussion");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [communityId, setCommunityId] = useState("");
@@ -194,17 +191,6 @@ function PostComposer({ communities, categories, onSuccess, onCancel }: Composer
       </div>
 
       <div className="px-4 py-3 space-y-2.5">
-        {/* Post type selector */}
-        <div className="flex gap-1 flex-wrap">
-          {POST_TYPES.map(t => (
-            <button key={t} type="button" onClick={() => setPostType(t)}
-              className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-[#043658]/20 ${
-                postType === t ? "bg-[#043658] text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
-              {t}
-            </button>
-          ))}
-        </div>
-
         {/* Title */}
         <div>
           <input type="text" value={title} onChange={e => { setTitle(e.target.value); if (errors.title) setErrors(p => ({...p, title:""})); }}
@@ -447,7 +433,6 @@ function PopularResourcesSideCard() {
   );
 }
 
-// ── Main page ──────────────────────────────────────────
 export default function PostsPage() {
   const [search, setSearch] = useState("");
   const [communityId, setCommunityId] = useState("all");
@@ -458,6 +443,7 @@ export default function PostsPage() {
   const queryClient = useQueryClient();
 
   const communitiesQuery = useQuery({ queryKey: ["communities"], queryFn: getCommunities, staleTime: 60_000 });
+  const accessibleCommunitiesQuery = useQuery({ queryKey: ["accessible-communities"], queryFn: getAccessibleCommunities, staleTime: 60_000 });
   const categoriesQuery = useQuery({ queryKey: ["categories"], queryFn: getCategories, staleTime: 60_000 });
   const postsQuery = useQuery({
     queryKey: ["global-feed", communityId, categoryId],
@@ -466,6 +452,7 @@ export default function PostsPage() {
   });
 
   const communities = useMemo(() => (communitiesQuery.data ?? []) as Array<{ id: string; name: string }>, [communitiesQuery.data]);
+  const accessibleCommunities = useMemo(() => (accessibleCommunitiesQuery.data ?? []) as Array<{ id: string; name: string }>, [accessibleCommunitiesQuery.data]);
   const categories = useMemo(() => (categoriesQuery.data ?? []) as Array<{ id: string; name: string }>, [categoriesQuery.data]);
 
   const posts = useMemo(() => {
@@ -560,7 +547,7 @@ export default function PostsPage() {
               {/* Expanded composer */}
               {composerOpen && (
                 <PostComposer
-                  communities={communities}
+                  communities={accessibleCommunities}
                   categories={categories}
                   onSuccess={handlePostSuccess}
                   onCancel={() => setComposerOpen(false)}

@@ -293,7 +293,6 @@ export default function PostCard({ post, onDelete, onToast, feedMode = false }: 
         <div className="mt-4 flex flex-wrap gap-2">
           <span className="rounded-full bg-[#043658]/10 px-3 py-1 text-xs font-semibold text-[#043658]">{post.community?.name}</span>
           <span className="rounded-full bg-[#FFC107]/20 px-3 py-1 text-xs font-semibold text-[#765900]">{post.category?.name}</span>
-          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">Discussion</span>
         </div>
 
         <h2 className="mt-4 text-xl font-semibold leading-7 text-[#043658] sm:text-2xl">{post.title}</h2>
