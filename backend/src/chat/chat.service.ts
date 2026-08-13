@@ -9,6 +9,9 @@ import { ChatMessageResponseDto } from './dto/chat-message-response.dto';
 import { SendMessageDto } from './dto/send-message.dto';
 import { EditMessageDto } from './dto/edit-message.dto';
 import { AddReactionDto } from './dto/add-reaction.dto';
+import { CommunityType, CommunitySubtype } from '@prisma/client';
+
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 /** Numeric rank for each teacher level */
 const LEVEL_RANK: Record<string, number> = {
@@ -19,21 +22,39 @@ const LEVEL_RANK: Record<string, number> = {
   LEVEL_5: 5,
 };
 
-/** Minimum level required to access each community type */
-const TYPE_MIN_LEVEL: Record<string, number> = {
-  SCHOOL: 1,
-  WOREDA: 2,
-  ZONE: 3,
-  REGION: 4,
-  NATIONAL: 5,
+/**
+ * The exact community type that corresponds to each level rank.
+ * LEVEL_1 → SCHOOL, LEVEL_2 → WOREDA, etc.
+ */
+const RANK_TO_TYPE: Record<number, CommunityType> = {
+  1: CommunityType.SCHOOL,
+  2: CommunityType.WOREDA,
+  3: CommunityType.ZONE,
+  4: CommunityType.REGION,
+  5: CommunityType.NATIONAL,
 };
 
 const ALLOWED_REACTIONS = ['👍', '❤️', '😂', '👏', '😮', '🙏'];
 
-/** Case-insensitive string equality */
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface TeacherProfile {
+  level: string;
+  school: string | null;
+  woreda: string | null;
+  zone: string | null;
+  region: string | null;
+  department: string | null;
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Case-insensitive string equality — null/undefined never matches */
 function ci(a: string | null | undefined, b: string | null | undefined): boolean {
   return !!a && !!b && a.trim().toLowerCase() === b.trim().toLowerCase();
 }
+
+// ─── Service ──────────────────────────────────────────────────────────────────
 
 @Injectable()
 export class ChatService {
@@ -41,56 +62,59 @@ export class ChatService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // COMMUNITY UPSERT — auto-create the teacher's geographic communities
-  // ─────────────────────────────────────────────────────────────────────────
+  // ───────────────────────────────────────────────────────────────────────────
+  // COMMUNITY UPSERT  (idempotent, race-condition safe)
+  // ───────────────────────────────────────────────────────────────────────────
 
   /**
-   * Find or create the single canonical Community record for a given
-   * type+geography scope, then ensure its ChatRoom exists.
-   * This is idempotent: calling it multiple times is safe.
+   * Find or create ONE canonical Community + its ChatRoom for the given scope.
+   * Idempotent — safe to call concurrently or repeatedly.
+   *
+   * Scope rules:
+   *   LEVEL_1 / SCHOOL  → subtype COMMON,      no department
+   *   LEVEL_2-5 COMMON  → subtype COMMON,      no department
+   *   LEVEL_2-5 DEPT    → subtype DEPARTMENT,  department set
    */
-  async upsertCommunityWithChatRoom(
-    type: 'SCHOOL' | 'WOREDA' | 'ZONE' | 'REGION' | 'NATIONAL',
-    geo: { school?: string; woreda?: string; zone?: string; region?: string },
-  ): Promise<{ communityId: string; chatRoomId: string }> {
-    let where: any;
-    let name: string;
-    let data: any;
+  async upsertCommunityWithChatRoom(params: {
+    type: CommunityType;
+    subtype: CommunitySubtype;
+    name: string;
+    school?: string | null;
+    woreda?: string | null;
+    zone?: string | null;
+    region?: string | null;
+    department?: string | null;
+  }): Promise<{ communityId: string; chatRoomId: string }> {
+    const { type, subtype, name, school, woreda, zone, region, department } = params;
 
-    switch (type) {
-      case 'SCHOOL':
-        where = { type, school: { equals: geo.school, mode: 'insensitive' as const } };
-        name = `${geo.school} Community`;
-        data = { type, name, school: geo.school };
-        break;
-      case 'WOREDA':
-        where = { type, woreda: { equals: geo.woreda, mode: 'insensitive' as const } };
-        name = `${geo.woreda} Woreda Community`;
-        data = { type, name, woreda: geo.woreda };
-        break;
-      case 'ZONE':
-        where = { type, zone: { equals: geo.zone, mode: 'insensitive' as const } };
-        name = `${geo.zone} Zone Community`;
-        data = { type, name, zone: geo.zone };
-        break;
-      case 'REGION':
-        where = { type, region: { equals: geo.region, mode: 'insensitive' as const } };
-        name = `${geo.region} Region Community`;
-        data = { type, name, region: geo.region };
-        break;
-      case 'NATIONAL':
-        where = { type };
-        name = 'National Community';
-        data = { type, name };
-        break;
-    }
+    const geoFilter = {
+      school:     school     ?? null,
+      woreda:     woreda     ?? null,
+      zone:       zone       ?? null,
+      region:     region     ?? null,
+      department: department ?? null,
+    };
 
-    // Find first matching community (case-insensitive via Prisma mode)
-    let community = await this.prisma.community.findFirst({ where });
+    let community = await this.prisma.community.findFirst({
+      where: { type, subtype, ...geoFilter },
+    });
 
     if (!community) {
-      community = await this.prisma.community.create({ data });
+      try {
+        community = await this.prisma.community.create({
+          data: { type, subtype, name, ...geoFilter },
+        });
+      } catch (e: any) {
+        // P2002 = unique constraint violation — concurrent creation, just fetch it
+        if (e.code === 'P2002') {
+          community = await this.prisma.community.findFirst({
+            where: { type, subtype, ...geoFilter },
+          });
+          if (!community) throw e;
+        } else {
+          throw e;
+        }
+      }
     }
 
     // Ensure chat room exists
@@ -98,96 +122,122 @@ export class ChatService {
       where: { communityId: community.id },
     });
     if (!chatRoom) {
-      chatRoom = await this.prisma.chatRoom.create({
-        data: { communityId: community.id },
-      });
+      try {
+        chatRoom = await this.prisma.chatRoom.create({
+          data: { communityId: community.id },
+        });
+      } catch (e: any) {
+        if (e.code === 'P2002') {
+          chatRoom = await this.prisma.chatRoom.findUnique({
+            where: { communityId: community.id },
+          });
+          if (!chatRoom) throw e;
+        } else {
+          throw e;
+        }
+      }
     }
 
     return { communityId: community.id, chatRoomId: chatRoom.id };
   }
 
   /**
-   * Called by getAccessibleChatGroups BEFORE querying.
-   * Auto-creates all community + chat room records the teacher is entitled to,
-   * based purely on their level and geographic fields.
+   * Auto-provisions every community (+ ChatRoom) a teacher is entitled to.
+   * Called on first access — idempotent.
+   *
+   *   LEVEL_1  → 1 community:  SCHOOL/COMMON   scoped to teacher.school
+   *   LEVEL_2  → 2 communities: WOREDA/COMMON + WOREDA/DEPARTMENT (if dept set)
+   *   LEVEL_3  → 2 communities: ZONE/COMMON   + ZONE/DEPARTMENT   (if dept set)
+   *   LEVEL_4  → 2 communities: REGION/COMMON + REGION/DEPARTMENT (if dept set)
+   *   LEVEL_5  → 2 communities: NATIONAL/COMMON + NATIONAL/DEPT   (if dept set)
    */
-  async ensureTeacherCommunities(teacher: {
-    level: string;
-    school: string;
-    woreda: string;
-    zone: string;
-    region: string;
-  }): Promise<void> {
+  async ensureTeacherCommunities(teacher: TeacherProfile): Promise<void> {
     const rank = LEVEL_RANK[teacher.level] ?? 1;
     const ops: Promise<any>[] = [];
 
-    if (rank >= 1 && teacher.school) {
-      ops.push(this.upsertCommunityWithChatRoom('SCHOOL', { school: teacher.school }));
-    }
-    if (rank >= 2 && teacher.woreda) {
-      ops.push(this.upsertCommunityWithChatRoom('WOREDA', { woreda: teacher.woreda }));
-    }
-    if (rank >= 3 && teacher.zone) {
-      ops.push(this.upsertCommunityWithChatRoom('ZONE', { zone: teacher.zone }));
-    }
-    if (rank >= 4 && teacher.region) {
-      ops.push(this.upsertCommunityWithChatRoom('REGION', { region: teacher.region }));
-    }
-    if (rank >= 5) {
-      ops.push(this.upsertCommunityWithChatRoom('NATIONAL', {}));
+    if (rank === 1) {
+      if (teacher.school) {
+        ops.push(
+          this.upsertCommunityWithChatRoom({
+            type: CommunityType.SCHOOL,
+            subtype: CommunitySubtype.COMMON,
+            name: `${teacher.school} Community`,
+            school: teacher.school,
+          }),
+        );
+      }
+    } else {
+      const type = RANK_TO_TYPE[rank];
+      if (!type) return;
+      const geoFields = this.geoFieldsForRank(rank, teacher);
+      const geoLabel  = this.geoLabelForRank(rank, teacher);
+
+      // COMMON community (all teachers at this level/scope)
+      ops.push(
+        this.upsertCommunityWithChatRoom({
+          type,
+          subtype: CommunitySubtype.COMMON,
+          name: `${geoLabel} Community`,
+          ...geoFields,
+          department: null,
+        }),
+      );
+
+      // DEPARTMENT community (teachers in the same dept at this scope)
+      if (teacher.department) {
+        ops.push(
+          this.upsertCommunityWithChatRoom({
+            type,
+            subtype: CommunitySubtype.DEPARTMENT,
+            name: `${geoLabel} ${teacher.department} Community`,
+            ...geoFields,
+            department: teacher.department,
+          }),
+        );
+      }
     }
 
     await Promise.all(ops);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // ACCESSIBLE GROUPS — the core endpoint logic
-  // ─────────────────────────────────────────────────────────────────────────
+  // ───────────────────────────────────────────────────────────────────────────
+  // GET ACCESSIBLE CHAT GROUPS  (GET /chat/groups)
+  // ───────────────────────────────────────────────────────────────────────────
 
   /**
-   * Return all chat groups the authenticated teacher can access.
-   * Access is determined SOLELY by teacher.level + geographic fields.
-   * NO CommunityMember records are required or consulted.
+   * Returns all chat communities the authenticated teacher may access.
+   *
+   * Authorization derived entirely from teacher's DB profile — no CommunityMember
+   * records consulted.  Each teacher sees communities ONLY at their own level:
+   *
+   *   LEVEL_1 → 1 group:  their School community
+   *   LEVEL_2 → up to 2:  Woreda COMMON + Woreda DEPARTMENT (if dept set)
+   *   LEVEL_3 → up to 2:  Zone COMMON + Zone DEPARTMENT
+   *   LEVEL_4 → up to 2:  Region COMMON + Region DEPARTMENT
+   *   LEVEL_5 → up to 2:  National COMMON + National DEPARTMENT
    */
   async getAccessibleChatGroups(teacherId: string) {
     const teacher = await this.prisma.teacher.findUnique({
       where: { id: teacherId },
-      select: { level: true, school: true, woreda: true, zone: true, region: true },
+      select: {
+        level: true,
+        school: true,
+        woreda: true,
+        zone: true,
+        region: true,
+        department: true,
+      },
     });
     if (!teacher) throw new NotFoundException('Teacher not found');
 
-    // Guarantee all entitled Community + ChatRoom records exist
-    await this.ensureTeacherCommunities({
-      level: teacher.level,
-      school: teacher.school ?? '',
-      woreda: teacher.woreda ?? '',
-      zone: teacher.zone ?? '',
-      region: teacher.region ?? '',
-    });
+    // Provision communities this teacher is entitled to (idempotent)
+    await this.ensureTeacherCommunities(teacher);
 
-    const rank = LEVEL_RANK[teacher.level] ?? 1;
-    const orClauses: any[] = [];
-
-    if (rank >= 1 && teacher.school) {
-      orClauses.push({ type: 'SCHOOL', school: { equals: teacher.school, mode: 'insensitive' } });
-    }
-    if (rank >= 2 && teacher.woreda) {
-      orClauses.push({ type: 'WOREDA', woreda: { equals: teacher.woreda, mode: 'insensitive' } });
-    }
-    if (rank >= 3 && teacher.zone) {
-      orClauses.push({ type: 'ZONE', zone: { equals: teacher.zone, mode: 'insensitive' } });
-    }
-    if (rank >= 4 && teacher.region) {
-      orClauses.push({ type: 'REGION', region: { equals: teacher.region, mode: 'insensitive' } });
-    }
-    if (rank >= 5) {
-      orClauses.push({ type: 'NATIONAL' });
-    }
-
-    if (orClauses.length === 0) return [];
+    const clauses = this.accessibleCommunityClauses(teacher);
+    if (clauses.length === 0) return [];
 
     const communities = await this.prisma.community.findMany({
-      where: { OR: orClauses },
+      where: { OR: clauses, isActive: true },
       include: {
         chatRoom: {
           include: {
@@ -195,9 +245,7 @@ export class ChatService {
               where: { deletedAt: null },
               orderBy: { createdAt: 'desc' },
               take: 1,
-              include: {
-                sender: { select: { firstName: true, lastName: true } },
-              },
+              include: { sender: { select: { firstName: true, lastName: true } } },
             },
             unreadCounts: {
               where: { teacherId },
@@ -205,47 +253,102 @@ export class ChatService {
             },
           },
         },
-        // Count teachers whose geographic scope matches this community
-        // (approximate member count — no CommunityMember required)
         _count: { select: { communityMembers: true } },
       },
-      orderBy: [{ type: 'asc' }, { name: 'asc' }],
+      orderBy: [{ type: 'asc' }, { subtype: 'asc' }, { name: 'asc' }],
     });
 
     return communities.map((c) => {
-      const last = c.chatRoom?.messages[0] ?? null;
+      const last   = c.chatRoom?.messages[0] ?? null;
       const unread = c.chatRoom?.unreadCounts[0]?.count ?? 0;
-
       return {
-        id: c.id,
-        name: c.name,
-        type: c.type,
+        id:          c.id,
+        name:        c.name,
+        type:        c.type,
+        subtype:     c.subtype,
+        department:  c.department,
         description: c.description,
-        school: c.school,
-        woreda: c.woreda,
-        zone: c.zone,
-        region: c.region,
-        chatRoomId: c.chatRoom?.id ?? null,
+        school:      c.school,
+        woreda:      c.woreda,
+        zone:        c.zone,
+        region:      c.region,
+        isActive:    c.isActive,
+        chatRoomId:  c.chatRoom?.id ?? null,
+        memberCount: c._count.communityMembers,
         unreadCount: unread,
         lastMessage: last
           ? {
-              content: last.content.substring(0, 100),
+              content:    last.content.substring(0, 100),
               senderName: `${last.sender.firstName} ${last.sender.lastName}`,
-              createdAt: last.createdAt,
+              createdAt:  last.createdAt,
             }
           : null,
       };
     });
   }
-  
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // ACCESS VERIFICATION — enforced on every message and join request
-  // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Verify teacher has access to a community by level AND geography.
-   * Throws ForbiddenException if not authorized.
+   * Build the exact Prisma OR filter for communities this teacher can access.
+   *
+   * LEVEL_1 → SCHOOL/COMMON matching teacher.school
+   * LEVEL_2 → WOREDA/COMMON matching teacher.woreda
+   *           WOREDA/DEPARTMENT matching teacher.woreda + teacher.department
+   * LEVEL_3 → ZONE/COMMON + ZONE/DEPARTMENT  (analogous)
+   * LEVEL_4 → REGION/COMMON + REGION/DEPARTMENT
+   * LEVEL_5 → NATIONAL/COMMON + NATIONAL/DEPARTMENT
+   *
+   * Teachers see communities ONLY at their own level, not all levels below.
+   */
+  private accessibleCommunityClauses(teacher: TeacherProfile): any[] {
+    const rank = LEVEL_RANK[teacher.level] ?? 1;
+    const clauses: any[] = [];
+
+    if (rank === 1) {
+      if (teacher.school) {
+        clauses.push({
+          type:    CommunityType.SCHOOL,
+          subtype: CommunitySubtype.COMMON,
+          school:  { equals: teacher.school, mode: 'insensitive' as const },
+        });
+      }
+      return clauses;
+    }
+
+    const type = RANK_TO_TYPE[rank];
+    if (!type) return clauses;
+    const geoClause = this.geoClauseForRank(rank, teacher);
+
+    // COMMON community
+    clauses.push({ type, subtype: CommunitySubtype.COMMON, ...geoClause });
+
+    // DEPARTMENT community — only if teacher has a department
+    if (teacher.department) {
+      clauses.push({
+        type,
+        subtype:    CommunitySubtype.DEPARTMENT,
+        ...geoClause,
+        department: { equals: teacher.department, mode: 'insensitive' as const },
+      });
+    }
+
+    return clauses;
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // ACCESS VERIFICATION  (every message / WS join goes through this)
+  // ───────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Verifies the authenticated teacher may access the given community.
+   * Enforces ALL four rules:
+   *
+   *   1. Teacher level rank must EQUAL the community's required rank.
+   *      (No cross-level access — a LEVEL_5 cannot read SCHOOL chats.)
+   *   2. Geographic scope must match.
+   *   3. For DEPARTMENT communities: teacher.department must match.
+   *   4. Community must be active.
+   *
+   * Throws ForbiddenException with an explanatory message on failure.
    * Returns the Community record on success.
    */
   async verifyAndGetCommunity(communityId: string, teacherId: string) {
@@ -253,26 +356,58 @@ export class ChatService {
       this.prisma.community.findUnique({ where: { id: communityId } }),
       this.prisma.teacher.findUnique({
         where: { id: teacherId },
-        select: { level: true, school: true, woreda: true, zone: true, region: true },
+        select: {
+          level:      true,
+          school:     true,
+          woreda:     true,
+          zone:       true,
+          region:     true,
+          department: true,
+        },
       }),
     ]);
 
     if (!community) throw new NotFoundException('Community not found');
-    if (!teacher) throw new NotFoundException('Teacher not found');
+    if (!teacher)   throw new NotFoundException('Teacher not found');
+    if (!community.isActive) {
+      throw new ForbiddenException('This community is currently inactive.');
+    }
 
-    const rank = LEVEL_RANK[teacher.level] ?? 1;
-    const required = TYPE_MIN_LEVEL[community.type] ?? 99;
+    const teacherRank = LEVEL_RANK[teacher.level] ?? 1;
 
-    if (rank < required) {
+    // Map community type back to its required rank
+    const typeToRank: Record<string, number> = {
+      SCHOOL: 1, WOREDA: 2, ZONE: 3, REGION: 4, NATIONAL: 5,
+    };
+    const communityRank = typeToRank[community.type] ?? 99;
+
+    // Rule 1 — exact level match
+    if (teacherRank !== communityRank) {
       throw new ForbiddenException(
-        `Your level (${teacher.level}) does not have access to ${community.type} communities.`,
+        teacherRank < communityRank
+          ? `Your level (${teacher.level}) does not have access to ${community.type} communities.`
+          : `This community is for ${community.type} level teachers. Your level is ${teacher.level}.`,
       );
     }
 
-    if (community.type !== 'NATIONAL') {
-      if (!this.isInGeographicScope(community, teacher)) {
+    // Rule 2 — geographic scope
+    if (community.type !== CommunityType.NATIONAL) {
+      if (!this.inGeographicScope(community, teacher)) {
         throw new ForbiddenException(
           'This community is outside your authorized geographic scope.',
+        );
+      }
+    }
+
+    // Rule 3 — department (DEPARTMENT subtype only)
+    if (community.subtype === CommunitySubtype.DEPARTMENT) {
+      if (!community.department) {
+        throw new ForbiddenException('This department community has no department configured.');
+      }
+      if (!ci(community.department, teacher.department)) {
+        throw new ForbiddenException(
+          `This community is for the ${community.department} department. ` +
+          `Your department (${teacher.department ?? 'none'}) does not match.`,
         );
       }
     }
@@ -280,23 +415,23 @@ export class ChatService {
     return community;
   }
 
-  private isInGeographicScope(
+  private inGeographicScope(
     c: { type: string; school?: string | null; woreda?: string | null; zone?: string | null; region?: string | null },
     t: { school?: string | null; woreda?: string | null; zone?: string | null; region?: string | null },
   ): boolean {
     switch (c.type) {
-      case 'SCHOOL':  return ci(c.school, t.school);
-      case 'WOREDA':  return ci(c.woreda, t.woreda);
-      case 'ZONE':    return ci(c.zone, t.zone);
-      case 'REGION':  return ci(c.region, t.region);
+      case 'SCHOOL':   return ci(c.school,  t.school);
+      case 'WOREDA':   return ci(c.woreda,  t.woreda);
+      case 'ZONE':     return ci(c.zone,    t.zone);
+      case 'REGION':   return ci(c.region,  t.region);
       case 'NATIONAL': return true;
-      default: return false;
+      default:         return false;
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
+  // ───────────────────────────────────────────────────────────────────────────
   // CHAT ROOM HELPERS
-  // ─────────────────────────────────────────────────────────────────────────
+  // ───────────────────────────────────────────────────────────────────────────
 
   async getOrCreateChatRoom(communityId: string) {
     const existing = await this.prisma.chatRoom.findUnique({ where: { communityId } });
@@ -316,9 +451,9 @@ export class ChatService {
     return community;
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
+  // ───────────────────────────────────────────────────────────────────────────
   // MESSAGES
-  // ─────────────────────────────────────────────────────────────────────────
+  // ───────────────────────────────────────────────────────────────────────────
 
   async getMessageHistory(
     chatRoomId: string,
@@ -329,9 +464,7 @@ export class ChatService {
       this.prisma.chatMessage.findMany({
         where: { chatRoomId, deletedAt: null },
         include: {
-          sender: {
-            select: { id: true, firstName: true, lastName: true, level: true, profileImage: true },
-          },
+          sender: { select: { id: true, firstName: true, lastName: true, level: true, profileImage: true } },
           reactions: true,
           pinnedMessage: true,
         },
@@ -341,7 +474,6 @@ export class ChatService {
       }),
       this.prisma.chatMessage.count({ where: { chatRoomId, deletedAt: null } }),
     ]);
-
     return { messages: rows.map((m) => this.formatMessage(m, m.sender)), total };
   }
 
@@ -349,9 +481,7 @@ export class ChatService {
     const rows = await this.prisma.chatMessage.findMany({
       where: { chatRoomId, deletedAt: null },
       include: {
-        sender: {
-          select: { id: true, firstName: true, lastName: true, level: true, profileImage: true },
-        },
+        sender: { select: { id: true, firstName: true, lastName: true, level: true, profileImage: true } },
         reactions: true,
         pinnedMessage: true,
       },
@@ -423,9 +553,9 @@ export class ChatService {
     return 'IMAGE';
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
+  // ───────────────────────────────────────────────────────────────────────────
   // REACTIONS, EDIT, DELETE, PIN
-  // ─────────────────────────────────────────────────────────────────────────
+  // ───────────────────────────────────────────────────────────────────────────
 
   async addReaction(messageId: string, communityId: string, teacherId: string, dto: AddReactionDto) {
     await this.verifyAndGetCommunity(communityId, teacherId);
@@ -437,7 +567,6 @@ export class ChatService {
     });
     if (!message) throw new NotFoundException('Message not found in this community');
     if (message.deletedAt) throw new BadRequestException('Cannot react to a deleted message');
-
     return this.prisma.chatReaction.upsert({
       where: { messageId_teacherId_reaction: { messageId, teacherId, reaction: dto.reaction } },
       update: { createdAt: new Date() },
@@ -459,7 +588,6 @@ export class ChatService {
     if (!message) throw new NotFoundException('Message not found');
     if (message.deletedAt) throw new BadRequestException('Cannot edit a deleted message');
     if (message.senderId !== teacherId) throw new ForbiddenException('You can only edit your own messages');
-
     const updated = await this.prisma.chatMessage.update({
       where: { id: messageId },
       data: { content: dto.content, editedAt: new Date() },
@@ -531,9 +659,9 @@ export class ChatService {
     return rows.map((m) => this.formatMessage(m, m.sender));
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
+  // ───────────────────────────────────────────────────────────────────────────
   // UNREAD
-  // ─────────────────────────────────────────────────────────────────────────
+  // ───────────────────────────────────────────────────────────────────────────
 
   async markMessagesAsRead(messageIds: string[], communityId: string, teacherId: string) {
     await this.verifyAndGetCommunity(communityId, teacherId);
@@ -555,11 +683,7 @@ export class ChatService {
     const chatRoom = await this.prisma.chatRoom.findUnique({ where: { communityId } });
     if (chatRoom) {
       const unreadCount = await this.prisma.chatMessage.count({
-        where: {
-          chatRoomId: chatRoom.id,
-          readBy: { none: { teacherId } },
-          deletedAt: null,
-        },
+        where: { chatRoomId: chatRoom.id, readBy: { none: { teacherId } }, deletedAt: null },
       });
       await this.prisma.chatUnreadCount.upsert({
         where: { chatRoomId_teacherId: { chatRoomId: chatRoom.id, teacherId } },
@@ -579,21 +703,57 @@ export class ChatService {
     return record?.count ?? 0;
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
+  // ───────────────────────────────────────────────────────────────────────────
   // PRESENCE
-  // ─────────────────────────────────────────────────────────────────────────
+  // ───────────────────────────────────────────────────────────────────────────
 
-  /**
-   * Count teachers who are currently online (tracked by gateway) in a room.
-   * The gateway passes the live set; this method just formats the result.
-   */
   getOnlineCount(roomSet: Set<string>): number {
     return roomSet.size;
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
+  // ───────────────────────────────────────────────────────────────────────────
+  // GEO HELPERS  (private)
+  // ───────────────────────────────────────────────────────────────────────────
+
+  /** Geographic data fields to include on a community for a given level rank */
+  private geoFieldsForRank(
+    rank: number,
+    t: TeacherProfile,
+  ): { school?: null; woreda?: string | null; zone?: string | null; region?: string | null } {
+    switch (rank) {
+      case 2: return { woreda: t.woreda };
+      case 3: return { zone:   t.zone   };
+      case 4: return { region: t.region };
+      case 5: return {};
+      default: return {};
+    }
+  }
+
+  /** Prisma WHERE clause for geographic matching at a given level rank */
+  private geoClauseForRank(rank: number, t: TeacherProfile): Record<string, any> {
+    switch (rank) {
+      case 2: return t.woreda ? { woreda: { equals: t.woreda, mode: 'insensitive' as const } } : {};
+      case 3: return t.zone   ? { zone:   { equals: t.zone,   mode: 'insensitive' as const } } : {};
+      case 4: return t.region ? { region: { equals: t.region, mode: 'insensitive' as const } } : {};
+      case 5: return {};
+      default: return {};
+    }
+  }
+
+  /** Human-readable label for the community scope */
+  private geoLabelForRank(rank: number, t: TeacherProfile): string {
+    switch (rank) {
+      case 2: return t.woreda ?? 'Woreda';
+      case 3: return t.zone   ?? 'Zone';
+      case 4: return t.region ?? 'Region';
+      case 5: return 'National';
+      default: return 'Unknown';
+    }
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
   // FORMAT HELPERS
-  // ─────────────────────────────────────────────────────────────────────────
+  // ───────────────────────────────────────────────────────────────────────────
 
   formatMessage(message: any, sender: any): ChatMessageResponseDto {
     const reactions: Record<string, number> = {};
@@ -603,21 +763,21 @@ export class ChatService {
       }
     }
     return {
-      id: message.id,
-      chatRoomId: message.chatRoomId,
-      senderId: sender.id,
-      senderName: `${sender.firstName} ${sender.lastName}`,
+      id:                 message.id,
+      chatRoomId:         message.chatRoomId,
+      senderId:           sender.id,
+      senderName:         `${sender.firstName} ${sender.lastName}`,
       senderProfileImage: sender.profileImage ?? null,
-      senderLevel: sender.level,
-      content: message.content,
-      replyToId: message.replyToId ?? undefined,
-      editedAt: message.editedAt ?? undefined,
-      deletedAt: message.deletedAt ?? undefined,
-      attachments: message.attachments ?? [],
+      senderLevel:        sender.level,
+      content:            message.content,
+      replyToId:          message.replyToId   ?? undefined,
+      editedAt:           message.editedAt    ?? undefined,
+      deletedAt:          message.deletedAt   ?? undefined,
+      attachments:        message.attachments ?? [],
       reactions,
-      isPinned: !!message.pinnedMessage,
-      createdAt: message.createdAt,
-      updatedAt: message.updatedAt,
+      isPinned:           !!message.pinnedMessage,
+      createdAt:          message.createdAt,
+      updatedAt:          message.updatedAt,
     };
   }
 }
