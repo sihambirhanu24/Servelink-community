@@ -1,9 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { NotificationEvent } from '../notification/notification.types';
 import { UpgradeLevelDto } from './dto/upgrade-level.dto';
 import { TeachersQueryDto } from './dto/teachers-query.dto';
+import { CreateCommunityDto, UpdateCommunityDto } from './dto/community.dto';
 
 @Injectable()
 export class AdminService {
@@ -13,11 +14,12 @@ export class AdminService {
   ) {}
 
   async dashboard() {
-    const [teachers, communities, posts, reports] = await Promise.all([
+    const [teachers, communities, posts, reports, unverifiedTeachers] = await Promise.all([
       this.prisma.teacher.count(),
       this.prisma.community.count(),
       this.prisma.communityPost.count(),
       this.prisma.communityReport.count(),
+      this.prisma.teacher.count({ where: { verified: false } }),
     ]);
 
     const teacherLevels = await this.prisma.teacher.groupBy({
@@ -38,7 +40,57 @@ export class AdminService {
       },
     });
 
-    return { statistics: { teachers, communities, posts, reports }, teacherLevels, recentTeachers };
+    // Get real recent activity: new registrations and recent posts
+    const [recentRegistrations, recentPosts, recentReports] = await Promise.all([
+      this.prisma.teacher.findMany({
+        take: 3,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          createdAt: true,
+        },
+      }),
+      this.prisma.communityPost.findMany({
+        take: 2,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          title: true,
+          createdAt: true,
+          community: { select: { name: true } },
+          teacher: { select: { firstName: true, lastName: true } },
+        },
+      }),
+      this.prisma.communityReport.findMany({
+        take: 2,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          reason: true,
+          createdAt: true,
+          post: { select: { title: true } },
+        },
+      }),
+    ]);
+
+    return {
+      statistics: {
+        teachers,
+        communities,
+        posts,
+        reports,
+        pendingVerification: unverifiedTeachers,
+      },
+      teacherLevels,
+      recentTeachers,
+      recentActivity: {
+        registrations: recentRegistrations,
+        posts: recentPosts,
+        reports: recentReports,
+      },
+    };
   }
 
   async getTeachers(query: TeachersQueryDto) {
@@ -127,5 +179,229 @@ export class AdminService {
       where: { id: teacherId },
       data: { status: 'ACTIVE' as any },
     });
+  }
+
+  async getReports(query?: {
+    page?: number;
+    pageSize?: number;
+    search?: string;
+    reason?: string;
+    status?: string;
+  }) {
+    const skip = ((query?.page ?? 1) - 1) * (query?.pageSize ?? 10);
+    const where: any = {};
+
+    if (query?.search) {
+      where.OR = [
+        { id: { contains: query.search, mode: 'insensitive' } },
+        { post: { title: { contains: query.search, mode: 'insensitive' } } },
+        { teacher: { firstName: { contains: query.search, mode: 'insensitive' } } },
+        { teacher: { lastName: { contains: query.search, mode: 'insensitive' } } },
+        { post: { community: { name: { contains: query.search, mode: 'insensitive' } } } },
+      ];
+    }
+
+    if (query?.reason) {
+      where.reason = query.reason;
+    }
+
+    if (query?.status) {
+      where.status = query.status;
+    }
+
+    const [reports, total] = await Promise.all([
+      this.prisma.communityReport.findMany({
+        where,
+        skip,
+        take: query?.pageSize ?? 10,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          teacher: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+          post: {
+            select: {
+              id: true,
+              title: true,
+              community: { select: { id: true, name: true } },
+            },
+          },
+        },
+      }),
+      this.prisma.communityReport.count({ where }),
+    ]);
+
+    return {
+      data: reports,
+      meta: {
+        total,
+        page: query?.page ?? 1,
+        pageSize: query?.pageSize ?? 10,
+        totalPages: Math.ceil(total / (query?.pageSize ?? 10)),
+      },
+    };
+  }
+
+  async updateReportStatus(reportId: string, status: string) {
+    const report = await this.prisma.communityReport.findUnique({
+      where: { id: reportId },
+    });
+    if (!report) throw new NotFoundException('Report not found');
+
+    return this.prisma.communityReport.update({
+      where: { id: reportId },
+      data: { status: status as any },
+      include: {
+        teacher: { select: { firstName: true, lastName: true, email: true } },
+        post: { select: { id: true, title: true } },
+      },
+    });
+  }
+
+  // ─── Community CRUD (admin-only) ─────────────────────────────────────────
+
+  async getCommunities(query?: {
+    page?: number;
+    pageSize?: number;
+    search?: string;
+    type?: string;
+    subtype?: string;
+    isActive?: boolean;
+  }) {
+    const skip = ((query?.page ?? 1) - 1) * (query?.pageSize ?? 20);
+    const where: any = {};
+    if (query?.search) {
+      where.OR = [
+        { name: { contains: query.search, mode: 'insensitive' } },
+        { description: { contains: query.search, mode: 'insensitive' } },
+        { department: { contains: query.search, mode: 'insensitive' } },
+      ];
+    }
+    if (query?.type)    where.type    = query.type.toUpperCase();
+    if (query?.subtype) where.subtype = query.subtype.toUpperCase();
+    if (query?.isActive !== undefined) where.isActive = query.isActive;
+
+    const [communities, total] = await Promise.all([
+      this.prisma.community.findMany({
+        where,
+        skip,
+        take: query?.pageSize ?? 20,
+        orderBy: [{ type: 'asc' }, { subtype: 'asc' }, { name: 'asc' }],
+        include: {
+          _count: { select: { communityMembers: true, posts: true } },
+          chatRoom: { select: { id: true } },
+        },
+      }),
+      this.prisma.community.count({ where }),
+    ]);
+
+    return {
+      data: communities,
+      meta: {
+        total,
+        page: query?.page ?? 1,
+        pageSize: query?.pageSize ?? 20,
+        totalPages: Math.ceil(total / (query?.pageSize ?? 20)),
+      },
+    };
+  }
+
+  async getCommunityById(id: string) {
+    const community = await this.prisma.community.findUnique({
+      where: { id },
+      include: {
+        communityMembers: {
+          include: {
+            teacher: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                level: true,
+                school: true,
+                department: true,
+              },
+            },
+          },
+        },
+        _count: { select: { communityMembers: true, posts: true } },
+        chatRoom: { select: { id: true } },
+      },
+    });
+    if (!community) throw new NotFoundException('Community not found');
+    return community;
+  }
+
+  async createCommunity(dto: CreateCommunityDto) {
+    // Validate uniqueness before creating — provide a clear error
+    const existing = await this.prisma.community.findFirst({
+      where: {
+        type:       dto.type as any,
+        subtype:    (dto.subtype ?? 'COMMON') as any,
+        school:     dto.school     ?? null,
+        woreda:     dto.woreda     ?? null,
+        zone:       dto.zone       ?? null,
+        region:     dto.region     ?? null,
+        department: dto.department ?? null,
+      },
+    });
+    if (existing) {
+      throw new ConflictException(
+        `A community with this type, subtype, geographic scope, and department already exists (id: ${existing.id}).`,
+      );
+    }
+
+    return this.prisma.community.create({
+      data: {
+        name:        dto.name,
+        type:        dto.type as any,
+        subtype:     (dto.subtype ?? 'COMMON') as any,
+        department:  dto.department ?? null,
+        school:      dto.school     ?? null,
+        woreda:      dto.woreda     ?? null,
+        zone:        dto.zone       ?? null,
+        region:      dto.region     ?? null,
+        description: dto.description ?? null,
+        isActive:    true,
+      },
+    });
+  }
+
+  async updateCommunity(id: string, dto: UpdateCommunityDto) {
+    const community = await this.prisma.community.findUnique({ where: { id } });
+    if (!community) throw new NotFoundException('Community not found');
+
+    return this.prisma.community.update({
+      where: { id },
+      data: {
+        ...(dto.name        !== undefined && { name: dto.name }),
+        ...(dto.description !== undefined && { description: dto.description }),
+        ...(dto.isActive    !== undefined && { isActive: dto.isActive }),
+      },
+    });
+  }
+
+  async toggleCommunityActive(id: string) {
+    const community = await this.prisma.community.findUnique({ where: { id } });
+    if (!community) throw new NotFoundException('Community not found');
+    return this.prisma.community.update({
+      where: { id },
+      data: { isActive: !community.isActive },
+    });
+  }
+
+  async getCommunityStats() {
+    const [byType, bySubtype, total] = await Promise.all([
+      this.prisma.community.groupBy({ by: ['type'],    _count: true }),
+      this.prisma.community.groupBy({ by: ['subtype'], _count: true }),
+      this.prisma.community.count(),
+    ]);
+    return { total, byType, bySubtype };
   }
 }
