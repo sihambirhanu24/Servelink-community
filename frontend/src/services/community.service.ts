@@ -162,6 +162,11 @@ export const getPost = async (id: string) => {
   return data;
 };
 
+export const getPostById = async (id: string) => {
+  const { data } = await api.get(`/community/posts/${id}`);
+  return data;
+};
+
 export const createPost = async (body: {
   title: string;
   description: string;
