@@ -6,7 +6,7 @@ export function getNotificationRoute(type: NotificationType, referenceId?: strin
     case 'COMMENT':
     case 'BOOKMARK':
     case 'REPLY':
-      return referenceId ? `/community/posts/${referenceId}` : '/community';
+      return referenceId ? `/community/post/${referenceId}` : '/community';
     case 'COMMUNITY_JOIN':
       return referenceId ? `/community/${referenceId}` : '/community';
     case 'LEVEL_UPGRADE':
