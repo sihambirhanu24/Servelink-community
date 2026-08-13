@@ -325,7 +325,7 @@ export default function ProfilePage() {
   const name = `${profile.firstName} ${profile.lastName}`;
 
   return (
-    <div className="h-screen overflow-hidden bg-slate-50">
+    <div className="h-screen overflow-hidden bg-[#F5F8FB]">
       <DashboardSidebar />
       <Topbar />
 
