@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useAuth } from "@/context/AuthContext";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -26,6 +27,7 @@ import { bookmarkPost, likePost, removeBookmark, unlikePost } from "@/services/c
 import { getMediaUrl } from "@/lib/media";
 import { getPostComments } from "@/services/comment.service";
 import { useCreateComment } from "@/hooks/useCreateComment";
+import { ReportPostModal } from "./ReportPostModal";
 
 interface Props {
   post: {
@@ -33,6 +35,7 @@ interface Props {
     title: string;
     description: string;
     createdAt?: string;
+    views?: number;
     community?: {
       name: string;
     };
@@ -89,8 +92,10 @@ export default function PostCard({ post, onDelete, onToast, feedMode = false }: 
   const [commentDraft, setCommentDraft] = useState("");
   const [commentError, setCommentError] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [reportModalOpen, setReportModalOpen] = useState(false);
 
   const [shareOpen, setShareOpen] = useState(false);
+  const [shareButtonRef, setShareButtonRef] = useState<HTMLButtonElement | null>(null);
 
   const { data: comments = [], isLoading: commentsLoading } = useQuery({
     queryKey: ["post-comments", post.id],
@@ -122,7 +127,7 @@ export default function PostCard({ post, onDelete, onToast, feedMode = false }: 
   const documentAttachments = useMemo(() => (post.attachments ?? []).filter((attachment) => attachment.type !== "IMAGE"), [post.attachments]);
   const isLongDescription = (post.description?.length ?? 0) > 220;
   const displayedDescription = expanded || !isLongDescription ? post.description : `${post.description.slice(0, 220)}...`;
-  const views = Math.max(20, (post.likesCount ?? 0) * 12 + (post.comments?.length ?? 0) * 8 + 25);
+  const views = post.views ?? 0; // Use actual views from database
 
   async function handleLike() {
     if (likeMutation.isPending) return;
@@ -214,7 +219,7 @@ export default function PostCard({ post, onDelete, onToast, feedMode = false }: 
   }
 
   return (
-    <article className="group overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_18px_55px_-28px_rgba(4,54,88,0.25)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_65px_-24px_rgba(4,54,88,0.35)]">
+    <article className={`group overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_18px_55px_-28px_rgba(4,54,88,0.25)] transition duration-300 ${!selectedImage ? 'hover:-translate-y-1 hover:shadow-[0_24px_65px_-24px_rgba(4,54,88,0.35)]' : ''}`}>
       <div className="p-5 sm:p-6">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -276,7 +281,7 @@ export default function PostCard({ post, onDelete, onToast, feedMode = false }: 
                       type="button"
                       onClick={() => {
                         setMenuOpen(false);
-                        onToast?.("Post reported. Our team will review it shortly.");
+                        setReportModalOpen(true);
                       }}
                       className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-amber-700 transition hover:bg-amber-50"
                     >
@@ -305,7 +310,7 @@ export default function PostCard({ post, onDelete, onToast, feedMode = false }: 
           </button>
         ) : null}
 
-        {post.attachments?.length ? (
+        {post.attachments && post.attachments.length > 0 ? (
           <div className="mt-5">
             {imageAttachments.length > 0 ? (
               <div className={
@@ -321,7 +326,15 @@ export default function PostCard({ post, onDelete, onToast, feedMode = false }: 
                   
                   return (
                     <button key={attachment.id} type="button" onClick={() => setSelectedImage(url)} className="group relative block w-full overflow-hidden rounded-[24px] border border-slate-200 text-left bg-slate-50">
-                      <img src={url} alt={attachment.fileName ?? post.title} onError={(e) => { e.currentTarget.src = 'https://placehold.co/600x400/F7F9FC/043658?text=Image+Unavailable'; }} className="h-56 w-full object-cover transition duration-300 group-hover:scale-[1.02]" />
+                      <img 
+                        src={url} 
+                        alt={attachment.fileName ?? post.title} 
+                        onError={(e) => { 
+                          console.error('Image failed to load:', url); 
+                          e.currentTarget.src = 'https://placehold.co/600x400/043658/FFFFFF?text=ServeLink'; 
+                        }} 
+                        className="h-56 w-full object-cover transition duration-300 group-hover:scale-[1.02]" 
+                      />
                       {isLastVisible && remainingCount > 0 && (
                         <div className="absolute inset-0 flex items-center justify-center bg-black/50 text-3xl font-semibold text-white transition group-hover:bg-black/40">
                           +{remainingCount}
@@ -369,7 +382,14 @@ export default function PostCard({ post, onDelete, onToast, feedMode = false }: 
 
       <div className="border-t border-slate-100 bg-[#FCFDFF] px-5 py-4 sm:px-6">
         <div className="flex flex-wrap items-center gap-4 text-sm text-slate-500">
-          <button type="button" onClick={handleLike} disabled={likeMutation.isPending} className="flex items-center gap-2 transition hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-60">
+          <button 
+            type="button" 
+            onClick={handleLike} 
+            disabled={likeMutation.isPending} 
+            className={`flex items-center gap-2 transition disabled:cursor-not-allowed disabled:opacity-60 ${
+              liked ? 'text-red-500' : 'hover:text-red-500'
+            }`}
+          >
             <Heart className="h-4 w-4" fill={liked ? "currentColor" : "none"} />
             <span>{likes}</span>
           </button>
@@ -383,6 +403,7 @@ export default function PostCard({ post, onDelete, onToast, feedMode = false }: 
           </button>
           <div className="relative">
             <button
+              ref={setShareButtonRef}
               type="button"
               onClick={() => setShareOpen((prev) => !prev)}
               className="flex items-center gap-2 transition hover:text-[#043658]"
@@ -391,11 +412,18 @@ export default function PostCard({ post, onDelete, onToast, feedMode = false }: 
               <span>Share</span>
             </button>
 
-            {shareOpen && (
+            {shareOpen && shareButtonRef && typeof window !== 'undefined' && createPortal(
               <>
                 {/* Backdrop to close on outside click */}
                 <div className="fixed inset-0 z-30" onClick={() => setShareOpen(false)} />
-                <div className="absolute bottom-10 left-0 z-40 w-64 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
+                <div 
+                  className="fixed z-40 w-64 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl"
+                  style={{
+                    top: `${shareButtonRef.getBoundingClientRect().top}px`,
+                    left: `${shareButtonRef.getBoundingClientRect().left}px`,
+                    transform: 'translateY(-100%) translateY(-8px)'
+                  }}
+                >
                   <p className="mb-2 px-3 pt-1 text-[11px] font-semibold uppercase tracking-widest text-slate-400">Share via</p>
 
                   {/* WhatsApp */}
@@ -468,7 +496,8 @@ export default function PostCard({ post, onDelete, onToast, feedMode = false }: 
                     Copy Link
                   </button>
                 </div>
-              </>
+              </>,
+              document.body
             )}
           </div>
           <span className="flex items-center gap-2">
@@ -560,15 +589,40 @@ export default function PostCard({ post, onDelete, onToast, feedMode = false }: 
       </div>
 
       {selectedImage ? (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/75 p-4" onClick={() => setSelectedImage(null)}>
-          <div className="relative max-h-[90vh] w-full max-w-5xl overflow-hidden rounded-[24px] bg-white p-2" onClick={(event) => event.stopPropagation()}>
-            <button type="button" onClick={() => setSelectedImage(null)} className="absolute right-4 top-4 z-10 rounded-full bg-white/90 px-3 py-2 text-sm font-semibold text-[#043658] shadow">
+        <div 
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/75 p-4" 
+          onClick={() => setSelectedImage(null)}
+        >
+          <div 
+            className="relative max-h-[90vh] w-full max-w-5xl overflow-hidden rounded-[24px] bg-white p-2" 
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button 
+              type="button" 
+              onClick={() => setSelectedImage(null)} 
+              className="absolute right-4 top-4 z-10 rounded-full bg-white/90 px-3 py-2 text-sm font-semibold text-[#043658] shadow-lg hover:bg-white transition-colors"
+            >
               Close
             </button>
-            <img src={selectedImage} alt="Preview" className="max-h-[85vh] w-full object-contain" />
+            <img 
+              src={selectedImage} 
+              alt="Preview" 
+              className="max-h-[85vh] w-full object-contain" 
+            />
           </div>
         </div>
       ) : null}
+
+      <ReportPostModal
+        postId={post.id}
+        postTitle={post.title}
+        isOpen={reportModalOpen}
+        onClose={() => setReportModalOpen(false)}
+        onSuccess={() => {
+          onToast?.("Post reported. Our team will review it shortly.");
+          setReportModalOpen(false);
+        }}
+      />
     </article>
   );
 }

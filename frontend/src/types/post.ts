@@ -9,11 +9,20 @@ export interface Teacher {
 export interface Community {
   id: string;
   name: string;
+  type?: string;
+  school?: string | null;
+  woreda?: string | null;
+  zone?: string | null;
+  region?: string | null;
+  description?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Category {
   id: string;
   name: string;
+  createdAt?: string;
 }
 
 export interface CommunityLike {

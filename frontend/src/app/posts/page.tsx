@@ -118,8 +118,7 @@ function PostComposer({ communities, categories, onSuccess, onCancel }: Composer
     const e: Record<string, string> = {};
     if (!title.trim()) e.title = "Title is required.";
     else if (title.trim().length < 5) e.title = "Title must be at least 5 characters.";
-    if (!description.trim()) e.description = "Description is required.";
-    else if (description.trim().length < 10) e.description = "Description must be at least 10 characters.";
+    // Description is now optional - removed validation
     if (!communityId) e.communityId = "Please select a community.";
     if (!categoryId) e.categoryId = "Please select a category.";
     setErrors(e);
@@ -202,7 +201,7 @@ function PostComposer({ communities, categories, onSuccess, onCancel }: Composer
         {/* Description */}
         <div>
           <textarea value={description} onChange={e => { setDescription(e.target.value); if (errors.description) setErrors(p => ({...p, description:""})); }}
-            placeholder="Share your teaching idea, question, experience, or resource..."
+            placeholder="Share your teaching idea, question, experience, or resource... (Optional)"
             rows={3}
             className={`w-full resize-none rounded-lg border bg-white px-3 py-2 text-sm text-[#043658] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#043658]/15 ${errors.description ? "border-red-400" : "border-[#E2E8F0] focus:border-[#043658]/40"}`} />
           {errors.description && <p className="mt-1 text-xs text-red-500">{errors.description}</p>}
@@ -240,27 +239,51 @@ function PostComposer({ communities, categories, onSuccess, onCancel }: Composer
             <UploadCloud className={`h-5 w-5 ${isDragging ? "text-[#043658]" : "text-slate-300"}`} />
             <p className="text-xs font-medium text-slate-500">Add Resources</p>
             <p className="text-[10px] text-slate-400">Drag & drop or <span className="font-semibold text-[#043658]">choose files</span></p>
-            <p className="text-[9px] text-slate-300">JPG, PNG, WEBP, PDF, DOCX</p>
+            <p className="text-[9px] text-slate-300">JPG, PNG, WEBP, PDF, DOCX • Max 5MB</p>
           </div>
         ) : (
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
+            {/* Image Previews */}
             {imageFiles.length > 0 && (
-              <div className={`grid gap-2 mb-3 ${imageFiles.length === 1 ? "grid-cols-1" : imageFiles.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
-                {imageFiles.map(pf => (
-                  <div key={pf.id} className="relative group overflow-hidden rounded-lg">
-                    <img src={pf.preview} alt={pf.file.name} className="h-24 w-full object-cover" />
-                    <button type="button" onClick={() => removeFile(pf.id)} aria-label="Remove image"
-                      className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/50 text-white opacity-0 transition group-hover:opacity-100 hover:bg-black/70">
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))}
+              <div>
+                <p className="text-xs font-semibold text-slate-600 mb-2">Images ({imageFiles.length})</p>
+                <div className={`grid gap-2 ${imageFiles.length === 1 ? "grid-cols-1" : imageFiles.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
+                  {imageFiles.map(pf => (
+                    <div key={pf.id} className="relative group overflow-hidden rounded-lg border border-slate-200 bg-white">
+                      <img 
+                        src={pf.preview} 
+                        alt={pf.file.name} 
+                        className="h-32 w-full object-cover"
+                        onError={(e) => {
+                          console.error('Preview image failed to load:', pf.preview);
+                          e.currentTarget.src = 'https://placehold.co/200x200/F7F9FC/043658?text=Preview+Error';
+                        }}
+                      />
+                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-2">
+                        <p className="truncate text-xs font-medium text-white">{pf.file.name}</p>
+                        <p className="text-[10px] text-white/80">{formatBytes(pf.file.size)}</p>
+                      </div>
+                      <button 
+                        type="button" 
+                        onClick={() => removeFile(pf.id)} 
+                        aria-label="Remove image"
+                        className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-red-500 text-white opacity-0 transition group-hover:opacity-100 hover:bg-red-600 shadow-md">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
-            {docFiles.map(pf => {
+            
+            {/* Document Files */}
+            {docFiles.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-slate-600 mb-2">Documents ({docFiles.length})</p>
+                <div className="space-y-1.5">{docFiles.map(pf => {
               const isPdf = pf.file.name.toLowerCase().endsWith(".pdf");
               return (
-          <div key={pf.id} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-2 mb-1.5 last:mb-0">
+          <div key={pf.id} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-2">
                   <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${isPdf ? "bg-red-100" : "bg-blue-100"}`}>
                     <FileDown className={`h-3.5 w-3.5 ${isPdf ? "text-red-600" : "text-blue-600"}`} />
                   </div>
@@ -273,9 +296,12 @@ function PostComposer({ communities, categories, onSuccess, onCancel }: Composer
                   </button>
                 </div>
               );
-            })}
+            })}</div>
+              </div>
+            )}
+            
             <button type="button" onClick={() => fileInputRef.current?.click()}
-              className="mt-1 flex items-center gap-1.5 text-xs font-medium text-[#043658] hover:underline">
+              className="flex w-full items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-slate-200 bg-white px-3 py-2 text-xs font-medium text-[#043658] transition hover:border-[#043658]/40 hover:bg-[#043658]/5">
               <Plus className="h-3.5 w-3.5" /> Add more files
             </button>
           </div>
@@ -330,7 +356,7 @@ function CommunitiesSideCard() {
   const unlockedTypes = types.filter(type => levelNum >= (TYPE_MIN_LEVEL[type] ?? 99));
 
   return (
-    <div className="rounded-xl border border-[#E2E8F0] bg-white shadow-sm">
+    <div className="rounded-xl border border-[#D9E2EC] bg-[#F8FAFC] shadow-sm">
       <div className="border-b border-slate-100 px-4 py-3"><h3 className="text-sm font-semibold text-[#043658]">My Communities</h3></div>
       <div className="p-2">
         {isLoading ? (
@@ -365,7 +391,7 @@ function ProgressSideCard() {
   const pct = Math.round((levelNum / 5) * 100);
   const label = level.replace("_"," ");
   return (
-    <div className="rounded-xl border border-[#E2E8F0] bg-white shadow-sm">
+    <div className="rounded-xl border border-[#D9E2EC] bg-[#F8FAFC] shadow-sm">
       <div className="border-b border-slate-100 px-4 py-3">
         <h3 className="text-sm font-semibold text-[#043658]">Your Progress</h3>
         <p className="mt-0.5 text-xs text-slate-400">Keep contributing to reach the next level.</p>
@@ -394,7 +420,7 @@ function ProgressSideCard() {
 
 function TrendingTopicsSideCard() {
   return (
-    <div className="rounded-xl border border-[#E2E8F0] bg-white shadow-sm">
+    <div className="rounded-xl border border-[#D9E2EC] bg-[#F8FAFC] shadow-sm">
       <div className="border-b border-slate-100 px-4 py-3"><h3 className="text-sm font-semibold text-[#043658]">Trending Topics</h3></div>
       <div className="flex flex-wrap gap-2 p-4">
         {TRENDING_TAGS.map(tag => (
@@ -409,7 +435,7 @@ function PopularResourcesSideCard() {
   const { data, isLoading } = useDashboard();
   const posts = data?.recentPosts ?? [];
   return (
-    <div className="rounded-xl border border-[#E2E8F0] bg-white shadow-sm">
+    <div className="rounded-xl border border-[#D9E2EC] bg-[#F8FAFC] shadow-sm">
       <div className="border-b border-slate-100 px-4 py-3"><h3 className="text-sm font-semibold text-[#043658]">Popular Resources</h3></div>
       <div className="p-2">
         {isLoading ? <SidebarSkeleton /> : posts.length === 0 ? (
@@ -478,7 +504,7 @@ export default function PostsPage() {
   }, [queryClient]);
 
   return (
-    <div className="h-screen overflow-hidden bg-[#F7FAFC]">
+    <div className="h-screen overflow-hidden bg-[#F5F8FB]">
       <DashboardSidebar />
       <Topbar />
 
@@ -536,7 +562,7 @@ export default function PostsPage() {
               {/* Collapsed composer prompt */}
               {!composerOpen && (
                 <button type="button" onClick={() => setComposerOpen(true)}
-                  className="w-full flex items-center gap-3 rounded-xl border border-[#E2E8F0] bg-white px-4 py-3.5 text-sm text-slate-400 shadow-sm transition hover:border-[#043658]/30 hover:bg-slate-50 text-left">
+                  className="w-full flex items-center gap-3 rounded-xl border border-[#D9E2EC] bg-[#F8FAFC] px-4 py-3.5 text-sm text-slate-400 shadow-sm transition hover:border-[#043658]/30 hover:bg-[#F5F8FB] text-left">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#043658]/10">
                     <MessageSquarePlus className="h-4 w-4 text-[#043658]" />
                   </div>
