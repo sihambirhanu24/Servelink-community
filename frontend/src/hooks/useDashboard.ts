@@ -1,6 +1,7 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@/context/AuthContext';
 import { getDashboard } from '@/services/dashboard';
 import { joinCommunity } from '@/services/community';
 import { toast } from 'sonner';
@@ -8,11 +9,15 @@ import { toast } from 'sonner';
 export const DASHBOARD_KEY = 'dashboard';
 
 export function useDashboard() {
+  const { token } = useAuth();
+  
   return useQuery({
     queryKey: [DASHBOARD_KEY],
     queryFn: getDashboard,
     staleTime: 30_000,
     retry: 1,
+    // Skip the query if there's no token
+    enabled: !!token,
   });
 }
 

@@ -24,8 +24,8 @@ export interface DashboardRecentPost {
   title: string;
   description: string;
   createdAt: string;
-  community: { id: string; name: string; type: string } | null;
-  category: { id: string; name: string } | null;
+  community: { id: string; name: string; type: string; createdAt?: string } | null;
+  category: { id: string; name: string; createdAt?: string } | null;
   _count: {
     communityLikes: number;
     comments: number;
@@ -38,8 +38,8 @@ export interface DashboardFeedPost {
   title: string;
   description: string;
   createdAt: string;
-  community: { id: string; name: string; type: string } | null;
-  category: { id: string; name: string } | null;
+  community: { id: string; name: string; type: string; createdAt?: string } | null;
+  category: { id: string; name: string; createdAt?: string } | null;
   teacher: {
     id: string;
     firstName: string;
