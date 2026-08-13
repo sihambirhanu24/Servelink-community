@@ -129,7 +129,7 @@ function NotifItem({ n }: { n: Notification }) {
 // ── Sidebar cards ──────────────────────────────────────
 function ActivitySideCard({ total, unread }: { total: number; unread: number }) {
   return (
-    <div className="rounded-xl border border-[#E2E8F0] bg-white shadow-sm">
+    <div className="rounded-xl border border-[#D9E2EC] bg-[#F8FAFC] shadow-sm">
       <div className="border-b border-slate-100 px-4 py-3">
         <h3 className="text-sm font-semibold text-[#043658]">Your Inbox</h3>
       </div>
@@ -156,7 +156,7 @@ function ActivitySideCard({ total, unread }: { total: number; unread: number }) 
 
 function QuickLinksSideCard() {
   return (
-    <div className="rounded-xl border border-[#E2E8F0] bg-white shadow-sm">
+    <div className="rounded-xl border border-[#D9E2EC] bg-[#F8FAFC] shadow-sm">
       <div className="border-b border-slate-100 px-4 py-3">
         <h3 className="text-sm font-semibold text-[#043658]">Quick Links</h3>
       </div>
@@ -234,7 +234,7 @@ export default function NotificationsPage() {
   const isFiltered = activeFilter !== 'ALL' || showUnreadOnly || debouncedSearch.length > 0;
 
   return (
-    <div className="h-screen overflow-hidden bg-[#F7FAFC]">
+    <div className="h-screen overflow-hidden bg-[#F5F8FB]">
       <DashboardSidebar />
       <Topbar />
 

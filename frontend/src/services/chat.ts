@@ -25,12 +25,17 @@ export interface ChatGroup {
   id: string;
   name: string;
   type: string;
+  /** COMMON = all teachers at this level/scope. DEPARTMENT = restricted to one dept. */
+  subtype: 'COMMON' | 'DEPARTMENT';
+  department?: string | null;
   description?: string | null;
   school?: string | null;
   woreda?: string | null;
   zone?: string | null;
   region?: string | null;
+  isActive?: boolean;
   chatRoomId?: string | null;
+  memberCount?: number;
   unreadCount: number;
   lastMessage?: {
     content: string;
@@ -58,11 +63,14 @@ export interface ChatCommunityInfo {
     id: string;
     name: string;
     type: string;
+    subtype: 'COMMON' | 'DEPARTMENT';
+    department?: string | null;
     description?: string | null;
     school?: string | null;
     woreda?: string | null;
     zone?: string | null;
     region?: string | null;
+    isActive?: boolean;
   };
   chatRoomId: string;
 }

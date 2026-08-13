@@ -6,6 +6,7 @@ import {
   useQueryClient,
   useInfiniteQuery,
 } from '@tanstack/react-query';
+import { useAuth } from '@/context/AuthContext';
 import {
   fetchNotifications,
   fetchUnreadCount,
@@ -20,15 +21,21 @@ export const NOTIFICATIONS_KEY = 'notifications-list';
 export const UNREAD_COUNT_KEY = 'notifications-unread-count';
 
 export function useNotifications(params: NotificationQueryParams = {}) {
+  const { token } = useAuth();
+  
   return useQuery({
     queryKey: [NOTIFICATIONS_KEY, params],
     queryFn: () => fetchNotifications(params),
     staleTime: 30_000,
     retry: 1,
+    // Skip the query if there's no token (e.g., on page refresh before auth context initializes)
+    enabled: !!token,
   });
 }
 
 export function useNotificationsInfinite(params: Omit<NotificationQueryParams, 'page'> = {}) {
+  const { token } = useAuth();
+  
   return useInfiniteQuery({
     queryKey: [NOTIFICATIONS_KEY, 'infinite', params],
     queryFn: ({ pageParam = 1 }) =>
@@ -37,16 +44,22 @@ export function useNotificationsInfinite(params: Omit<NotificationQueryParams, '
     getNextPageParam: (lastPage) =>
       lastPage.meta.hasNextPage ? lastPage.meta.page + 1 : undefined,
     staleTime: 30_000,
+    // Skip the query if there's no token
+    enabled: !!token,
   });
 }
 
 export function useUnreadCount() {
+  const { token } = useAuth();
+  
   return useQuery({
     queryKey: [UNREAD_COUNT_KEY],
     queryFn: fetchUnreadCount,
     staleTime: 15_000,
     refetchInterval: 30_000,
     retry: 1,
+    // Skip the query if there's no token (e.g., in admin panel without teacher login)
+    enabled: !!token,
   });
 }
 

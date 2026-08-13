@@ -39,6 +39,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [latestNotification, setLatestNotification] = useState<Notification | null>(null);
 
+  // Only fetch unread count if user has a teacher token
   const { data: unreadData } = useUnreadCount();
   const unreadCount = unreadData?.count ?? 0;
 
