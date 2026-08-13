@@ -95,7 +95,7 @@ export default function DashboardPage() {
 
         <DashboardRecentActivity notifications={recentNotifications} />
 
-        <DashboardSuggestedCommunities communities={suggestedCommunities} />
+        <DashboardSuggestedCommunities />
 
         <TrendingHubsCard />
 
