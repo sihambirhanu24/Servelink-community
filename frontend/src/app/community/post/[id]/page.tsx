@@ -5,10 +5,11 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft, Edit, Trash2, Heart, MessageCircle, Bookmark,
   Share2, Eye, FileText, Download, Send, Loader2, AlertCircle,
-  MoreVertical, Flag, ExternalLink
+  MoreVertical, Flag, ExternalLink, Sparkles, TrendingUp, Users
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
 import { DashboardSidebar } from "@/components/layout/Sidebar";
 import Topbar from "@/components/layout/Topbar";
 import { useAuth } from "@/context/AuthContext";
@@ -22,6 +23,8 @@ import {
 } from "@/services/community";
 import { getPostComments, createComment } from "@/services/comment.service";
 import { getMediaUrl } from "@/lib/media";
+import { useToast } from "@/hooks/useToast";
+import { useConfirm } from "@/hooks/useConfirm";
 
 const TRENDING_TOPICS = [
   "#AIEducation",
@@ -30,12 +33,33 @@ const TRENDING_TOPICS = [
   "#EdTech",
 ];
 
+// Animation variants
+const pageVariants = {
+  initial: { opacity: 0, y: 20 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -20 }
+};
+
+const cardVariants = {
+  initial: { opacity: 0, scale: 0.95 },
+  animate: { opacity: 1, scale: 1 },
+  hover: { y: -2, transition: { duration: 0.2 } }
+};
+
+const commentVariants = {
+  initial: { opacity: 0, x: -20 },
+  animate: { opacity: 1, x: 0 },
+  exit: { opacity: 0, x: 20 }
+};
+
 export default function PostDetailPage() {
   const params = useParams();
   const postId = params.id as string;
   const router = useRouter();
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { showToast } = useToast();
+  const { confirm } = useConfirm();
 
   const [commentText, setCommentText] = useState("");
   const [showShareMenu, setShowShareMenu] = useState(false);
@@ -57,17 +81,25 @@ export default function PostDetailPage() {
   // Mutations
   const likeMutation = useMutation({
     mutationFn: (isLiked: boolean) => (isLiked ? unlikePost(postId) : likePost(postId)),
-    onSuccess: () => {
+    onSuccess: (_, isLiked) => {
       queryClient.invalidateQueries({ queryKey: ["post", postId] });
+      showToast(isLiked ? "Removed like" : "Post liked!", "success");
     },
+    onError: () => {
+      showToast("Failed to update like", "error");
+    }
   });
 
   const bookmarkMutation = useMutation({
     mutationFn: (isBookmarked: boolean) =>
       isBookmarked ? removeBookmark(postId) : bookmarkPost(postId),
-    onSuccess: () => {
+    onSuccess: (_, isBookmarked) => {
       queryClient.invalidateQueries({ queryKey: ["post", postId] });
+      showToast(isBookmarked ? "Removed from bookmarks" : "Added to bookmarks!", "success");
     },
+    onError: () => {
+      showToast("Failed to update bookmark", "error");
+    }
   });
 
   const commentMutation = useMutation({
@@ -75,14 +107,22 @@ export default function PostDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["post-comments", postId] });
       setCommentText("");
+      showToast("Comment posted!", "success");
     },
+    onError: () => {
+      showToast("Failed to post comment", "error");
+    }
   });
 
   const deleteMutation = useMutation({
     mutationFn: () => deletePost(postId),
     onSuccess: () => {
+      showToast("Post deleted successfully", "success");
       router.push("/profile/posts");
     },
+    onError: () => {
+      showToast("Failed to delete post", "error");
+    }
   });
 
   const handleLike = () => {
@@ -101,9 +141,15 @@ export default function PostDetailPage() {
     commentMutation.mutate(content);
   };
 
-  const handleDelete = () => {
-    if (!confirm("Are you sure you want to delete this post?")) return;
-    deleteMutation.mutate();
+  const handleDelete = async () => {
+    const confirmed = await confirm({
+      title: "Are you sure you want to delete this post?",
+      message: "This action cannot be undone. All comments and interactions will be permanently removed.",
+      type: "danger"
+    });
+    if (confirmed) {
+      deleteMutation.mutate();
+    }
   };
 
   const handleShare = () => {
@@ -112,10 +158,10 @@ export default function PostDetailPage() {
         title: post?.title,
         text: post?.description,
         url: window.location.href,
-      });
+      }).catch(() => {});
     } else {
       navigator.clipboard.writeText(window.location.href);
-      alert("Link copied to clipboard!");
+      showToast("Link copied to clipboard!", "success");
     }
   };
 
@@ -184,46 +230,70 @@ export default function PostDetailPage() {
   const commentsCount = comments.length;
 
   return (
-    <div className="h-screen overflow-hidden bg-[#F5F8FB]">
+    <div className="h-screen overflow-hidden bg-gradient-to-br from-[#F5F8FB] via-[#F5F8FB] to-[#E8F0F7]">
       <DashboardSidebar />
       <Topbar />
 
-      <main className="mt-16 lg:ml-64 h-[calc(100vh-4rem)] overflow-y-auto">
+      <motion.main 
+        className="mt-16 lg:ml-64 h-[calc(100vh-4rem)] overflow-y-auto"
+        variants={pageVariants}
+        initial="initial"
+        animate="animate"
+        exit="exit"
+      >
         <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6">
             {/* Main Content */}
             <div>
-              {/* Back Button */}
+              {/* Back Button with Gradient */}
               <Link
                 href="/posts"
-                className="inline-flex items-center gap-2 text-sm text-[#043658] hover:underline mb-4"
+                className="inline-flex items-center gap-2 text-sm font-medium text-[#043658] hover:text-[#FFC107] transition-colors mb-4 group"
               >
-                <ArrowLeft className="h-4 w-4" />
+                <div className="p-1 rounded-lg bg-white border border-[#043658]/10 group-hover:border-[#FFC107] transition-colors">
+                  <ArrowLeft className="h-4 w-4" />
+                </div>
                 Back to My Posts
               </Link>
 
-              {/* Post Card */}
-              <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
+              {/* Post Card with Gradient Border */}
+              <motion.div 
+                className="rounded-2xl bg-gradient-to-br from-white via-white to-[#FFC107]/5 shadow-lg border border-[#043658]/10 overflow-hidden"
+                variants={cardVariants}
+                initial="initial"
+                animate="animate"
+                whileHover="hover"
+              >
+                {/* Gradient Top Bar */}
+                <div className="h-1 bg-gradient-to-r from-[#043658] via-[#FFC107] to-[#043658]" />
+                
                 {/* Header */}
-                <div className="p-6 border-b border-slate-100">
+                <div className="p-6 border-b border-slate-100 bg-gradient-to-br from-white to-[#043658]/[0.02]">
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center gap-3">
-                      <div className="h-12 w-12 rounded-full bg-[#043658] flex items-center justify-center text-white font-semibold">
-                        {post.teacher?.firstName?.charAt(0) || "T"}
+                      <div className="relative">
+                        <div className="h-12 w-12 rounded-full bg-gradient-to-br from-[#043658] to-[#043658]/80 flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                          {post.teacher?.firstName?.charAt(0) || "T"}
+                        </div>
+                        <div className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full bg-gradient-to-br from-[#FFC107] to-amber-500 flex items-center justify-center">
+                          <Sparkles className="h-2.5 w-2.5 text-white" />
+                        </div>
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <h3 className="font-semibold text-[#043658]">
+                          <h3 className="font-bold text-[#043658]">
                             {post.teacher
                               ? `${post.teacher.firstName} ${post.teacher.lastName}`
                               : "Teacher"}
                           </h3>
-                          <span className="px-2 py-0.5 rounded-full bg-[#FFC107]/20 text-[10px] font-bold text-[#043658]">
+                          <span className="px-2.5 py-1 rounded-full bg-gradient-to-r from-[#FFC107] to-amber-400 text-[10px] font-bold text-[#043658] shadow-sm">
                             {post.teacher?.level || "LEVEL_1"}
                           </span>
                         </div>
-                        <p className="text-sm text-slate-500">
-                          {post.community?.name} • {formatDate(post.createdAt)}
+                        <p className="text-sm text-slate-500 flex items-center gap-2">
+                          <span className="font-medium text-[#043658]">{post.community?.name}</span>
+                          <span className="text-slate-300">•</span>
+                          <span>{formatDate(post.createdAt)}</span>
                         </p>
                       </div>
                     </div>
@@ -232,14 +302,14 @@ export default function PostDetailPage() {
                       <div className="flex items-center gap-2">
                         <Link
                           href={`/community/post/edit/${post.id}`}
-                          className="p-2 text-slate-400 hover:text-[#043658] hover:bg-slate-100 rounded-lg transition-colors"
+                          className="p-2.5 text-slate-400 hover:text-[#043658] hover:bg-[#043658]/5 rounded-xl transition-all hover:scale-110"
                         >
                           <Edit className="h-4 w-4" />
                         </Link>
                         <button
                           onClick={handleDelete}
                           disabled={deleteMutation.isPending}
-                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                          className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all hover:scale-110 disabled:opacity-50"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -247,11 +317,13 @@ export default function PostDetailPage() {
                     )}
                   </div>
 
-                  <h1 className="text-2xl font-bold text-[#043658] mb-3">{post.title}</h1>
+                  <h1 className="text-3xl font-bold bg-gradient-to-r from-[#043658] to-[#043658]/80 bg-clip-text text-transparent mb-4 leading-tight">
+                    {post.title}
+                  </h1>
 
-                  <div className="prose prose-sm max-w-none text-slate-700">
+                  <div className="prose prose-sm max-w-none text-slate-700 leading-relaxed">
                     {post.description.split("\n").map((paragraph: string, idx: number) => (
-                      <p key={idx} className="mb-2">
+                      <p key={idx} className="mb-3">
                         {paragraph}
                       </p>
                     ))}
@@ -260,24 +332,30 @@ export default function PostDetailPage() {
 
                 {/* Attachments */}
                 {post.attachments && post.attachments.length > 0 && (
-                  <div className="p-6 border-b border-slate-100">
-                    <h4 className="text-sm font-semibold text-slate-700 mb-3 uppercase tracking-wide">
-                      Attachments
-                    </h4>
+                  <div className="p-6 border-b border-slate-100 bg-gradient-to-br from-white to-[#FFC107]/[0.02]">
+                    <div className="flex items-center gap-2 mb-4">
+                      <FileText className="h-4 w-4 text-[#043658]" />
+                      <h4 className="text-sm font-bold text-[#043658] uppercase tracking-wide">
+                        Attachments ({post.attachments.length})
+                      </h4>
+                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {post.attachments.map((attachment: any) => (
-                        <a
+                      {post.attachments.map((attachment: any, idx: number) => (
+                        <motion.a
                           key={attachment.id}
                           href={getMediaUrl(attachment.url)}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="flex items-center gap-3 p-4 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors group"
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: idx * 0.1 }}
+                          className="flex items-center gap-3 p-4 rounded-xl border border-[#043658]/10 bg-gradient-to-br from-white to-[#FFC107]/5 hover:border-[#FFC107] hover:shadow-md transition-all group"
                         >
-                          <div className="flex-shrink-0 text-3xl">
+                          <div className="flex-shrink-0 text-3xl group-hover:scale-110 transition-transform">
                             {getFileIcon(attachment.type)}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-[#043658] truncate">
+                            <p className="text-sm font-bold text-[#043658] truncate group-hover:text-[#FFC107] transition-colors">
                               {attachment.fileName || "Attachment"}
                             </p>
                             <p className="text-xs text-slate-500">
@@ -286,91 +364,104 @@ export default function PostDetailPage() {
                                 : attachment.type}
                             </p>
                           </div>
-                          <Download className="h-4 w-4 text-slate-400 group-hover:text-[#043658]" />
-                        </a>
+                          <Download className="h-4 w-4 text-slate-400 group-hover:text-[#FFC107] transition-colors" />
+                        </motion.a>
                       ))}
                     </div>
                   </div>
                 )}
 
-                {/* Actions */}
-                <div className="px-6 py-4 border-b border-slate-100">
+                {/* Actions with Brand Colors */}
+                <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-white via-[#043658]/[0.02] to-white">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <button
+                    <div className="flex items-center gap-3">
+                      <motion.button
+                        whileTap={{ scale: 0.95 }}
                         onClick={handleLike}
                         disabled={likeMutation.isPending}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors ${
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all font-semibold ${
                           post.liked
-                            ? "text-red-500 bg-red-50"
-                            : "text-slate-600 hover:bg-slate-100"
+                            ? "text-white bg-gradient-to-r from-red-500 to-pink-500 shadow-lg shadow-red-500/30"
+                            : "text-slate-600 bg-white border border-slate-200 hover:border-red-300 hover:bg-red-50"
                         }`}
                       >
                         <Heart
                           className="h-4 w-4"
                           fill={post.liked ? "currentColor" : "none"}
                         />
-                        <span className="text-sm font-medium">{likesCount}</span>
-                      </button>
+                        <span className="text-sm">{likesCount}</span>
+                      </motion.button>
 
-                      <button className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors">
+                      <motion.button 
+                        whileTap={{ scale: 0.95 }}
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl text-slate-600 bg-white border border-slate-200 hover:border-[#043658] hover:bg-[#043658]/5 transition-all font-semibold"
+                      >
                         <MessageCircle className="h-4 w-4" />
-                        <span className="text-sm font-medium">{commentsCount}</span>
-                      </button>
+                        <span className="text-sm">{commentsCount}</span>
+                      </motion.button>
 
-                      <button
+                      <motion.button
+                        whileTap={{ scale: 0.95 }}
                         onClick={handleBookmark}
                         disabled={bookmarkMutation.isPending}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors ${
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all font-semibold ${
                           post.bookmarked
-                            ? "text-[#043658] bg-[#043658]/10"
-                            : "text-slate-600 hover:bg-slate-100"
+                            ? "text-white bg-gradient-to-r from-[#043658] to-[#043658]/80 shadow-lg shadow-[#043658]/30"
+                            : "text-slate-600 bg-white border border-slate-200 hover:border-[#FFC107] hover:bg-[#FFC107]/10"
                         }`}
                       >
                         <Bookmark
                           className="h-4 w-4"
                           fill={post.bookmarked ? "currentColor" : "none"}
                         />
-                        <span className="text-sm font-medium">
+                        <span className="text-sm">
                           {post.bookmarked ? "Saved" : "Save"}
                         </span>
-                      </button>
+                      </motion.button>
                     </div>
 
-                    <button
+                    <motion.button
+                      whileTap={{ scale: 0.95 }}
                       onClick={handleShare}
-                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors"
+                      className="flex items-center gap-2 px-4 py-2 rounded-xl text-slate-600 bg-white border border-slate-200 hover:border-[#FFC107] hover:bg-[#FFC107]/10 transition-all font-semibold"
                     >
                       <Share2 className="h-4 w-4" />
-                    </button>
+                      <span className="text-sm">Share</span>
+                    </motion.button>
                   </div>
                 </div>
 
-                {/* Comments Section */}
-                <div className="p-6">
-                  <h3 className="text-lg font-semibold text-[#043658] mb-4">
-                    Comments ({commentsCount})
-                  </h3>
+                {/* Comments Section with Enhanced Design */}
+                <div className="p-6 bg-gradient-to-br from-white to-[#043658]/[0.02]">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-xl font-bold text-[#043658] flex items-center gap-2">
+                      <MessageCircle className="h-5 w-5" />
+                      Comments ({commentsCount})
+                    </h3>
+                  </div>
 
-                  {/* Comment Input */}
+                  {/* Comment Input with Gradient */}
                   <div className="mb-6">
                     <div className="flex gap-3">
-                      <div className="h-10 w-10 rounded-full bg-[#043658] flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
-                        {user?.firstName?.charAt(0) || "U"}
+                      <div className="relative flex-shrink-0">
+                        <div className="h-10 w-10 rounded-full bg-gradient-to-br from-[#043658] to-[#043658]/80 flex items-center justify-center text-white text-sm font-bold shadow-lg">
+                          {user?.firstName?.charAt(0) || "U"}
+                        </div>
                       </div>
                       <div className="flex-1">
                         <textarea
                           value={commentText}
                           onChange={(e) => setCommentText(e.target.value)}
-                          placeholder="Add a comment..."
+                          placeholder="Share your thoughts..."
                           rows={3}
-                          className="w-full px-4 py-3 rounded-lg border border-slate-200 text-sm focus:border-[#043658] focus:outline-none focus:ring-2 focus:ring-[#043658]/10 resize-none"
+                          className="w-full px-4 py-3 rounded-xl border border-[#043658]/10 text-sm focus:border-[#043658] focus:outline-none focus:ring-2 focus:ring-[#043658]/20 resize-none bg-white shadow-sm transition-all"
                         />
-                        <div className="flex justify-end mt-2">
-                          <button
+                        <div className="flex justify-end mt-3">
+                          <motion.button
+                            whileTap={{ scale: 0.95 }}
                             onClick={handleComment}
                             disabled={!commentText.trim() || commentMutation.isPending}
-                            className="flex items-center gap-2 px-4 py-2 bg-[#043658] text-white rounded-lg text-sm font-medium hover:bg-[#032d4a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-[#043658] to-[#043658]/90 text-white rounded-xl text-sm font-bold hover:shadow-lg hover:shadow-[#043658]/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                           >
                             {commentMutation.isPending ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
@@ -378,112 +469,168 @@ export default function PostDetailPage() {
                               <Send className="h-4 w-4" />
                             )}
                             Post Comment
-                          </button>
+                          </motion.button>
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  {/* Comments List */}
+                  {/* Comments List with Animation */}
                   <div className="space-y-4">
                     {commentsLoading ? (
                       <div className="text-center py-8">
-                        <Loader2 className="h-6 w-6 animate-spin text-slate-400 mx-auto" />
+                        <Loader2 className="h-6 w-6 animate-spin text-[#043658] mx-auto" />
                       </div>
                     ) : comments.length === 0 ? (
-                      <div className="text-center py-8">
-                        <MessageCircle className="h-8 w-8 text-slate-300 mx-auto mb-2" />
-                        <p className="text-sm text-slate-500">
-                          No comments yet. Be the first to comment!
-                        </p>
-                      </div>
-                    ) : (
-                      comments.map((comment: any) => (
-                        <div key={comment.id} className="flex gap-3">
-                          <div className="h-10 w-10 rounded-full bg-[#043658] flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
-                            {comment.teacher?.firstName?.charAt(0) || "T"}
-                          </div>
-                          <div className="flex-1">
-                            <div className="bg-slate-50 rounded-lg px-4 py-3">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="font-semibold text-sm text-[#043658]">
-                                  {comment.teacher
-                                    ? `${comment.teacher.firstName} ${comment.teacher.lastName}`
-                                    : "Teacher"}
-                                </span>
-                                <span className="text-xs text-slate-500">
-                                  {formatDate(comment.createdAt)}
-                                </span>
-                              </div>
-                              <p className="text-sm text-slate-700">{comment.content}</p>
-                            </div>
-                          </div>
+                      <motion.div 
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="text-center py-12 bg-gradient-to-br from-slate-50 to-[#043658]/5 rounded-2xl border border-dashed border-[#043658]/20"
+                      >
+                        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-[#043658]/10 to-[#FFC107]/10 mx-auto mb-3">
+                          <MessageCircle className="h-8 w-8 text-[#043658]/40" />
                         </div>
-                      ))
+                        <p className="text-sm font-semibold text-[#043658]">
+                          No comments yet
+                        </p>
+                        <p className="text-xs text-slate-500 mt-1">
+                          Be the first to share your thoughts!
+                        </p>
+                      </motion.div>
+                    ) : (
+                      <AnimatePresence>
+                        {comments.map((comment: any, idx: number) => (
+                          <motion.div 
+                            key={comment.id}
+                            variants={commentVariants}
+                            initial="initial"
+                            animate="animate"
+                            exit="exit"
+                            transition={{ delay: idx * 0.05 }}
+                            className="flex gap-3"
+                          >
+                            <div className="h-10 w-10 rounded-full bg-gradient-to-br from-[#043658] to-[#043658]/80 flex items-center justify-center text-white text-sm font-bold flex-shrink-0 shadow-md">
+                              {comment.teacher?.firstName?.charAt(0) || "T"}
+                            </div>
+                            <div className="flex-1">
+                              <div className="bg-gradient-to-br from-slate-50 to-white rounded-xl px-4 py-3 border border-[#043658]/5 shadow-sm">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <span className="font-bold text-sm text-[#043658]">
+                                    {comment.teacher
+                                      ? `${comment.teacher.firstName} ${comment.teacher.lastName}`
+                                      : "Teacher"}
+                                  </span>
+                                  <span className="text-xs text-slate-400">
+                                    {formatDate(comment.createdAt)}
+                                  </span>
+                                </div>
+                                <p className="text-sm text-slate-700 leading-relaxed">{comment.content}</p>
+                              </div>
+                            </div>
+                          </motion.div>
+                        ))}
+                      </AnimatePresence>
                     )}
                   </div>
                 </div>
-              </div>
+              </motion.div>
             </div>
 
-            {/* Sidebar */}
+            {/* Enhanced Sidebar */}
             <div className="space-y-4">
-              {/* Trending Topics */}
-              <div className="rounded-lg border border-slate-200 bg-white p-4">
-                <h3 className="font-semibold text-[#043658] mb-3">Trending Topics</h3>
+              {/* Trending Topics with Gradient */}
+              <motion.div 
+                className="rounded-2xl border border-[#043658]/10 bg-gradient-to-br from-white to-[#FFC107]/5 p-5 shadow-lg"
+                variants={cardVariants}
+                initial="initial"
+                animate="animate"
+                transition={{ delay: 0.2 }}
+              >
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="p-2 rounded-lg bg-gradient-to-br from-[#FFC107] to-amber-400 shadow-md">
+                    <TrendingUp className="h-4 w-4 text-white" />
+                  </div>
+                  <h3 className="font-bold text-[#043658]">Trending Topics</h3>
+                </div>
                 <div className="flex flex-wrap gap-2">
-                  {TRENDING_TOPICS.map((topic) => (
-                    <span
+                  {TRENDING_TOPICS.map((topic, idx) => (
+                    <motion.span
                       key={topic}
-                      className="px-3 py-1.5 rounded-full bg-[#043658]/5 text-[#043658] text-xs font-medium hover:bg-[#043658]/10 cursor-pointer transition-colors"
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: 0.3 + idx * 0.1 }}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      className="px-3 py-2 rounded-xl bg-gradient-to-r from-[#043658]/10 to-[#043658]/5 text-[#043658] text-xs font-bold hover:from-[#043658] hover:to-[#043658]/90 hover:text-white cursor-pointer transition-all shadow-sm hover:shadow-md"
                     >
                       {topic}
-                    </span>
+                    </motion.span>
                   ))}
                 </div>
-              </div>
+              </motion.div>
 
-              {/* Active Contributors */}
-              <div className="rounded-lg border border-slate-200 bg-white p-4">
-                <h3 className="font-semibold text-[#043658] mb-3">Active Contributors</h3>
+              {/* Active Contributors with Gradient */}
+              <motion.div 
+                className="rounded-2xl border border-[#043658]/10 bg-gradient-to-br from-white to-[#043658]/5 p-5 shadow-lg"
+                variants={cardVariants}
+                initial="initial"
+                animate="animate"
+                transition={{ delay: 0.3 }}
+              >
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="p-2 rounded-lg bg-gradient-to-br from-[#043658] to-[#043658]/80 shadow-md">
+                    <Users className="h-4 w-4 text-white" />
+                  </div>
+                  <h3 className="font-bold text-[#043658]">Active Contributors</h3>
+                </div>
                 <div className="space-y-3">
                   {[
                     { name: "Abeba Kebede", level: "LEVEL 3", badge: "yellow" },
                     { name: "Betelhem Alemu", level: "LEVEL 5", badge: "blue" },
                     { name: "Yonas Tadesse", level: "LEVEL 4", badge: "blue" },
                   ].map((contributor, idx) => (
-                    <div key={idx} className="flex items-center justify-between">
+                    <motion.div 
+                      key={idx}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.4 + idx * 0.1 }}
+                      className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-white to-slate-50 border border-[#043658]/5 hover:border-[#FFC107] hover:shadow-md transition-all group cursor-pointer"
+                    >
                       <div className="flex items-center gap-2">
-                        <div className="h-8 w-8 rounded-full bg-[#043658] flex items-center justify-center text-white text-xs font-semibold">
+                        <div className="h-9 w-9 rounded-full bg-gradient-to-br from-[#043658] to-[#043658]/80 flex items-center justify-center text-white text-xs font-bold shadow-md group-hover:scale-110 transition-transform">
                           {contributor.name.charAt(0)}
                         </div>
                         <div>
-                          <p className="text-sm font-medium text-[#043658]">
+                          <p className="text-sm font-bold text-[#043658]">
                             {contributor.name}
                           </p>
                           <p className="text-xs text-slate-500">Computer Science</p>
                         </div>
                       </div>
                       <span
-                        className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold shadow-sm ${
                           contributor.badge === "yellow"
-                            ? "bg-yellow-100 text-yellow-800"
-                            : "bg-blue-100 text-blue-800"
+                            ? "bg-gradient-to-r from-[#FFC107] to-amber-400 text-white"
+                            : "bg-gradient-to-r from-blue-500 to-blue-600 text-white"
                         }`}
                       >
                         {contributor.level}
                       </span>
-                    </div>
+                    </motion.div>
                   ))}
                 </div>
-                <button className="w-full mt-4 text-sm text-[#043658] font-medium hover:underline">
+                <motion.button 
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="w-full mt-4 py-2.5 text-sm text-white font-bold bg-gradient-to-r from-[#043658] to-[#043658]/90 rounded-xl hover:shadow-lg hover:shadow-[#043658]/30 transition-all"
+                >
                   View Leaderboard
-                </button>
-              </div>
+                </motion.button>
+              </motion.div>
             </div>
           </div>
         </div>
-      </main>
+      </motion.main>
     </div>
   );
 }
