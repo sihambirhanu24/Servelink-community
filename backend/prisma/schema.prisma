@@ -22,6 +22,9 @@ model Teacher {
   woreda             String
   zone               String
   region             String
+  /// Professional department (e.g. "Mathematics", "English", "Physics").
+  /// Required for LEVEL_2–5 teachers; optional/unused for LEVEL_1.
+  department         String?
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
   communityBookmarks CommunityBookmark[]
@@ -51,16 +54,27 @@ model Community {
   id               String            @id @default(cuid())
   name             String
   type             CommunityType
+  /// COMMON = all teachers at this level/scope regardless of department.
+  /// DEPARTMENT = restricted to a single department within this level/scope.
+  /// SCHOOL communities are always COMMON (LEVEL_1 has no department split).
+  subtype          CommunitySubtype  @default(COMMON)
+  /// Department name — only set when subtype = DEPARTMENT.
+  department       String?
   school           String?
   woreda           String?
   zone             String?
   region           String?
   description      String?
+  isActive         Boolean           @default(true)
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
   communityMembers CommunityMember[]
   posts            CommunityPost[]
   chatRoom         ChatRoom?
+
+  // Prevent duplicate COMMON communities for the same type+geography.
+  // Prevent duplicate DEPARTMENT communities for the same type+geography+department.
+  @@unique([type, subtype, school, woreda, zone, region, department], name: "unique_community_scope")
 }
 
 model CommunityMember {
@@ -99,6 +113,7 @@ model CommunityPost {
   teacherId          String
   communityId        String
   categoryId         String
+  views              Int                 @default(0)
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
   attachments        Attachment[]
@@ -163,9 +178,13 @@ model CommunityReport {
   description String?
   teacherId   String
   postId      String
+  status      ReportStatus  @default(PENDING)
   createdAt   DateTime      @default(now())
-  post        CommunityPost @relation(fields: [postId], references: [id])
+  updatedAt   DateTime      @updatedAt
+  post        CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
   teacher     Teacher       @relation(fields: [teacherId], references: [id])
+
+  @@unique([teacherId, postId])
 }
 
 model PostTag {
@@ -198,11 +217,25 @@ enum CommunityType {
   NATIONAL
 }
 
+enum CommunitySubtype {
+  COMMON
+  DEPARTMENT
+}
+
 enum ReportReason {
   SPAM
   ABUSE
-  FAKE_INFORMATION
+  HARASSMENT
+  MISINFORMATION
+  FAKE_INFORMATION  // Deprecated: use MISINFORMATION instead
   OTHER
+}
+
+enum ReportStatus {
+  PENDING
+  REVIEWED
+  RESOLVED
+  DISMISSED
 }
 
 enum AttachmentType {
