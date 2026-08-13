@@ -12,8 +12,15 @@ export default api;
 // hard refresh (by design — see AuthContext for how it gets rehydrated).
 let accessToken: string | null = null;
 
+// Callback to notify AuthContext when token is invalidated
+let onTokenInvalidated: (() => void) | null = null;
+
 export function setAccessToken(token: string | null) {
   accessToken = token;
+}
+
+export function setOnTokenInvalidated(callback: () => void) {
+  onTokenInvalidated = callback;
 }
 
 api.interceptors.request.use((config) => {
@@ -36,6 +43,11 @@ api.interceptors.response.use(
       setAccessToken(null);
       localStorage.removeItem("token");
       localStorage.removeItem("teacher");
+      
+      // Notify AuthContext to update its state
+      if (onTokenInvalidated) {
+        onTokenInvalidated();
+      }
     }
 
     return Promise.reject(error);
