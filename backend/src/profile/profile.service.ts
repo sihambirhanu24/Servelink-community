@@ -61,7 +61,7 @@ return this.prisma.communityPost.findMany({
   }
 
   async updateProfilePhoto(teacherId: string, filename: string) {
-    const profileImage = `/uploads/profile/${filename}`;
+    const profileImage = `uploads/profile/${filename}`; // Store without leading slash
     const updated = await this.prisma.teacher.update({
       where: { id: teacherId },
       data: { profileImage },
