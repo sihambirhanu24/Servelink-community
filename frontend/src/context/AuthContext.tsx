@@ -1,12 +1,13 @@
 "use client";
 
 import { getCurrentUser } from "@/services/auth";
-import { setAccessToken } from "@/lib/axios";
+import { setAccessToken, setOnTokenInvalidated } from "@/lib/axios";
 import {
   createContext,
   useContext,
   useEffect,
   useState,
+  useCallback,
 } from "react";
 
 interface User {
@@ -45,6 +46,19 @@ export function AuthProvider({
   // Pages that depend on token use it as a dep so they re-run once it's set.
   const [token, setToken] = useState<string | null>(null);
 
+  // Clear session when token is invalidated (called by axios interceptor on 401)
+  const clearSession = useCallback(() => {
+    setAccessToken(null);
+    setToken(null);
+    setUser(null);
+  }, []);
+
+  // Register the callback with axios interceptor
+  useEffect(() => {
+    setOnTokenInvalidated(clearSession);
+    return () => setOnTokenInvalidated(() => {});
+  }, [clearSession]);
+
   useEffect(() => {
     async function loadUser() {
       const savedToken = localStorage.getItem("token");
@@ -65,8 +79,10 @@ export function AuthProvider({
         const teacher = await getCurrentUser();
         setUser(teacher);
         localStorage.setItem("teacher", JSON.stringify(teacher));
-      } catch {
-        logout();
+      } catch (error) {
+        // If getting user fails (401, network error, etc.), session was already cleared by interceptor
+        // Just ensure state is clean
+        clearSession();
       }
     }
     loadUser();

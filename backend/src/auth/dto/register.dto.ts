@@ -102,4 +102,15 @@ export class RegisterDto {
   })
   @IsString()
   region: string;
+
+  @ApiProperty({
+    example: 'Mathematics',
+    required: false,
+    description:
+      'Professional department (e.g. Mathematics, English, Physics). ' +
+      'Required for LEVEL_2–5 teachers to be placed in department communities.',
+  })
+  @IsOptional()
+  @IsString()
+  department?: string;
 }

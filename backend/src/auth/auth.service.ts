@@ -8,10 +8,9 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 
-
-
 import { PrismaService } from '../prisma/prisma.service';
-import { MailService } from "../mail/mail.service";
+import { MailService } from '../mail/mail.service';
+import { ChatService } from '../chat/chat.service';
 import { RegisterDto } from '../auth/dto/register.dto';
 import { LoginDto } from '../auth/dto/login.dto';
 
@@ -20,71 +19,78 @@ export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
-private mailService: MailService,
-) {}
+    private mailService: MailService,
+    private chatService: ChatService,
+  ) {}
 
  
   async register(registerDto: RegisterDto) {
-    const { email, password, ...teacherData } = registerDto;
+    const { email, password } = registerDto;
 
     const existingTeacher = await this.prisma.teacher.findUnique({
-      where: {
-        email,
-      },
+      where: { email },
     });
 
     if (existingTeacher) {
       throw new ConflictException('Email already exists');
     }
 
-  
     const hashedPassword = await bcrypt.hash(password, 10);
 
-
     const teacher = await this.prisma.teacher.create({
-  data: {
-    firstName: registerDto.firstName,
-    lastName: registerDto.lastName,
-    email: registerDto.email,
-    password: hashedPassword,
-    school: registerDto.school,
-    woreda: registerDto.woreda,
-    zone: registerDto.zone,
-    region: registerDto.region,
-    subject: registerDto.subject,
-
-    level: "LEVEL_1", //level0
-     },
-
-  select: {
-    id: true,
-    firstName: true,
-    lastName: true,
-    email: true,
-    level: true, 
-    school: true,
-    woreda: true,
-    zone: true,
-    region: true,
-    createdAt: true,
-    updatedAt: true,
-  },
-});
-
-    const accessToken = await this.jwtService.signAsync({
-      sub: teacher.id,
-      email: teacher.email,
-      // Key MUST be 'teacherLevel' — RolesGuard reads user.teacherLevel,
-      // not user.level. Changing this here without changing the guard
-      // (or vice versa) breaks admin access silently.
-      teacherLevel: teacher.level,
-      isAdmin: false,
+      data: {
+        firstName:  registerDto.firstName,
+        lastName:   registerDto.lastName,
+        email:      registerDto.email,
+        password:   hashedPassword,
+        school:     registerDto.school,
+        woreda:     registerDto.woreda,
+        zone:       registerDto.zone,
+        region:     registerDto.region,
+        subject:    registerDto.subject,
+        department: registerDto.department ?? null,
+        level:      'LEVEL_1',
+      },
+      select: {
+        id:         true,
+        firstName:  true,
+        lastName:   true,
+        email:      true,
+        level:      true,
+        school:     true,
+        woreda:     true,
+        zone:       true,
+        region:     true,
+        department: true,
+        createdAt:  true,
+        updatedAt:  true,
+      },
     });
 
-    return {
-      accessToken,
-      teacher,
-    };
+    // Auto-provision community chat rooms for this teacher.
+    // Fire-and-forget — do not block registration on community creation errors.
+    this.chatService
+      .ensureTeacherCommunities({
+        level:      teacher.level,
+        school:     teacher.school,
+        woreda:     teacher.woreda,
+        zone:       teacher.zone,
+        region:     teacher.region,
+        department: teacher.department,
+      })
+      .catch((err) =>
+        console.error('[AuthService] Community provisioning failed after registration:', err),
+      );
+
+    const accessToken = await this.jwtService.signAsync({
+      sub:          teacher.id,
+      email:        teacher.email,
+      // 'teacherLevel' is what RolesGuard reads — do not change this key name.
+      teacherLevel: teacher.level,
+      isAdmin:      false,
+    });
+
+    return { accessToken, teacher };
   }
 
   
@@ -156,22 +162,20 @@ private mailService: MailService,
   }
  async me(id: string) {
   return this.prisma.teacher.findUnique({
-    where: {
-      id,
-    },
-
+    where: { id },
     select: {
-      id: true,
-      firstName: true,
-      lastName: true,
-      email: true,
+      id:         true,
+      firstName:  true,
+      lastName:   true,
+      email:      true,
       profileImage: true,
-      verified: true,
-      level: true,
-      school: true,
-      woreda: true,
-      zone: true,
-      region: true,
+      verified:   true,
+      level:      true,
+      school:     true,
+      woreda:     true,
+      zone:       true,
+      region:     true,
+      department: true,
     },
   });
 }

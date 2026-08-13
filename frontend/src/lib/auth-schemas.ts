@@ -15,6 +15,7 @@ export const RegisterSchema = z
     zone: z.string().min(2, 'Enter your zone'),
     region: z.string().min(2, 'Enter your region'),
     subject: z.string().optional(),
+    department: z.string().optional(),
     password: z
       .string()
       .min(8, 'Must be at least 8 characters')

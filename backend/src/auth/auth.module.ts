@@ -9,32 +9,26 @@ import { JwtStrategy } from './jwt.strategy';
 
 import { PrismaModule } from '../prisma/prisma.module';
 import { TeacherLevelGuard } from './guards/teacher-level.guard';
-import { StringValue } from "ms";
+import { StringValue } from 'ms';
 import { MailModule } from 'src/mail/mail.module';
+import { ChatModule } from 'src/chat/chat.module';
 
 @Module({
   imports: [
     PrismaModule,
-
     ConfigModule,
-
     MailModule,
+    ChatModule,
 
-    PassportModule.register({
-      defaultStrategy: 'jwt',
-    }),
+    PassportModule.register({ defaultStrategy: 'jwt' }),
 
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-
       useFactory: (config: ConfigService) => ({
-        secret:
-          config.get<string>('jwtSecret') ?? 'secret',
-
+        secret: config.get<string>('jwtSecret') ?? 'secret',
         signOptions: {
-         expiresIn:
-  (config.get("jwtExpiresIn") ?? "7d") as StringValue,
+          expiresIn: (config.get('jwtExpiresIn') ?? '7d') as StringValue,
         },
       }),
     }),

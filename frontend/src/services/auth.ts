@@ -77,10 +77,17 @@ export const resetPassword = async (
 export async function adminLogin(email: string, password: string) {
   const { data } = await api.post('/auth/admin/login', { email, password });
   setAccessToken(data.accessToken);
+  
   // Store under 'admin_token' and 'admin' keys — completely separate
   // from the 'token'/'teacher' keys used by teacher auth.
   localStorage.setItem('admin_token', data.accessToken);
   localStorage.setItem('admin', JSON.stringify(data.admin));
+  
+  // Set cookie for middleware to recognize admin session
+  if (typeof document !== 'undefined') {
+    document.cookie = `admin_token=${data.accessToken}; path=/; max-age=${7 * 24 * 3600}; SameSite=Lax`;
+  }
+  
   return data;
 }
 
