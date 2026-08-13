@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  ConflictException,
 } from '@nestjs/common';
 import { CreatePostDto } from '../dto/create-post.dto';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -69,6 +70,13 @@ export class CommunityService {
       },
     });
     if (!post) throw new NotFoundException('Post not found');
+    
+    // Increment view count asynchronously (fire and forget)
+    this.prisma.communityPost.update({
+      where: { id },
+      data: { views: { increment: 1 } }
+    }).catch(() => {}); // Silently fail if increment doesn't work
+    
     return post;
   }
 
@@ -288,12 +296,36 @@ export class CommunityService {
   }
 
   async reportPost(teacherId: string, postId: string, dto: ReportPostDto) {
+    // Verify post exists
+    const post = await this.prisma.communityPost.findUnique({
+      where: { id: postId },
+    });
+    if (!post) {
+      throw new NotFoundException('Post not found');
+    }
+
+    // Check for duplicate report
+    const existingReport = await this.prisma.communityReport.findUnique({
+      where: {
+        teacherId_postId: {
+          teacherId,
+          postId,
+        },
+      },
+    });
+    
+    if (existingReport) {
+      throw new ConflictException('You have already reported this post');
+    }
+
+    // Create new report
     return this.prisma.communityReport.create({
       data: {
         teacherId,
         postId,
         reason: dto.reason,
         description: dto.description,
+        status: 'PENDING',
       },
       include: { teacher: true, post: true },
     });
@@ -311,17 +343,61 @@ export class CommunityService {
       attachmentType = AttachmentType.DOCX;
     }
 
-    const normalizedUrl = file.path.replace(/\\/g, '/');
+    // Normalize path: convert backslashes to forward slashes and remove leading ./
+    let normalizedUrl = file.path.replace(/\\/g, '/').replace(/^\.\//g, '');
+    
+    // Ensure URL starts with 'uploads/' (not '/uploads/')
+    if (!normalizedUrl.startsWith('uploads/')) {
+      // If path is absolute, extract just the uploads/... part
+      const uploadsIndex = normalizedUrl.indexOf('uploads/');
+      if (uploadsIndex !== -1) {
+        normalizedUrl = normalizedUrl.substring(uploadsIndex);
+      }
+    }
 
     return this.prisma.attachment.create({
       data: {
         fileName: file.originalname,
-        url: normalizedUrl.startsWith('uploads/') ? `/${normalizedUrl}` : normalizedUrl,
+        url: normalizedUrl, // Store as 'uploads/images/file.jpg' without leading slash
         fileSize: file.size,
         type: attachmentType,
         postId,
       },
     });
+  }
+
+  async deleteAttachment(attachmentId: string, teacherId: string) {
+    const attachment = await this.prisma.attachment.findUnique({
+      where: { id: attachmentId },
+      include: { post: true },
+    });
+
+    if (!attachment) {
+      throw new NotFoundException('Attachment not found');
+    }
+
+    if (attachment.post.teacherId !== teacherId) {
+      throw new ForbiddenException('You can only delete attachments from your own posts');
+    }
+
+    // Delete from database
+    await this.prisma.attachment.delete({
+      where: { id: attachmentId },
+    });
+
+    // Optionally delete file from disk
+    try {
+      const fs = await import('fs');
+      const path = await import('path');
+      const filePath = path.join(process.cwd(), attachment.url);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    } catch (error) {
+      console.warn('Failed to delete file from disk:', error);
+    }
+
+    return { success: true, message: 'Attachment deleted successfully' };
   }
 
   async getCommunities(teacherId: string) {

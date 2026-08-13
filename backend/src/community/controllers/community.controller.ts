@@ -275,6 +275,22 @@ uploadAttachment(
 }
 
 @ApiBearerAuth()
+@ApiOperation({
+  summary: 'Delete attachment',
+})
+@Delete('attachments/:attachmentId')
+@UseGuards(JwtAuthGuard)
+deleteAttachment(
+  @Param('attachmentId') attachmentId: string,
+  @Req() req,
+) {
+  return this.communityService.deleteAttachment(
+    attachmentId,
+    req.user.sub,
+  );
+}
+
+@ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Get('woreda-schools')
 getWoredaSchools(@CurrentUser() user: any) {

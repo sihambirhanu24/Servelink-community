@@ -1,5 +1,5 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { IsNotEmpty, IsString } from "class-validator";
+import { IsNotEmpty, IsOptional, IsString } from "class-validator";
 
 export class CreatePostDto {
 
@@ -12,9 +12,10 @@ export class CreatePostDto {
 
   @ApiProperty({
     example: "How can I use Prisma relations?",
+    required: false,
   })
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   description: string;
 
   @ApiProperty({
