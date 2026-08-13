@@ -132,10 +132,11 @@ createComment(
   @ApiOperation({
   summary: 'Get a post by ID',
 })
+  @UseGuards(JwtAuthGuard)
   @Get('posts/:id')
-getPostById(@Param('id') id: string) {
-  return this.communityService.getPostById(id);
-}
+  getPostById(@Param('id') id: string, @Req() req) {
+    return this.communityService.getPostById(id, req.user?.sub);
+  }
 
 
 @ApiBearerAuth()

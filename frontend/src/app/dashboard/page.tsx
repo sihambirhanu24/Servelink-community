@@ -13,7 +13,6 @@ import { DashboardRecentPosts } from '@/components/dashboard/DashboardRecentPost
 import { DashboardCommunityFeed } from '@/components/dashboard/DashboardCommunityFeed';
 import { DashboardRecentActivity } from '@/components/dashboard/DashboardRecentActivity';
 import { DashboardSuggestedCommunities } from '@/components/dashboard/DashboardSuggestedCommunities';
-import { TrendingHubsCard } from '@/components/dashboard/TrendingHubsCard';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -96,8 +95,6 @@ export default function DashboardPage() {
         <DashboardRecentActivity notifications={recentNotifications} />
 
         <DashboardSuggestedCommunities />
-
-        <TrendingHubsCard />
 
       </div>
 
