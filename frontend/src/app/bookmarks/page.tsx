@@ -139,7 +139,7 @@ const SavedCard = memo(function SavedCard({ post, onRemove, isRemoving }: { post
   const hasDocs = post.attachments?.some(a => a.type === "PDF" || a.type === "DOCX") ?? false;
 
   return (
-    <article className="group rounded-xl border border-[#E2E8F0] bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+    <article className="group rounded-xl border border-[#D9E2EC] bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
       <div className="p-4">
         {/* Header: teacher + bookmark toggle */}
         <div className="flex items-start justify-between gap-2">
@@ -230,7 +230,7 @@ function LibraryOverviewCard({ bookmarks }: { bookmarks: BookmarkedPost[] }) {
   const withDocx = bookmarks.filter(b => b.attachments?.some(a => a.type === "DOCX")).length;
   const noAttachment = bookmarks.filter(b => !b.attachments?.length).length;
   return (
-    <div className="rounded-xl border border-[#E2E8F0] bg-white shadow-sm">
+    <div className="rounded-xl border border-[#D9E2EC] bg-[#F8FAFC] shadow-sm">
       <div className="border-b border-slate-100 px-4 py-3">
         <h3 className="text-sm font-semibold text-[#043658]">Your Library</h3>
         <p className="mt-0.5 text-xs text-slate-400">{bookmarks.length} total saved</p>
@@ -266,7 +266,7 @@ function TopicsCard({ bookmarks, onFilter }: { bookmarks: BookmarkedPost[]; onFi
   }, [bookmarks]);
   if (!topicCounts.length) return null;
   return (
-    <div className="rounded-xl border border-[#E2E8F0] bg-white shadow-sm">
+    <div className="rounded-xl border border-[#D9E2EC] bg-[#F8FAFC] shadow-sm">
       <div className="border-b border-slate-100 px-4 py-3"><h3 className="text-sm font-semibold text-[#043658]">Your Topics</h3></div>
       <div className="p-3">
         {topicCounts.map(([name, count]) => (
@@ -283,7 +283,7 @@ function TopicsCard({ bookmarks, onFilter }: { bookmarks: BookmarkedPost[]; onFi
 
 function QuickActionsCard() {
   return (
-    <div className="rounded-xl border border-[#E2E8F0] bg-white shadow-sm">
+    <div className="rounded-xl border border-[#D9E2EC] bg-[#F8FAFC] shadow-sm">
       <div className="border-b border-slate-100 px-4 py-3"><h3 className="text-sm font-semibold text-[#043658]">Quick Actions</h3></div>
       <div className="p-2">
         {[
@@ -357,7 +357,7 @@ export default function BookmarksPage() {
   function handleTopicFilter(cat: string) { setCategoryFilter(cat); window.scrollTo({ top: 0, behavior: "smooth" }); }
 
   return (
-    <div className="h-screen overflow-hidden bg-[#F7FAFC]">
+    <div className="h-screen overflow-hidden bg-[#F5F8FB]">
       <DashboardSidebar />
       <Topbar />
 
