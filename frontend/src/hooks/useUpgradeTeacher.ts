@@ -5,16 +5,16 @@ import {
 
 import {
   upgradeTeacher,
-} from "@/services/admin.service";
+} from "@/services/admin";
 
 export function useUpgradeTeacher() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (teacherId: string) =>
-      upgradeTeacher(teacherId),
+    mutationFn: ({ teacherId, ...dto }: any) =>
+      upgradeTeacher(teacherId, dto.level),
 
-    onSuccess: (_, teacherId) => {
+    onSuccess: (_, { teacherId }) => {
       queryClient.invalidateQueries({
         queryKey: ["teacher", teacherId],
       });

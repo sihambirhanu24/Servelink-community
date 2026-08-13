@@ -5,7 +5,7 @@ import {
 
 import {
   rejectMembership,
-} from "@/services/admin.service";
+} from "@/services/admin";
 
 export function useRejectMembership() {
 

@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import {
     getMembershipRequests,
-} from "@/services/admin.service";
+} from "@/services/admin";
 
 export function useMembershipRequests(){
 

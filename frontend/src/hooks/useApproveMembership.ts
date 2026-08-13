@@ -5,7 +5,7 @@ import {
 
 import {
   approveMembership,
-} from "@/services/admin.service";
+} from "@/services/admin";
 
 export function useApproveMembership() {
 
