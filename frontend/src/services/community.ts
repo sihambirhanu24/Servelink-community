@@ -286,3 +286,14 @@ export const getWoredaSchools = async (): Promise<WoredaSchoolsResponse> => {
   const { data } = await api.get('/community/woreda-schools');
   return data as WoredaSchoolsResponse;
 };
+
+export const reportPost = async (
+  postId: string,
+  body: {
+    reason: string;
+    description?: string;
+  }
+) => {
+  const { data } = await api.post(`/community/posts/${postId}/report`, body);
+  return data;
+};

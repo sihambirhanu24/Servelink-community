@@ -19,20 +19,21 @@ export interface Teacher {
 export interface Community {
   id: string;
   name: string;
-  description: string;
-  type:
-    | "SCHOOL"
-    | "WOREDA"
-    | "ZONE"
-    | "REGION"
-    | "NATIONAL";
-
-  memberCount: number;
+  type?: string;
+  school?: string | null;
+  woreda?: string | null;
+  zone?: string | null;
+  region?: string | null;
+  description?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  memberCount?: number;
 }
 
 export interface Category {
   id: string;
   name: string;
+  createdAt?: string;
 }
 
 export interface Attachment {

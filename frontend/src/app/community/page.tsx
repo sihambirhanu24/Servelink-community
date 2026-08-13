@@ -72,7 +72,7 @@ function CommunityPageHeader() {
 
 export default function CommunityPage() {
   return (
-    <div className="h-screen overflow-hidden bg-slate-50">
+    <div className="h-screen overflow-hidden bg-[#F5F8FB]">
       <DashboardSidebar />
       <Topbar />
 

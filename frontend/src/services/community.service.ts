@@ -23,6 +23,7 @@ export const CommunityService = {
       title?: string;
       description?: string;
       categoryId?: string;
+      communityId?: string;
     }
   ) =>
     api.patch(`/community/posts/${id}`, body),
@@ -107,6 +108,9 @@ export const CommunityService = {
     );
   },
 
+  deleteAttachment: (attachmentId: string) =>
+    api.delete(`/community/attachments/${attachmentId}`),
+
 
   getMyPosts: () =>
     api.get("/community/my-posts"),
@@ -174,6 +178,7 @@ export const updatePost = async (
     title?: string;
     description?: string;
     categoryId?: string;
+    communityId?: string;
   }
 ) => {
   const { data } = await CommunityService.updatePost(id, body);
@@ -272,5 +277,10 @@ export const uploadAttachment = async (
       file,
     );
 
+  return data;
+};
+
+export const deleteAttachment = async (attachmentId: string) => {
+  const { data } = await CommunityService.deleteAttachment(attachmentId);
   return data;
 };

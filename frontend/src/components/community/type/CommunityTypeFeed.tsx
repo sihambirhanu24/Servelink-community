@@ -9,9 +9,11 @@ function adaptPostForCard(post: any) {
   const firstAttachment = post.attachments?.[0];
   return {
     id: post.id,
-    authorName: `${post.teacher.firstName} ${post.teacher.lastName}`,
-    authorRole: post.teacher.school ?? post.teacher.level,
-    authorAvatarUrl: post.teacher.profileImage ?? undefined,
+    title: post.title || '',
+    description: post.description || '',
+    authorName: `${post.teacher?.firstName ?? ''} ${post.teacher?.lastName ?? ''}`.trim(),
+    authorRole: post.teacher?.school ?? post.teacher?.level ?? '',
+    authorAvatarUrl: post.teacher?.profileImage ?? undefined,
     timeAgo: new Date(post.createdAt).toLocaleDateString(),
     body: post.description ?? post.title,
     attachment: firstAttachment
