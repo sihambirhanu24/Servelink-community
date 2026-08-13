@@ -23,11 +23,6 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  // Suppress middleware deprecation warning - middleware is still the correct approach
-  // for protecting admin routes with cookie-based auth
-  experimental: {
-    middlewareWarning: false,
-  },
 };
 
 export default nextConfig;
