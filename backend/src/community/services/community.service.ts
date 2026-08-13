@@ -56,7 +56,7 @@ export class CommunityService {
     });
   }
 
-  async getPostById(id: string) {
+  async getPostById(id: string, teacherId?: string) {
     const post = await this.prisma.communityPost.findUnique({
       where: { id },
       include: {
@@ -66,6 +66,7 @@ export class CommunityService {
         attachments: true,
         comments: true,
         communityLikes: true,
+        communityBookmarks: true,
         tags: { include: { tag: true } },
       },
     });
@@ -76,6 +77,16 @@ export class CommunityService {
       where: { id },
       data: { views: { increment: 1 } }
     }).catch(() => {}); // Silently fail if increment doesn't work
+    
+    // Return with liked/bookmarked status if teacherId provided
+    if (teacherId) {
+      return {
+        ...post,
+        likesCount: post.communityLikes.length,
+        liked: post.communityLikes.some((l) => l.teacherId === teacherId),
+        bookmarked: post.communityBookmarks.some((b) => b.teacherId === teacherId),
+      };
+    }
     
     return post;
   }
