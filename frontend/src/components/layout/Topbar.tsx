@@ -17,6 +17,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
 import { Avatar } from "@/components/common/Avatar";
 import { NotificationBell } from "@/components/notification/NotificationBell";
+import { ChatRoomsDropdown } from "@/components/chat/ChatRoomsDropdown";
 
 export default function Topbar() {
   const { user, logout } = useAuth();
@@ -160,6 +161,21 @@ export default function Topbar() {
             aria-hidden="true"
           />
         </Link>
+
+        {/* =================================================
+            CHAT ROOMS
+        ================================================= */}
+
+        <div
+          className="
+            rounded-xl
+            text-white
+            [&_button]:text-white
+            [&_svg]:text-white
+          "
+        >
+          <ChatRoomsDropdown />
+        </div>
 
         {/* =================================================
             NOTIFICATIONS
