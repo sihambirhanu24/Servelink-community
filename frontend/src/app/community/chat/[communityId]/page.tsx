@@ -159,6 +159,8 @@ export default function ChatRoomPage() {
   const router = useRouter();
   const { user, token } = useAuth();
 
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
   // Community info
   const [info, setInfo] = useState<ChatCommunityInfo | null>(null);
   const [infoError, setInfoError] = useState<string | null>(null);
@@ -348,8 +350,8 @@ export default function ChatRoomPage() {
 
   return (
     <div className="h-screen overflow-hidden bg-slate-50">
-      <DashboardSidebar />
-      <Topbar />
+      <DashboardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Topbar onMenuClick={() => setSidebarOpen(true)} />
 
       <main className="mt-16 lg:ml-64 h-[calc(100vh-4rem)] flex">
         {/* ── Chat column ── */}
