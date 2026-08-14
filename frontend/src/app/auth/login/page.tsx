@@ -2,10 +2,10 @@ import { LoginForm } from "@/components/auth/login-form";
 
 export default function LoginPage() {
   return (
-    <main className="grid h-screen overflow-hidden lg:grid-cols-2">
+    <main className="grid min-h-screen overflow-hidden lg:grid-cols-2">
       { }
       <section
-        className="relative hidden items-center justify-center bg-cover bg-center p-16 text-center text-white lg:flex"
+        className="relative hidden items-center justify-center bg-cover bg-center p-8 sm:p-12 lg:p-16 text-center text-white lg:flex"
         style={{
           backgroundImage:
             "url('https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=1200')",
@@ -18,33 +18,33 @@ export default function LoginPage() {
             Empowering Ethiopian Educators
           </span>
 
-          <h1 className="mt-6 text-6xl font-bold">
+          <h1 className="mt-6 text-4xl sm:text-5xl lg:text-6xl font-bold">
             Welcome to
             <br />
             ServeLink
           </h1>
 
-          <p className="mt-6 text-lg text-blue-100">
+          <p className="mt-6 text-base sm:text-lg text-blue-100">
             Join the largest professional community for teachers to
             collaborate, share resources and grow together.
           </p>
 
-          <div className="mt-10 flex justify-center gap-10">
+          <div className="mt-10 flex justify-center gap-6 sm:gap-10">
             <div>
-              <h2 className="text-3xl font-bold">15K+</h2>
-              <p>Active Teachers</p>
+              <h2 className="text-2xl sm:text-3xl font-bold">15K+</h2>
+              <p className="text-sm sm:text-base">Active Teachers</p>
             </div>
 
             <div>
-              <h2 className="text-3xl font-bold">500+</h2>
-              <p>Communities</p>
+              <h2 className="text-2xl sm:text-3xl font-bold">500+</h2>
+              <p className="text-sm sm:text-base">Communities</p>
             </div>
           </div>
         </div>
       </section>
 
       
-      <section className="flex items-center justify-center bg-slate-50">
+      <section className="flex items-center justify-center bg-slate-50 px-4 py-8 sm:px-6 lg:px-8">
         <LoginForm />
       </section>
     </main>
