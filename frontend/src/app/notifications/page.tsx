@@ -187,6 +187,7 @@ export default function NotificationsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [, startTransition] = useTransition();
 
   const queryParams = {
@@ -235,20 +236,20 @@ export default function NotificationsPage() {
 
   return (
     <div className="h-screen overflow-hidden bg-[#F5F8FB]">
-      <DashboardSidebar />
-      <Topbar />
+      <DashboardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Topbar onMenuClick={() => setSidebarOpen(true)} />
 
       <main className="mt-16 lg:ml-64 h-[calc(100vh-4rem)] overflow-y-auto">
-        <div className="mx-auto max-w-6xl px-4 py-5 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-6xl px-4 py-4 sm:py-5 sm:px-6 lg:px-8">
 
           {/* ── Page header — same pattern as posts/bookmarks ── */}
-          <div className="mb-4 flex items-start justify-between gap-4">
-            <div>
+          <div className="mb-4 flex flex-col sm:flex-row items-start sm:items-start justify-between gap-3 sm:gap-4">
+            <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-widest text-[#FFC107]">Activity Inbox</p>
-              <h1 className="mt-1 text-xl font-bold text-[#043658]">Notifications</h1>
-              <p className="mt-0.5 text-sm text-slate-500">Stay updated with activity from your communities, posts, and resources.</p>
+              <h1 className="mt-1 text-lg sm:text-xl font-bold text-[#043658]">Notifications</h1>
+              <p className="mt-0.5 text-xs sm:text-sm text-slate-500">Stay updated with activity from your communities, posts, and resources.</p>
               {!isLoading && (
-                <div className="mt-2 flex flex-wrap gap-3">
+                <div className="mt-2 flex flex-wrap gap-2 sm:gap-3">
                   <span className="text-xs text-slate-400">
                     <span className="font-bold text-[#043658]">{totalCount}</span> total
                   </span>
@@ -261,21 +262,22 @@ export default function NotificationsPage() {
                 </div>
               )}
             </div>
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="flex shrink-0 items-center gap-2 w-full sm:w-auto">
               {unreadCount > 0 && (
                 <button
                   onClick={() => markAllRead()}
                   disabled={isMarkingAll}
-                  className="flex items-center gap-1.5 rounded-xl border border-[#043658]/20 bg-white px-3.5 py-2 text-xs font-semibold text-[#043658] shadow-sm transition hover:bg-[#043658] hover:text-white disabled:opacity-50"
+                  className="flex flex-1 sm:flex-initial items-center justify-center gap-1.5 rounded-xl border border-[#043658]/20 bg-white px-3 sm:px-3.5 py-2 text-xs font-semibold text-[#043658] shadow-sm transition hover:bg-[#043658] hover:text-white disabled:opacity-50"
                 >
                   <CheckCheck className="h-3.5 w-3.5" />
-                  Mark all read
+                  <span className="hidden sm:inline">Mark all read</span>
+                  <span className="sm:hidden">Mark read</span>
                 </button>
               )}
               <button
                 onClick={() => clearRead()}
                 disabled={isClearing}
-                className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-medium text-slate-500 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
+                className="flex flex-1 sm:flex-initial items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 sm:px-3.5 py-2 text-xs font-medium text-slate-500 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
               >
                 <Trash2 className="h-3.5 w-3.5" />
                 Clear read
