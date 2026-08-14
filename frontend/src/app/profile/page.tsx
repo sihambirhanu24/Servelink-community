@@ -77,11 +77,11 @@ function EditableProfileHeader({
   }
 
   const inputClass =
-    "w-full rounded-xl border border-slate-200 p-3 text-sm text-[#043658] focus:outline-none focus:ring-2 focus:ring-[#043658]/20 focus:border-[#043658] bg-slate-50";
+    "w-full rounded-xl border border-slate-200 p-2.5 sm:p-3 text-sm text-[#043658] focus:outline-none focus:ring-2 focus:ring-[#043658]/20 focus:border-[#043658] bg-slate-50";
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
+    <div className="space-y-3 sm:space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
         <div>
           <label className="mb-1.5 block text-xs font-medium text-slate-500">
             First Name
@@ -291,6 +291,7 @@ function ProfileAvatarSection({ profile }: { profile: any }) {
 /* ─── Main Page ────────────────────────────────────────────────────────── */
 export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const { data: profile, isLoading: profileLoading } = useProfile();
   const { data: dashboard, isLoading: dashboardLoading } = useQuery({
     queryKey: ["dashboard"],
@@ -321,11 +322,11 @@ export default function ProfilePage() {
 
   return (
     <div className="h-screen overflow-hidden bg-[#F5F8FB]">
-      <DashboardSidebar />
-      <Topbar />
+      <DashboardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Topbar onMenuClick={() => setSidebarOpen(true)} />
 
       <main className="mt-16 lg:ml-64 h-[calc(100vh-4rem)] overflow-y-auto">
-        <div className="mx-auto max-w-6xl px-4 py-8 sm:px-8 lg:px-10">
+        <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8 lg:px-10">
 
           {/* <div className="mb-6 flex items-center justify-between">
             <span className="rounded-full bg-[#043658] px-3 py-1.5 text-xs font-semibold text-white">
@@ -333,17 +334,17 @@ export default function ProfilePage() {
             </span>
           </div> */}
 
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-3">
             {/* Left column */}
-            <div className="space-y-6 lg:col-span-2">
+            <div className="space-y-4 sm:space-y-6 lg:col-span-2">
 
               {/* Profile Header Card */}
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="flex items-start gap-5">
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 shadow-sm">
+                <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-5">
                   {/* Avatar with camera */}
                   <ProfileAvatarSection profile={profile} />
 
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-0 w-full">
                     {isEditing ? (
                       <EditableProfileHeader
                         profile={profile}
@@ -352,32 +353,32 @@ export default function ProfilePage() {
                     ) : (
                       <>
                         <div className="flex items-center gap-1.5">
-                          <h1 className="font-['Lexend'] font-semibold text-[#043658] text-xl">
+                          <h1 className="font-['Lexend'] font-semibold text-[#043658] text-lg sm:text-xl truncate">
                             {name}
                           </h1>
                           {profile.verified && (
-                            <BadgeCheck className="h-5 w-5 text-[#FFC107] fill-[#043658]" />
+                            <BadgeCheck className="h-5 w-5 shrink-0 text-[#FFC107] fill-[#043658]" />
                           )}
                         </div>
 
-                        <p className="text-sm text-slate-500 mt-0.5">
+                        <p className="text-xs sm:text-sm text-slate-500 mt-0.5 truncate">
                           {profile.school} · {profile.subject ?? "No Subject Assigned"}
                         </p>
 
                         <div className="mt-2 text-xs text-slate-400 space-y-0.5">
                           {profile.region && (
-                            <p>
+                            <p className="truncate">
                               <span className="font-medium text-slate-500">Region:</span> {profile.region}
                               {profile.zone ? ` · ${profile.zone}` : ""}
                               {profile.woreda ? ` · ${profile.woreda}` : ""}
                             </p>
                           )}
-                          <p>
+                          <p className="truncate">
                             <span className="font-medium text-slate-500">Email:</span> {profile.email}
                           </p>
                         </div>
 
-                        <div className="mt-4 flex items-center gap-2">
+                        <div className="mt-4 flex flex-wrap items-center gap-2">
                           <button
                             id="edit-profile-btn"
                             onClick={() => setIsEditing(true)}
