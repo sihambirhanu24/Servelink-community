@@ -14,7 +14,7 @@ export default function RegisterPage() {
         ]}
       />
 
-      <section className="flex items-center justify-center overflow-y-auto bg-slate-50 px-8 py-12">
+      <section className="flex items-center justify-center overflow-y-auto bg-slate-50 px-6 py-6">
         <RegisterForm />
       </section>
     </main>
