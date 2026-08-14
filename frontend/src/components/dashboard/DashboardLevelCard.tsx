@@ -41,18 +41,18 @@ export function DashboardLevelCard({ teacher, communityAccess }: Props) {
   const unlockedTiers = communityAccess.filter((t) => t.unlocked);
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
       {/* Header */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col sm:flex-row items-start sm:items-start justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#043658]">
             <GraduationCap className="h-5 w-5 text-[#FFC107]" />
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">
               Teacher Progress
             </p>
-            <p className="text-lg font-bold leading-tight text-[#043658]">
+            <p className="text-base sm:text-lg font-bold leading-tight text-[#043658] truncate">
               {teacher.firstName} {teacher.lastName}
             </p>
           </div>
@@ -104,14 +104,14 @@ export function DashboardLevelCard({ teacher, communityAccess }: Props) {
                       <div className="mt-0.5 h-4 w-px bg-[#043658]/30" />
                     )}
                   </div>
-                  <div className="flex flex-1 items-center justify-between min-w-0">
+                  <div className="flex flex-1 items-center justify-between gap-2 min-w-0">
                     <Link
                       href={TYPE_ROUTES[tier.type] ?? '/community'}
-                      className="text-xs font-medium text-[#043658] underline-offset-2 hover:underline focus:outline-none focus:ring-2 focus:ring-[#043658]/30 rounded"
+                      className="text-xs font-medium text-[#043658] underline-offset-2 hover:underline focus:outline-none focus:ring-2 focus:ring-[#043658]/30 rounded truncate"
                     >
                       {TYPE_LABELS[tier.type]}
                     </Link>
-                    <span className="shrink-0 text-[10px] text-slate-400">
+                    <span className="shrink-0 text-[10px] text-slate-400 whitespace-nowrap">
                       {tier.joined}/{tier.available} joined
                     </span>
                   </div>
