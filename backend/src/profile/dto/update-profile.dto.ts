@@ -37,6 +37,13 @@ export class UpdateProfileDto {
   @IsString()
   subject?: string;
 
+  @ApiPropertyOptional({
+    description: 'Professional department (e.g. Mathematics, English, Physics). Required for LEVEL_2-5 teachers.',
+  })
+  @IsOptional()
+  @IsString()
+  department?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()

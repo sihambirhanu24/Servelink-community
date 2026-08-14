@@ -51,6 +51,7 @@ return this.prisma.communityPost.findMany({
         profileImage: true,
         level: true,
         subject: true,
+        department: true,
         verified: true,
         school: true,
         woreda: true,
@@ -94,6 +95,7 @@ async updateProfile(
       woreda: dto.woreda,
       zone: dto.zone,
       subject: dto.subject,
+      department: dto.department,
       profileImage: dto.profileImage,
     },
   });
