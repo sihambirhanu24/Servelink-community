@@ -12,6 +12,7 @@ import {
   Search,
   Settings,
   User,
+  MenuIcon,
 } from "lucide-react";
 
 import { useRouter } from "next/navigation";
@@ -24,7 +25,11 @@ import { Avatar } from "@/components/common/Avatar";
 
 import { NotificationBell } from "@/components/notification/NotificationBell";
 
-export default function AdminTopbar() {
+interface AdminTopbarProps {
+  onMenuClick?: () => void;
+}
+
+export default function AdminTopbar({ onMenuClick }: AdminTopbarProps) {
   const { user, logout } = useAuth();
   const { data: profile } = useProfile();
   const router = useRouter();
@@ -53,12 +58,23 @@ export default function AdminTopbar() {
         shadow-sm
       "
     >
-      <div className="flex h-full items-center justify-between px-4 sm:px-6 lg:px-8">
+      <div className="flex h-full items-center justify-between px-3 sm:px-4 lg:px-8 gap-2 sm:gap-4">
         {/* ================= LEFT ================= */}
-        <div className="flex min-w-0 items-center gap-4">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-4 flex-1">
+          {/* Hamburger Menu Button (Mobile) */}
+          {onMenuClick && (
+            <button
+              onClick={onMenuClick}
+              className="lg:hidden flex items-center justify-center h-9 w-9 rounded-lg text-white hover:bg-white/10 transition-colors"
+              aria-label="Open menu"
+            >
+              <MenuIcon className="h-5 w-5" />
+            </button>
+          )}
+
           {/* Mobile title */}
-          <div className="lg:hidden">
-            <p className="text-sm font-bold text-white">
+          <div className="lg:hidden min-w-0">
+            <p className="text-sm font-bold text-white truncate">
               ServeLink
             </p>
             <p className="text-[10px] text-white/60">
@@ -70,7 +86,8 @@ export default function AdminTopbar() {
             className="
               hidden
               sm:flex
-              w-64
+              w-48
+              md:w-64
               lg:w-80
               items-center
               gap-2
@@ -108,7 +125,7 @@ export default function AdminTopbar() {
           </div>
         </div>
         {/* ================= RIGHT ================= */}
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
           {/* Mobile search */}
           <button
             type="button"
@@ -138,8 +155,10 @@ export default function AdminTopbar() {
             onClick={() => router.push("/admin")}
             className="
               flex
-              h-10
-              w-10
+              h-9
+              w-9
+              sm:h-10
+              sm:w-10
               items-center
               justify-center
               rounded-xl
@@ -157,7 +176,7 @@ export default function AdminTopbar() {
               focus:ring-offset-[#043658]
             "
           >
-            <Plus className="h-5 w-5" />
+            <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
           </button>
           {/* Notification */}
           <div
@@ -184,9 +203,11 @@ export default function AdminTopbar() {
               className="
                 flex
                 items-center
-                gap-2
+                gap-1.5
+                sm:gap-2
                 rounded-xl
-                px-2
+                px-1.5
+                sm:px-2
                 py-1.5
                 transition
                 hover:bg-white/10
@@ -212,8 +233,8 @@ export default function AdminTopbar() {
                 />
               </div>
               {/* Name */}
-              <div className="hidden text-left sm:block">
-                <p className="max-w-[120px] truncate text-sm font-semibold text-white">
+              <div className="hidden text-left md:block">
+                <p className="max-w-[100px] truncate text-sm font-semibold text-white">
                   {firstName || "Admin"}
                 </p>
                 <p className="text-[10px] uppercase tracking-wide text-white/50">
@@ -227,7 +248,7 @@ export default function AdminTopbar() {
                   w-4
                   text-white/60
                   transition
-                  sm:block
+                  md:block
                 "
               />
             </Menu.Button>
