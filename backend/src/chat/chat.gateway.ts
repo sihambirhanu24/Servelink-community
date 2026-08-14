@@ -14,22 +14,7 @@ import { Logger } from '@nestjs/common';
 import { ChatService } from './chat.service';
 import { SendMessageDto } from './dto/send-message.dto';
 
-/**
- * ChatGateway — Socket.IO namespace /chat
- *
- * Authentication:  JWT token passed in socket.handshake.auth.token
- * Room convention: community:<communityId>
- *
- * Client events:   community:join, message:send, message:edit,
- *                  message:delete, message:reaction:add, message:reaction:remove,
- *                  message:mark-read, message:pin, message:unpin,
- *                  typing:start, typing:stop, ping
- *
- * Server events:   community:joined, message:new, message:updated,
- *                  message:deleted, message:reaction:added, message:reaction:removed,
- *                  message:pinned, message:unpinned, unread-count:update,
- *                  presence:update, error, pong
- */
+
 @WebSocketGateway({
   cors: {
     origin: process.env.FRONTEND_URL || 'http://localhost:3000',
