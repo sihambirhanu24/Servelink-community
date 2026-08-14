@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Loader2 } from "lucide-react";
@@ -34,6 +35,7 @@ async function getChatRoomInfo(communityId: string): Promise<ChatRoomInfo> {
 export default function ChatRoomPage() {
   const params = useParams();
   const communityId = params.communityId as string;
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const { data: chatInfo, isLoading, isError } = useQuery({
     queryKey: ["chat-room-info", communityId],
@@ -62,8 +64,8 @@ export default function ChatRoomPage() {
   if (isLoading) {
     return (
       <div className="h-screen overflow-hidden bg-gradient-to-br from-[#F5F8FB] via-[#F5F8FB] to-[#E8F0F7]">
-        <DashboardSidebar />
-        <Topbar />
+        <DashboardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <Topbar onMenuClick={() => setSidebarOpen(true)} />
         <main className="mt-16 lg:ml-64 h-[calc(100vh-4rem)] overflow-y-auto">
           <div className="flex items-center justify-center min-h-[60vh]">
             <Loader2 className="h-8 w-8 animate-spin text-[#043658]" />
@@ -76,8 +78,8 @@ export default function ChatRoomPage() {
   if (isError || !chatInfo) {
     return (
       <div className="h-screen overflow-hidden bg-gradient-to-br from-[#F5F8FB] via-[#F5F8FB] to-[#E8F0F7]">
-        <DashboardSidebar />
-        <Topbar />
+        <DashboardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <Topbar onMenuClick={() => setSidebarOpen(true)} />
         <main className="mt-16 lg:ml-64 h-[calc(100vh-4rem)] overflow-y-auto">
           <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
             <div className="text-center">
@@ -101,25 +103,25 @@ export default function ChatRoomPage() {
 
   return (
     <div className="h-screen overflow-hidden bg-gradient-to-br from-[#F5F8FB] via-[#F5F8FB] to-[#E8F0F7]">
-      <DashboardSidebar />
-      <Topbar />
+      <DashboardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Topbar onMenuClick={() => setSidebarOpen(true)} />
 
       <main className="mt-16 lg:ml-64 h-[calc(100vh-4rem)] flex flex-col">
         {/* Chat Header */}
-        <div className="border-b border-slate-200 bg-white px-6 py-4 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
+        <div className="border-b border-slate-200 bg-white px-4 sm:px-6 py-3 sm:py-4 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
               <Link
                 href="/dashboard"
-                className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-[#043658] hover:text-[#043658] transition-colors"
+                className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-[#043658] hover:text-[#043658] transition-colors shrink-0"
               >
                 <ArrowLeft className="h-4 w-4" />
               </Link>
-              <div>
-                <h1 className="text-lg font-bold text-[#043658]">
+              <div className="min-w-0">
+                <h1 className="text-base sm:text-lg font-bold text-[#043658] truncate">
                   {getCommunityTypeLabel(chatInfo.community.type)} Chat
                 </h1>
-                <p className="text-sm text-slate-500">
+                <p className="text-xs sm:text-sm text-slate-500 truncate">
                   {getSubtypeLabel(chatInfo.community.subtype, chatInfo.community.department)}
                 </p>
               </div>
@@ -128,12 +130,12 @@ export default function ChatRoomPage() {
         </div>
 
         {/* Chat Content */}
-        <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-white to-[#043658]/[0.02] p-8">
-          <div className="text-center max-w-md">
+        <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-white to-[#043658]/[0.02] p-4 sm:p-6 lg:p-8 overflow-y-auto">
+          <div className="text-center max-w-md w-full">
             <div className="mb-6">
-              <div className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-[#043658] to-[#043658]/80 shadow-lg mb-4">
+              <div className="inline-flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-[#043658] to-[#043658]/80 shadow-lg mb-4">
                 <svg
-                  className="h-8 w-8 text-white"
+                  className="h-6 w-6 sm:h-8 sm:w-8 text-white"
                   fill="none"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -144,38 +146,38 @@ export default function ChatRoomPage() {
                   <path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                 </svg>
               </div>
-              <h2 className="text-2xl font-bold text-[#043658] mb-2">
+              <h2 className="text-xl sm:text-2xl font-bold text-[#043658] mb-2">
                 Real-time Chat Coming Soon!
               </h2>
-              <p className="text-slate-600 mb-6">
+              <p className="text-sm sm:text-base text-slate-600 mb-4 sm:mb-6 px-4">
                 This is a level-based chat room for{" "}
                 <span className="font-semibold text-[#043658]">
                   {getCommunityTypeLabel(chatInfo.community.type)}
                 </span>{" "}
                 community members.
               </p>
-              <div className="bg-[#FFC107]/10 border border-[#FFC107]/30 rounded-xl p-4 text-left">
-                <p className="text-sm font-semibold text-[#043658] mb-2">
+              <div className="bg-[#FFC107]/10 border border-[#FFC107]/30 rounded-xl p-3 sm:p-4 text-left">
+                <p className="text-xs sm:text-sm font-semibold text-[#043658] mb-2">
                   📋 Chat Room Details:
                 </p>
-                <ul className="text-sm text-slate-700 space-y-1">
+                <ul className="text-xs sm:text-sm text-slate-700 space-y-1">
                   <li>• <span className="font-medium">Type:</span> {getCommunityTypeLabel(chatInfo.community.type)}</li>
                   <li>• <span className="font-medium">Category:</span> {getSubtypeLabel(chatInfo.community.subtype, chatInfo.community.department)}</li>
-                  <li>• <span className="font-medium">Room ID:</span> {chatInfo.chatRoomId.substring(0, 8)}...</li>
+                  <li className="truncate">• <span className="font-medium">Room ID:</span> {chatInfo.chatRoomId.substring(0, 8)}...</li>
                 </ul>
               </div>
             </div>
 
-            <div className="flex gap-3 justify-center">
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 justify-center">
               <Link
                 href="/dashboard"
-                className="px-6 py-2.5 border border-slate-200 text-slate-600 rounded-xl font-semibold hover:bg-slate-50 transition-colors"
+                className="px-4 sm:px-6 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-colors"
               >
                 Back to Dashboard
               </Link>
               <button
                 disabled
-                className="px-6 py-2.5 bg-gradient-to-r from-[#043658] to-[#043658]/90 text-white rounded-xl font-semibold opacity-50 cursor-not-allowed"
+                className="px-4 sm:px-6 py-2.5 bg-gradient-to-r from-[#043658] to-[#043658]/90 text-white rounded-xl text-sm font-semibold opacity-50 cursor-not-allowed"
               >
                 Start Chatting (Soon)
               </button>
