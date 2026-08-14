@@ -466,6 +466,7 @@ export default function PostsPage() {
   const [sort, setSort] = useState<SortKey>("newest");
   const [composerOpen, setComposerOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const queryClient = useQueryClient();
 
   const communitiesQuery = useQuery({ queryKey: ["communities"], queryFn: getCommunities, staleTime: 60_000 });
@@ -505,8 +506,8 @@ export default function PostsPage() {
 
   return (
     <div className="h-screen overflow-hidden bg-[#F5F8FB]">
-      <DashboardSidebar />
-      <Topbar />
+      <DashboardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Topbar onMenuClick={() => setSidebarOpen(true)} />
 
       <main className="mt-16 lg:ml-64 h-[calc(100vh-4rem)] overflow-y-auto">
         <div className="mx-auto max-w-6xl px-4 py-5 sm:px-6 lg:px-8">
