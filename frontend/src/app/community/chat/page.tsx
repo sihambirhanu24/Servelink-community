@@ -188,6 +188,7 @@ function CommunityCard({ group, onClick }: { group: ChatGroup; onClick: () => vo
 export default function ChatLandingPage() {
   const router = useRouter();
   const { token } = useAuth();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [groups, setGroups]       = useState<ChatGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError]         = useState<string | null>(null);
@@ -215,8 +216,8 @@ export default function ChatLandingPage() {
   if (isLoading) {
     return (
       <div className="h-screen overflow-hidden bg-slate-50">
-        <DashboardSidebar />
-        <Topbar />
+        <DashboardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <Topbar onMenuClick={() => setSidebarOpen(true)} />
         <main className="mt-16 lg:ml-64 h-[calc(100vh-4rem)] flex items-center justify-center">
           <div className="text-center">
             <Loader className="h-8 w-8 animate-spin mx-auto text-[#043658] mb-3" />
@@ -229,8 +230,8 @@ export default function ChatLandingPage() {
 
   return (
     <div className="h-screen overflow-hidden bg-slate-50">
-      <DashboardSidebar />
-      <Topbar />
+      <DashboardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Topbar onMenuClick={() => setSidebarOpen(true)} />
 
       <main className="mt-16 lg:ml-64 h-[calc(100vh-4rem)] overflow-y-auto">
 
