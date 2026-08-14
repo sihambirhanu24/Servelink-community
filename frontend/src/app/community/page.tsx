@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { DashboardSidebar } from '@/components/layout/Sidebar';
 import Topbar from '@/components/layout/Topbar';
@@ -71,26 +72,28 @@ function CommunityPageHeader() {
 }
 
 export default function CommunityPage() {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  
   return (
     <div className="h-screen overflow-hidden bg-[#F5F8FB]">
-      <DashboardSidebar />
-      <Topbar />
+      <DashboardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Topbar onMenuClick={() => setSidebarOpen(true)} />
 
       <main className="mt-16 lg:ml-64 h-[calc(100vh-4rem)] overflow-y-auto">
-        <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 sm:py-5 lg:px-8">
 
           {/* Page header — identity row + Create Post CTA */}
-          <div className="mb-5 rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+          <div className="mb-4 sm:mb-5 rounded-xl border border-slate-200 bg-white px-4 sm:px-5 py-3 sm:py-4 shadow-sm">
             <CommunityPageHeader />
           </div>
 
           {/* Stats */}
-          <div className="mb-5">
+          <div className="mb-4 sm:mb-5">
             <StatsRow />
           </div>
 
           {/* Two-column grid: feed (left) + sticky rail (right) */}
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_272px]">
+          <div className="grid grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-[minmax(0,1fr)_272px]">
 
             {/* ── Left: feed ── */}
             <div className="min-w-0">
@@ -106,7 +109,7 @@ export default function CommunityPage() {
 
           </div>
 
-          <div className="mt-5 lg:hidden">
+          <div className="mt-4 sm:mt-5 lg:hidden">
             <CommunitySideRail />
           </div>
 
