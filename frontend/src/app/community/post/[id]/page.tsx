@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft, Edit, Trash2, Heart, MessageCircle, Bookmark,
   Share2, Eye, FileText, Download, Send, Loader2, AlertCircle,
-  MoreVertical, Flag, ExternalLink, Sparkles, TrendingUp, Users
+  MoreVertical, Flag, ExternalLink, Sparkles, TrendingUp, Users, X
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
@@ -63,6 +63,18 @@ export default function PostDetailPage() {
 
   const [commentText, setCommentText] = useState("");
   const [showShareMenu, setShowShareMenu] = useState(false);
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+
+  // Close lightbox on ESC key
+  React.useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && lightboxImage) {
+        setLightboxImage(null);
+      }
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [lightboxImage]);
 
   // Fetch post
   const { data: post, isLoading: postLoading, isError: postError } = useQuery({
@@ -339,37 +351,218 @@ export default function PostDetailPage() {
                         Attachments ({post.attachments.length})
                       </h4>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {post.attachments.map((attachment: any, idx: number) => (
-                        <motion.a
-                          key={attachment.id}
-                          href={getMediaUrl(attachment.url)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: idx * 0.1 }}
-                          className="flex items-center gap-3 p-4 rounded-xl border border-[#043658]/10 bg-gradient-to-br from-white to-[#FFC107]/5 hover:border-[#FFC107] hover:shadow-md transition-all group"
-                        >
-                          <div className="flex-shrink-0 text-3xl group-hover:scale-110 transition-transform">
-                            {getFileIcon(attachment.type)}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-bold text-[#043658] truncate group-hover:text-[#FFC107] transition-colors">
-                              {attachment.fileName || "Attachment"}
-                            </p>
-                            <p className="text-xs text-slate-500">
-                              {attachment.fileSize
-                                ? `${(attachment.fileSize / 1024 / 1024).toFixed(2)} MB`
-                                : attachment.type}
-                            </p>
-                          </div>
-                          <Download className="h-4 w-4 text-slate-400 group-hover:text-[#FFC107] transition-colors" />
-                        </motion.a>
-                      ))}
+                    <div className="space-y-4">
+                      {post.attachments.map((attachment: any, idx: number) => {
+                        const mediaUrl = getMediaUrl(attachment.url);
+                        const isImage = attachment.type === "IMAGE";
+                        const isPDF = attachment.type === "PDF";
+                        const isVideo = attachment.type === "VIDEO";
+                        
+                        return (
+                          <motion.div
+                            key={attachment.id}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: idx * 0.1 }}
+                            className="rounded-xl border border-[#043658]/10 bg-white overflow-hidden shadow-sm"
+                          >
+                            {/* Image - Show thumbnail with click to open in new tab */}
+                            {isImage && (
+                              <div className="relative group">
+                                <a
+                                  href={mediaUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="block cursor-pointer"
+                                >
+                                  <div className="relative h-64 overflow-hidden bg-slate-100">
+                                    <img 
+                                      src={mediaUrl} 
+                                      alt={attachment.fileName || "Image attachment"}
+                                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                      onError={(e) => {
+                                        console.error('Image failed to load:', mediaUrl);
+                                        e.currentTarget.src = 'https://placehold.co/800x400/043658/FFFFFF?text=Image+Not+Found';
+                                      }}
+                                    />
+                                    {/* Simple overlay on hover */}
+                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-300" />
+                                  </div>
+                                </a>
+                                <div className="px-4 py-3 bg-gradient-to-r from-[#043658]/90 to-[#043658]/80 text-white flex items-center justify-between">
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-semibold truncate">{attachment.fileName || "Image"}</p>
+                                    {attachment.fileSize && (
+                                      <p className="text-xs text-white/70 mt-0.5">
+                                        {(attachment.fileSize / 1024 / 1024).toFixed(2)} MB
+                                      </p>
+                                    )}
+                                  </div>
+                                  <a
+                                    href={mediaUrl}
+                                    download
+                                    className="p-2 rounded-lg bg-white/20 hover:bg-white/30 transition-all"
+                                  >
+                                    <Download className="h-4 w-4" />
+                                  </a>
+                                </div>
+                              </div>
+                            )}
+                            
+                            {/* PDF - Show embedded viewer */}
+                            {isPDF && (
+                              <div>
+                                <iframe
+                                  src={`${mediaUrl}#toolbar=1&navpanes=1&scrollbar=1`}
+                                  className="w-full h-[600px] border-0"
+                                  title={attachment.fileName || "PDF Document"}
+                                />
+                                <div className="px-4 py-3 bg-gradient-to-r from-red-500/90 to-red-600/90 text-white flex items-center justify-between">
+                                  <div className="flex-1">
+                                    <p className="text-sm font-semibold truncate flex items-center gap-2">
+                                      📄 {attachment.fileName || "PDF Document"}
+                                    </p>
+                                    {attachment.fileSize && (
+                                      <p className="text-xs text-white/70 mt-0.5">
+                                        {(attachment.fileSize / 1024 / 1024).toFixed(2)} MB
+                                      </p>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <a
+                                      href={mediaUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="p-2 rounded-lg bg-white/20 hover:bg-white/30 transition-all"
+                                    >
+                                      <ExternalLink className="h-4 w-4" />
+                                    </a>
+                                    <a
+                                      href={mediaUrl}
+                                      download
+                                      className="p-2 rounded-lg bg-white/20 hover:bg-white/30 transition-all"
+                                    >
+                                      <Download className="h-4 w-4" />
+                                    </a>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                            
+                            {/* Video - Show video player */}
+                            {isVideo && (
+                              <div>
+                                <video 
+                                  controls 
+                                  className="w-full h-auto"
+                                  preload="metadata"
+                                >
+                                  <source src={mediaUrl} type="video/mp4" />
+                                  Your browser does not support the video tag.
+                                </video>
+                                <div className="px-4 py-3 bg-gradient-to-r from-purple-500/90 to-purple-600/90 text-white flex items-center justify-between">
+                                  <div className="flex-1">
+                                    <p className="text-sm font-semibold truncate flex items-center gap-2">
+                                      🎥 {attachment.fileName || "Video"}
+                                    </p>
+                                    {attachment.fileSize && (
+                                      <p className="text-xs text-white/70 mt-0.5">
+                                        {(attachment.fileSize / 1024 / 1024).toFixed(2)} MB
+                                      </p>
+                                    )}
+                                  </div>
+                                  <a
+                                    href={mediaUrl}
+                                    download
+                                    className="p-2 rounded-lg bg-white/20 hover:bg-white/30 transition-all"
+                                  >
+                                    <Download className="h-4 w-4" />
+                                  </a>
+                                </div>
+                              </div>
+                            )}
+                            
+                            {/* DOCX and other files - Show download card */}
+                            {!isImage && !isPDF && !isVideo && (
+                              <a
+                                href={mediaUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-4 p-5 hover:bg-[#043658]/5 transition-all group"
+                              >
+                                <div className="flex-shrink-0 text-5xl group-hover:scale-110 transition-transform">
+                                  {getFileIcon(attachment.type)}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-bold text-[#043658] truncate group-hover:text-[#FFC107] transition-colors">
+                                    {attachment.fileName || "Document"}
+                                  </p>
+                                  <p className="text-xs text-slate-500 mt-1">
+                                    {attachment.fileSize
+                                      ? `${(attachment.fileSize / 1024 / 1024).toFixed(2)} MB`
+                                      : attachment.type}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <div className="p-3 rounded-xl bg-[#043658]/10 group-hover:bg-[#FFC107] group-hover:text-white text-[#043658] transition-all">
+                                    <Download className="h-5 w-5" />
+                                  </div>
+                                </div>
+                              </a>
+                            )}
+                          </motion.div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
+
+                {/* Image Lightbox Modal */}
+                <AnimatePresence>
+                  {lightboxImage && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 backdrop-blur-sm"
+                      onClick={() => setLightboxImage(null)}
+                    >
+                      {/* Close button */}
+                      <button
+                        onClick={() => setLightboxImage(null)}
+                        className="absolute top-4 right-4 z-10 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white backdrop-blur-sm transition-all"
+                      >
+                        <X className="h-6 w-6" />
+                      </button>
+
+                      {/* Download button */}
+                      <a
+                        href={lightboxImage}
+                        download
+                        onClick={(e) => e.stopPropagation()}
+                        className="absolute top-4 right-20 z-10 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white backdrop-blur-sm transition-all"
+                      >
+                        <Download className="h-6 w-6" />
+                      </a>
+
+                      {/* Image */}
+                      <motion.div
+                        initial={{ scale: 0.9, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={{ scale: 0.9, opacity: 0 }}
+                        transition={{ type: "spring", damping: 25 }}
+                        className="relative flex items-center justify-center"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <img
+                          src={lightboxImage}
+                          alt="Full size preview"
+                          className="max-w-[95vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
+                        />
+                      </motion.div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {/* Actions with Brand Colors */}
                 <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-white via-[#043658]/[0.02] to-white">
