@@ -58,6 +58,7 @@ interface PageProps {
 
 export default function CommunityTypePage({ params }: PageProps) {
   const { type } = use(params);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('posts');
   const queryClient = useQueryClient();
   const router = useRouter();
@@ -87,8 +88,8 @@ export default function CommunityTypePage({ params }: PageProps) {
   if (communityError) {
     return (
       <div className="h-screen overflow-hidden bg-slate-50">
-        <DashboardSidebar />
-        <Topbar />
+        <DashboardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <Topbar onMenuClick={() => setSidebarOpen(true)} />
         <main className="mt-16 lg:ml-64 h-[calc(100vh-4rem)] overflow-y-auto">
           <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4 text-center">
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
@@ -123,8 +124,8 @@ export default function CommunityTypePage({ params }: PageProps) {
 
   return (
     <div className="h-screen overflow-hidden bg-slate-50">
-      <DashboardSidebar />
-      <Topbar />
+      <DashboardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Topbar onMenuClick={() => setSidebarOpen(true)} />
 
       <main className="mt-16 lg:ml-64 h-[calc(100vh-4rem)] overflow-y-auto">
         <div className="mx-auto max-w-6xl px-4 py-5 sm:px-6">
