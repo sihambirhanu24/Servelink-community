@@ -89,6 +89,7 @@ export default function EditPostPage() {
   const toast = useToast();
   const confirm = useConfirm();
 
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [communityId, setCommunityId] = useState("");
@@ -234,9 +235,9 @@ export default function EditPostPage() {
   if (postLoading) {
     return (
       <div className="flex min-h-screen bg-slate-50">
-        <DashboardSidebar />
+        <DashboardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
         <div className="flex-1">
-          <Topbar />
+          <Topbar onMenuClick={() => setSidebarOpen(true)} />
           <div className="flex h-[calc(100vh-64px)] items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-[#043658]" />
           </div>
@@ -248,9 +249,9 @@ export default function EditPostPage() {
   if (!post) {
     return (
       <div className="flex min-h-screen bg-slate-50">
-        <DashboardSidebar />
+        <DashboardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
         <div className="flex-1">
-          <Topbar />
+          <Topbar onMenuClick={() => setSidebarOpen(true)} />
           <div className="flex h-[calc(100vh-64px)] items-center justify-center">
             <p className="text-slate-600">Post not found</p>
           </div>
@@ -261,9 +262,9 @@ export default function EditPostPage() {
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      <DashboardSidebar />
+      <DashboardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="flex-1">
-        <Topbar />
+        <Topbar onMenuClick={() => setSidebarOpen(true)} />
         <ToastContainer toasts={toast.toasts} onRemove={toast.removeToast} />
         <ConfirmDialog
           isOpen={confirm.isOpen}
