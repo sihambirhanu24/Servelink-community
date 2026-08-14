@@ -38,6 +38,7 @@ export default function MyPostsPage() {
   const queryClient = useQueryClient();
   const toast = useToast();
   const confirm = useConfirm();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [communityFilter, setCommunityFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -146,8 +147,8 @@ export default function MyPostsPage() {
   if (isLoading) {
     return (
       <div className="h-screen overflow-hidden bg-[#F5F8FB]">
-        <DashboardSidebar />
-        <Topbar />
+        <DashboardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <Topbar onMenuClick={() => setSidebarOpen(true)} />
         <ToastContainer toasts={toast.toasts} onRemove={toast.removeToast} />
         <main className="mt-16 lg:ml-64 h-[calc(100vh-4rem)] overflow-y-auto">
           <div className="flex items-center justify-center min-h-[60vh]">
@@ -160,8 +161,8 @@ export default function MyPostsPage() {
 
   return (
     <div className="h-screen overflow-hidden bg-[#F5F8FB]">
-      <DashboardSidebar />
-      <Topbar />
+      <DashboardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Topbar onMenuClick={() => setSidebarOpen(true)} />
       <ToastContainer toasts={toast.toasts} onRemove={toast.removeToast} />
       <ConfirmDialog
         isOpen={confirm.isOpen}
