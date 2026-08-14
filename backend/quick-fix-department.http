@@ -1,0 +1,27 @@
+### Quick Fix: Set Department for Current User
+### Use this to test the department chat feature
+
+### 1. Login first to get token
+POST http://localhost:3001/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "kaleb@example.com",
+  "password": "your-password"
+}
+
+### 2. Copy the accessToken from response above, then update profile with department
+PATCH http://localhost:3001/api/profile
+Authorization: Bearer YOUR_TOKEN_HERE
+Content-Type: application/json
+
+{
+  "department": "Mathematics"
+}
+
+### 3. Get profile to verify department is set
+GET http://localhost:3001/api/profile
+Authorization: Bearer YOUR_TOKEN_HERE
+
+### 4. Logout and login again to get fresh token with department
+### Then refresh frontend and click chat icon - should show 2 rooms!
