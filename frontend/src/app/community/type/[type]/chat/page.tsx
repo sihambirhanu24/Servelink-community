@@ -144,6 +144,8 @@ export default function TypeChatPage({ params }: Props) {
   const { type } = use(params);
   const { user, token } = useAuth();
 
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
   // Community resolution
   const [communityId, setCommunityId]   = useState<string | null>(null);
   const [communityName, setCommunityName] = useState('');
@@ -310,8 +312,8 @@ export default function TypeChatPage({ params }: Props) {
   if (resolving) {
     return (
       <div className="h-screen overflow-hidden bg-slate-50">
-        <DashboardSidebar />
-        <Topbar />
+        <DashboardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <Topbar onMenuClick={() => setSidebarOpen(true)} />
         <main className="mt-16 lg:ml-64 h-[calc(100vh-4rem)] flex items-center justify-center">
           <div className="text-center">
             <Loader className="h-7 w-7 animate-spin mx-auto text-[#043658] mb-3" />
@@ -326,8 +328,8 @@ export default function TypeChatPage({ params }: Props) {
   if (resolveError) {
     return (
       <div className="h-screen overflow-hidden bg-slate-50">
-        <DashboardSidebar />
-        <Topbar />
+        <DashboardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <Topbar onMenuClick={() => setSidebarOpen(true)} />
         <main className="mt-16 lg:ml-64 h-[calc(100vh-4rem)] flex items-center justify-center px-6">
           <div className="max-w-sm text-center">
             <AlertCircle className="h-12 w-12 text-slate-300 mx-auto mb-4" />
@@ -358,8 +360,8 @@ export default function TypeChatPage({ params }: Props) {
   // ─── Full chat UI ─────────────────────────────────────────────────────────
   return (
     <div className="h-screen overflow-hidden bg-slate-50">
-      <DashboardSidebar />
-      <Topbar />
+      <DashboardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Topbar onMenuClick={() => setSidebarOpen(true)} />
 
       <main className="mt-16 lg:ml-64 h-[calc(100vh-4rem)] flex">
 
