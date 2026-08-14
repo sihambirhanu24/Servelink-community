@@ -11,14 +11,9 @@ import { Avatar } from "@/components/common/Avatar";
 import { DashboardSidebar } from "@/components/layout/Sidebar";
 import Topbar from "@/components/layout/Topbar";
 import { ProfileStrengthCard } from "@/components/profile/ProfileStrengthCard";
-import { PlatformRankingCard } from "@/components/profile/PlatformRankingCard";
-import { TopSkillsCard } from "@/components/profile/TopSkillsCard";
 import { ProgressToLevelCard } from "@/components/profile/ProgressToLevelCard";
 import { CommunityAccessListCard } from "@/components/profile/CommunityAccessListCard";
-import { RecentAchievementsCard } from "@/components/profile/RecentAchievementsCard";
 import { RecentPostsCard } from "@/components/profile/RecentPostsCard";
-import { RecentActivityCard } from "@/components/profile/RecentActivityCard";
-import { UpcomingGoalsCard } from "@/components/profile/UpcomingGoalsCard";
 import { StatsGrid } from "@/components/profile/StatsGrid";
 import {
   BadgeCheck,
@@ -411,34 +406,23 @@ export default function ProfilePage() {
                 resources={stats?.resources ?? 0}
               />
 
-              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                <ProgressToLevelCard
-                  nextLevel={2}
-                  currentXp={120}
-                  xpToNextLevel={500}
-                  percentComplete={25}
-                  requirements={[
-                    {
-                      id: "1",
-                      label: "Create your first post",
-                      met: (stats?.posts ?? 0) > 0,
-                    },
-                  ]}
-                />
-                <CommunityAccessListCard />
-              </div>
-
-              <RecentAchievementsCard />
               <RecentPostsCard />
             </div>
 
             {/* Right column */}
             <div className="space-y-6">
-              <ProfileStrengthCard percent={90} />
-              <PlatformRankingCard />
-              <TopSkillsCard />
-              <RecentActivityCard />
-              <UpcomingGoalsCard />
+              <ProfileStrengthCard profile={profile} />
+              
+              <ProgressToLevelCard
+                currentLevel={teacher.level}
+                stats={{
+                  posts: stats?.posts ?? 0,
+                  likes: stats?.likes ?? 0,
+                  communities: stats?.communities ?? 0,
+                }}
+              />
+              
+              <CommunityAccessListCard communityAccess={dashboard.communityAccess} />
             </div>
           </div>
         </div>
