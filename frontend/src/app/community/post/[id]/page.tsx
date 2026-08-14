@@ -61,6 +61,7 @@ export default function PostDetailPage() {
   const { showToast } = useToast();
   const { confirm } = useConfirm();
 
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
@@ -205,8 +206,8 @@ export default function PostDetailPage() {
   if (postLoading) {
     return (
       <div className="h-screen overflow-hidden bg-[#F5F8FB]">
-        <DashboardSidebar />
-        <Topbar />
+        <DashboardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <Topbar onMenuClick={() => setSidebarOpen(true)} />
         <main className="mt-16 lg:ml-64 h-[calc(100vh-4rem)] overflow-y-auto">
           <div className="flex items-center justify-center min-h-[60vh]">
             <Loader2 className="h-8 w-8 animate-spin text-[#043658]" />
@@ -219,8 +220,8 @@ export default function PostDetailPage() {
   if (postError || !post) {
     return (
       <div className="h-screen overflow-hidden bg-[#F5F8FB]">
-        <DashboardSidebar />
-        <Topbar />
+        <DashboardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <Topbar onMenuClick={() => setSidebarOpen(true)} />
         <main className="mt-16 lg:ml-64 h-[calc(100vh-4rem)] overflow-y-auto">
           <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
             <AlertCircle className="h-12 w-12 text-red-400" />
@@ -243,8 +244,8 @@ export default function PostDetailPage() {
 
   return (
     <div className="h-screen overflow-hidden bg-gradient-to-br from-[#F5F8FB] via-[#F5F8FB] to-[#E8F0F7]">
-      <DashboardSidebar />
-      <Topbar />
+      <DashboardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Topbar onMenuClick={() => setSidebarOpen(true)} />
 
       <motion.main 
         className="mt-16 lg:ml-64 h-[calc(100vh-4rem)] overflow-y-auto"
