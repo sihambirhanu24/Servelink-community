@@ -1,7 +1,9 @@
 "use client";
 
+import { Fragment } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Dialog, Transition } from "@headlessui/react";
 import {
   LayoutDashboard,
   Users,
@@ -12,6 +14,7 @@ import {
   BarChart3,
   Settings,
   GraduationCap,
+  X,
 } from "lucide-react";
 
 const ADMIN_NAV_ITEMS = [
@@ -25,23 +28,40 @@ const ADMIN_NAV_ITEMS = [
   { label: "Settings", href: "/admin/settings", icon: Settings },
 ];
 
-export function AdminSidebar() {
+interface AdminSidebarProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+function AdminSidebarContent({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname();
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col overflow-y-auto border-r border-slate-700 bg-gradient-to-b from-slate-900 to-slate-800 px-4 py-6 lg:flex">
-      <div className="mb-8 flex items-center gap-2 px-2">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#FFC107]">
-          <GraduationCap className="h-5 w-5 text-[#043658]" />
+    <>
+      <div className="mb-8 flex items-center justify-between gap-2 px-2">
+        <div className="flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#FFC107]">
+            <GraduationCap className="h-5 w-5 text-[#043658]" />
+          </div>
+          <div>
+            <span className="block font-['Lexend'] font-semibold leading-tight text-white">
+              ServeLink
+            </span>
+            <span className="text-[10px] uppercase tracking-wide text-slate-400">
+              Admin Dashboard
+            </span>
+          </div>
         </div>
-        <div>
-          <span className="block font-['Lexend'] font-semibold leading-tight text-white">
-            ServeLink
-          </span>
-          <span className="text-[10px] uppercase tracking-wide text-slate-400">
-            Admin Dashboard
-          </span>
-        </div>
+        {/* Close button for mobile */}
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="lg:hidden rounded-lg p-1.5 text-slate-400 hover:bg-slate-700/50 hover:text-white transition-colors"
+            aria-label="Close menu"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        )}
       </div>
 
       <nav className="flex-1 space-y-1" aria-label="Admin navigation">
@@ -55,6 +75,7 @@ export function AdminSidebar() {
             <Link
               key={href}
               href={href}
+              onClick={onClose}
               aria-current={active ? "page" : undefined}
               className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[#FFC107]/30 ${
                 active
@@ -68,6 +89,52 @@ export function AdminSidebar() {
           );
         })}
       </nav>
-    </aside>
+    </>
+  );
+}
+
+export function AdminSidebar({ isOpen = false, onClose }: AdminSidebarProps) {
+  return (
+    <>
+      {/* Desktop Sidebar - Fixed */}
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col overflow-y-auto border-r border-slate-700 bg-gradient-to-b from-slate-900 to-slate-800 px-4 py-6 lg:flex">
+        <AdminSidebarContent />
+      </aside>
+
+      {/* Mobile Sidebar - Drawer */}
+      <Transition.Root show={isOpen || false} as={Fragment}>
+        <Dialog as="div" className="relative z-50 lg:hidden" onClose={onClose || (() => {})}>
+          <Transition.Child
+            as={Fragment}
+            enter="transition-opacity ease-linear duration-300"
+            enterFrom="opacity-0"
+            enterTo="opacity-100"
+            leave="transition-opacity ease-linear duration-300"
+            leaveFrom="opacity-100"
+            leaveTo="opacity-0"
+          >
+            <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm" />
+          </Transition.Child>
+
+          <div className="fixed inset-0 flex">
+            <Transition.Child
+              as={Fragment}
+              enter="transition ease-in-out duration-300 transform"
+              enterFrom="-translate-x-full"
+              enterTo="translate-x-0"
+              leave="transition ease-in-out duration-300 transform"
+              leaveFrom="translate-x-0"
+              leaveTo="-translate-x-full"
+            >
+              <Dialog.Panel className="relative mr-16 flex w-full max-w-xs flex-1">
+                <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-slate-700 bg-gradient-to-b from-slate-900 to-slate-800 px-4 py-6">
+                  <AdminSidebarContent onClose={onClose} />
+                </div>
+              </Dialog.Panel>
+            </Transition.Child>
+          </div>
+        </Dialog>
+      </Transition.Root>
+    </>
   );
 }
