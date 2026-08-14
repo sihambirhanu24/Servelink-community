@@ -22,11 +22,11 @@ export function AdminWelcome({ adminName }: AdminWelcomeProps) {
   }, []);
 
   return (
-    <div className="mb-8">
-      <h1 className="text-3xl font-bold text-[#043658]">
+    <div className="mb-6 sm:mb-8">
+      <h1 className="text-2xl sm:text-3xl font-bold text-[#043658]">
         {greeting}, {adminName || 'Admin'}.
       </h1>
-      <p className="mt-2 text-slate-600">
+      <p className="mt-1.5 sm:mt-2 text-sm sm:text-base text-slate-600">
         Monitor and manage the ServeLink teacher community.
       </p>
     </div>
