@@ -107,6 +107,7 @@ export default function CommunityChatPage() {
   const communityId = params?.id as string;
   const { user } = useAuth();
   const { data: profile } = useProfile();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [community, setCommunity] = useState<Community | null>(null);
   const [showInfoPanel, setShowInfoPanel] = useState(false);
@@ -176,8 +177,8 @@ export default function CommunityChatPage() {
   if (!communityId || !community) {
     return (
       <div className="h-screen overflow-hidden bg-slate-50">
-        <DashboardSidebar />
-        <Topbar />
+        <DashboardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <Topbar onMenuClick={() => setSidebarOpen(true)} />
         <main className="mt-16 lg:ml-64 h-[calc(100vh-4rem)] flex items-center justify-center">
           <div className="text-center">
             <Loader className="h-8 w-8 animate-spin mx-auto text-slate-400 mb-4" />
@@ -190,8 +191,8 @@ export default function CommunityChatPage() {
 
   return (
     <div className="h-screen overflow-hidden bg-slate-50">
-      <DashboardSidebar />
-      <Topbar />
+      <DashboardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Topbar onMenuClick={() => setSidebarOpen(true)} />
 
       <main className="mt-16 lg:ml-64 h-[calc(100vh-4rem)] overflow-hidden flex">
         {/* Back button */}
