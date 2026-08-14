@@ -43,28 +43,28 @@ export function QuickActions({ pendingVerificationCount = 0 }: QuickActionsProps
   ];
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-6">
-      <h3 className="text-lg font-semibold text-[#043658] mb-4">
+    <div className="rounded-lg border border-slate-200 bg-white p-4 sm:p-6">
+      <h3 className="text-base sm:text-lg font-semibold text-[#043658] mb-3 sm:mb-4">
         Quick Actions
       </h3>
       
-      <div className="space-y-3">
+      <div className="space-y-2 sm:space-y-3">
         {actions.map((action) => {
           const Icon = action.icon;
           return (
             <button
               key={action.label}
               onClick={action.onClick}
-              className={`w-full flex items-center gap-3 rounded-lg border ${action.borderColor} ${action.bgColor} p-4 text-left transition-colors hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-[#FFC107]/50`}
+              className={`w-full flex items-center gap-2.5 sm:gap-3 rounded-lg border ${action.borderColor} ${action.bgColor} p-3 sm:p-4 text-left transition-colors hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-[#FFC107]/50`}
             >
-              <div className={`flex-shrink-0 h-10 w-10 rounded-lg flex items-center justify-center bg-white`}>
-                <Icon className={`h-5 w-5 ${action.iconColor}`} />
+              <div className={`flex-shrink-0 h-9 w-9 sm:h-10 sm:w-10 rounded-lg flex items-center justify-center bg-white`}>
+                <Icon className={`h-4.5 w-4.5 sm:h-5 sm:w-5 ${action.iconColor}`} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-slate-900">
+                <p className="text-sm font-medium text-slate-900 truncate">
                   {action.label}
                 </p>
-                <p className="text-xs text-slate-600">
+                <p className="text-xs text-slate-600 truncate">
                   {action.description}
                 </p>
               </div>
