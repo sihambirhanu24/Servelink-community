@@ -71,10 +71,10 @@ export default function DashboardPage() {
   const { teacher, stats, recentPosts, communityFeed, recentNotifications, suggestedCommunities, communityAccess } = data;
 
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+    <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
 
       {/* ── Left column ── */}
-      <div className="space-y-4 min-w-0">
+      <div className="space-y-4 sm:space-y-6 min-w-0">
 
         <DashboardLevelCard
           teacher={teacher}
@@ -90,7 +90,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Right column ── */}
-      <div className="space-y-4 min-w-0">
+      <div className="space-y-4 sm:space-y-6 min-w-0 lg:max-w-[300px]">
 
         <DashboardRecentActivity notifications={recentNotifications} />
 
