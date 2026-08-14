@@ -13,6 +13,10 @@ interface ChatGroup {
   type: string;
   subtype: string;
   department: string | null;
+  school: string | null;
+  woreda: string | null;
+  zone: string | null;
+  region: string | null;
   chatRoomId: string | null;
   memberCount: number;
   unreadCount: number;
@@ -90,16 +94,18 @@ export function ChatRoomsDropdown() {
       return "School Chat";
     }
     
-    // DEPARTMENT chat: Show just the department name
+    // DEPARTMENT chat: Show department name + "Teachers"
     if (group.subtype === "DEPARTMENT" && group.department) {
-      console.log(`  ✅ Returning department name: ${group.department}`);
-      return group.department;
+      const displayName = `${group.department} Teachers`;
+      console.log(`  ✅ Returning department name: ${displayName}`);
+      return displayName;
     }
     
     // COMMON chat: Show type + "Common"
     const typeLabel = getCommunityTypeLabel(group.type);
-    console.log(`  ✅ Returning common name: ${typeLabel} Common`);
-    return `${typeLabel} Common`;
+    const displayName = `${typeLabel} Common`;
+    console.log(`  ✅ Returning common name: ${displayName}`);
+    return displayName;
   };
 
   const getRoomDescription = (group: ChatGroup) => {
@@ -108,9 +114,16 @@ export function ChatRoomsDropdown() {
     }
     
     if (group.subtype === "DEPARTMENT" && group.department) {
-      return `${getCommunityTypeLabel(group.type)} ${group.department} teachers`;
+      // Show: "Physics teachers in Zone 05" or "Mathematics teachers in Oromia Region"
+      const typeLabel = getCommunityTypeLabel(group.type);
+      const location = group.zone || group.woreda || group.region || group.school || typeLabel;
+      return `${group.department} teachers in ${location}`;
     }
-    return `All ${getCommunityTypeLabel(group.type).toLowerCase()} teachers`;
+    
+    // COMMON: "All teachers in Zone 05" or "All teachers in Oromia Region"
+    const typeLabel = getCommunityTypeLabel(group.type);
+    const location = group.zone || group.woreda || group.region || group.school || typeLabel;
+    return `All teachers in ${location}`;
   };
 
   const formatLastMessageTime = (dateString: string) => {
@@ -238,8 +251,8 @@ export function ChatRoomsDropdown() {
                       💬 Two chat rooms available:
                     </p>
                     <ul className="text-[10px] text-slate-600 mt-1 space-y-0.5">
-                      <li>• <span className="font-semibold">Department:</span> Your department only</li>
-                      <li>• <span className="font-semibold">Common:</span> All teachers at this level</li>
+                      <li>• <span className="font-semibold">Subject Chat:</span> Your department colleagues only</li>
+                      <li>• <span className="font-semibold">Common Chat:</span> All teachers at your level</li>
                     </ul>
                   </div>
                 )}
@@ -381,9 +394,9 @@ export function ChatRoomsDropdown() {
                             <p className="text-[10px] text-slate-400">
                               👥 {group.memberCount} member{group.memberCount !== 1 ? "s" : ""}
                             </p>
-                            {group.subtype === "DEPARTMENT" && (
+                            {group.subtype === "DEPARTMENT" && group.department && (
                               <span className="text-[10px] text-[#FFC107] font-semibold">
-                                🎯 Department Only
+                                🎯 {group.department} Only
                               </span>
                             )}
                           </div>

@@ -230,10 +230,19 @@ export class ChatService {
     });
     if (!teacher) throw new NotFoundException('Teacher not found');
 
+    console.log(`[ChatService] getAccessibleChatGroups for teacher ${teacherId}:`, {
+      level: teacher.level,
+      department: teacher.department,
+      zone: teacher.zone,
+      woreda: teacher.woreda,
+      region: teacher.region,
+    });
+
     // Provision communities this teacher is entitled to (idempotent)
     await this.ensureTeacherCommunities(teacher);
 
     const clauses = this.accessibleCommunityClauses(teacher);
+    console.log(`[ChatService] Access clauses count: ${clauses.length}`);
     if (clauses.length === 0) return [];
 
     const communities = await this.prisma.community.findMany({
@@ -256,6 +265,11 @@ export class ChatService {
         _count: { select: { communityMembers: true } },
       },
       orderBy: [{ type: 'asc' }, { subtype: 'asc' }, { name: 'asc' }],
+    });
+
+    console.log(`[ChatService] Found ${communities.length} communities:`);
+    communities.forEach((c) => {
+      console.log(`  - ${c.name} (${c.type}/${c.subtype}, dept: ${c.department})`);
     });
 
     return communities.map((c) => {
