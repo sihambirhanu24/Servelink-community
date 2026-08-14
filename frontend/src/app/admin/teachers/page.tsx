@@ -123,19 +123,19 @@ export default function AdminTeachersPage() {
     <AdminLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-[#043658]">Teacher Management</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-[#043658]">Teacher Management</h1>
             <p className="mt-1 text-sm text-[#6B7C93]">Manage, verify, and support educators on the platform.</p>
           </div>
-          <button className="flex items-center gap-2 rounded-lg bg-[#043658] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#05456F] transition-colors">
+          <button className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-lg bg-[#043658] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#05456F] transition-colors">
             <Plus className="h-4 w-4" />
             Add New Teacher
           </button>
         </div>
 
         {/* Filters Card */}
-        <div className="rounded-xl border border-[#D9E2EC] bg-white p-6 shadow-sm">
+        <div className="rounded-xl border border-[#D9E2EC] bg-white p-4 sm:p-6 shadow-sm">
           <div className="space-y-4">
             {/* Search */}
             <div>
