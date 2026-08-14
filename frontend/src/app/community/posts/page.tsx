@@ -10,6 +10,7 @@ import { DashboardSidebar } from '@/components/layout/Sidebar';
 import Topbar from '@/components/layout/Topbar';
 
 export default function CommunityPostsPage() {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [communityId, setCommunityId] = useState('all');
   const [categoryId, setCategoryId] = useState('all');
@@ -44,8 +45,8 @@ export default function CommunityPostsPage() {
 
   return (
     <div className="h-screen overflow-hidden bg-slate-50">
-      <DashboardSidebar />
-      <Topbar />
+      <DashboardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Topbar onMenuClick={() => setSidebarOpen(true)} />
 
       <main className="mt-16 lg:ml-64 h-[calc(100vh-4rem)] overflow-y-auto">
         <div className="mx-auto max-w-6xl px-4 py-6 sm:px-8 lg:px-10">
