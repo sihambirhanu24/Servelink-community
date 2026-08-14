@@ -305,6 +305,7 @@ function QuickActionsCard() {
 // ── Main page ──────────────────────────────────────────
 export default function BookmarksPage() {
   const queryClient = useQueryClient();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [communityFilter, setCommunityFilter] = useState("all");
@@ -358,8 +359,8 @@ export default function BookmarksPage() {
 
   return (
     <div className="h-screen overflow-hidden bg-[#F5F8FB]">
-      <DashboardSidebar />
-      <Topbar />
+      <DashboardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Topbar onMenuClick={() => setSidebarOpen(true)} />
 
       <main className="mt-16 lg:ml-64 h-[calc(100vh-4rem)] overflow-y-auto">
         <div className="mx-auto max-w-6xl px-4 py-5 sm:px-6 lg:px-8">
