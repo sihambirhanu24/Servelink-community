@@ -230,6 +230,8 @@ export function CommunitySideRail() {
       </Card>
 
       {/* ── My Communities ── */}
+      {/* Removed: This section is redundant with the Communities progress card in the sidebar */}
+      {/* 
       <Card>
         <div className="flex items-center justify-between">
           <SectionHeading>My Communities</SectionHeading>
@@ -303,6 +305,7 @@ export function CommunitySideRail() {
           </div>
         )}
       </Card>
+      */}
 
       {/* ── Quick Actions ── */}
       <Card>
