@@ -12,6 +12,7 @@ import {
   Plus,
   ChevronRight,
   Home,
+  MenuIcon,
 } from "lucide-react";
 
 import { useAuth } from "@/context/AuthContext";
@@ -34,6 +35,10 @@ const PAGE_TITLES: Record<string, string> = {
   '/notifications': 'Notifications',
   '/settings': 'Settings',
 };
+
+interface TopbarProps {
+  onMenuClick?: () => void;
+}
 
 function PageBreadcrumb() {
   const pathname = usePathname();
@@ -74,9 +79,9 @@ function PageBreadcrumb() {
   });
   
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 min-w-0">
       {/* Breadcrumb Navigation */}
-      <nav className="hidden sm:flex items-center gap-1 text-xs">
+      <nav className="hidden sm:flex items-center gap-1 text-xs min-w-0">
         {breadcrumbs.map((crumb, index) => (
           <Fragment key={crumb.href}>
             {index === 0 ? (
@@ -84,14 +89,14 @@ function PageBreadcrumb() {
                 href={crumb.href}
                 className="flex items-center gap-1 text-white/60 hover:text-white transition-colors"
               >
-                <Home className="h-3.5 w-3.5" />
+                <Home className="h-3.5 w-3.5 shrink-0" />
               </Link>
             ) : (
               <>
-                <ChevronRight className="h-3 w-3 text-white/30" />
+                <ChevronRight className="h-3 w-3 shrink-0 text-white/30" />
                 <Link 
                   href={crumb.href}
-                  className="text-white/60 hover:text-white transition-colors"
+                  className="text-white/60 hover:text-white transition-colors truncate"
                 >
                   {crumb.label}
                 </Link>
@@ -101,22 +106,22 @@ function PageBreadcrumb() {
         ))}
         {breadcrumbs.length > 0 && (
           <>
-            <ChevronRight className="h-3 w-3 text-white/30" />
-            <span className="font-medium text-[#FFC107]">{pageTitle}</span>
+            <ChevronRight className="h-3 w-3 shrink-0 text-white/30" />
+            <span className="font-medium text-[#FFC107] truncate">{pageTitle}</span>
           </>
         )}
       </nav>
       
       {/* Current Page Title (Mobile) */}
-      <div className="flex sm:hidden items-center gap-2">
-        <div className="h-1.5 w-1.5 rounded-full bg-[#FFC107]" />
-        <span className="text-sm font-semibold text-white">{pageTitle}</span>
+      <div className="flex sm:hidden items-center gap-2 min-w-0">
+        <div className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#FFC107]" />
+        <span className="text-sm font-semibold text-white truncate">{pageTitle}</span>
       </div>
     </div>
   );
 }
 
-export default function Topbar() {
+export default function Topbar({ onMenuClick }: TopbarProps) {
   const { user, logout } = useAuth();
   const { data: profile } = useProfile();
   const router = useRouter();
@@ -163,26 +168,40 @@ export default function Topbar() {
         bg-gradient-to-b
         from-slate-900
         to-slate-800
-        px-4
-        sm:px-6
+        px-3
+        sm:px-4
         lg:px-8
         flex
         items-center
         justify-between
-        gap-4
+        gap-2
+        sm:gap-4
       "
     >
       {/* =====================================================
-          PAGE BREADCRUMB
+          LEFT SIDE - HAMBURGER + BREADCRUMB
       ===================================================== */}
 
-      <PageBreadcrumb />
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+        {/* Hamburger Menu Button (Mobile) */}
+        {onMenuClick && (
+          <button
+            onClick={onMenuClick}
+            className="lg:hidden flex items-center justify-center h-9 w-9 rounded-lg text-white hover:bg-white/10 transition-colors"
+            aria-label="Open menu"
+          >
+            <MenuIcon className="h-5 w-5" />
+          </button>
+        )}
+
+        <PageBreadcrumb />
+      </div>
 
       {/* =====================================================
           RIGHT SIDE
       ===================================================== */}
 
-      <div className="flex items-center gap-1 sm:gap-2">
+      <div className="flex items-center gap-1 sm:gap-2 shrink-0">
 
         {/* =================================================
             CREATE POST
@@ -194,8 +213,10 @@ export default function Topbar() {
           title="Create Post"
           className="
             flex
-            h-10
-            w-10
+            h-9
+            w-9
+            sm:h-10
+            sm:w-10
             items-center
             justify-center
             rounded-xl
@@ -214,7 +235,7 @@ export default function Topbar() {
           "
         >
           <Plus
-            className="h-5 w-5"
+            className="h-4 w-4 sm:h-5 sm:w-5"
             strokeWidth={2.5}
             aria-hidden="true"
           />
@@ -261,6 +282,8 @@ export default function Topbar() {
             w-px
             bg-white/15
             sm:ml-2
+            hidden
+            sm:block
           "
           aria-hidden="true"
         />
@@ -280,9 +303,11 @@ export default function Topbar() {
               group
               flex
               items-center
-              gap-2.5
+              gap-2
+              sm:gap-2.5
               rounded-xl
-              px-2
+              px-1.5
+              sm:px-2
               py-1.5
               transition-all
               duration-200
@@ -316,12 +341,13 @@ export default function Topbar() {
             <span
               className="
                 hidden
-                max-w-[120px]
+                max-w-[100px]
+                sm:max-w-[120px]
                 truncate
                 text-sm
                 font-medium
                 text-white
-                sm:block
+                md:block
               "
             >
               {firstName || userName}
@@ -338,7 +364,7 @@ export default function Topbar() {
                 text-white/60
                 transition-transform
                 group-data-[open]:rotate-180
-                sm:block
+                md:block
               "
               aria-hidden="true"
             />
