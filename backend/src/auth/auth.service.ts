@@ -48,7 +48,7 @@ export class AuthService {
         zone:       registerDto.zone,
         region:     registerDto.region,
         subject:    registerDto.subject,
-        department: registerDto.department ?? null,
+        department: registerDto.department,
         level:      'LEVEL_1',
       },
       select: {
@@ -128,6 +128,7 @@ export class AuthService {
           woreda: teacher.woreda,
           zone: teacher.zone,
           region: teacher.region,
+          department: teacher.department,
         },
       };
     }
