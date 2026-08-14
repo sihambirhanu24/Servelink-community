@@ -1,16 +1,17 @@
 "use client";
 
 import { Fragment } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { Menu, Transition } from "@headlessui/react";
 import {
-  Search,
   User,
   Settings,
   LogOut,
   ChevronDown,
   Plus,
+  ChevronRight,
+  Home,
 } from "lucide-react";
 
 import { useAuth } from "@/context/AuthContext";
@@ -18,6 +19,102 @@ import { useProfile } from "@/hooks/useProfile";
 import { Avatar } from "@/components/common/Avatar";
 import { NotificationBell } from "@/components/notification/NotificationBell";
 import { ChatRoomsDropdown } from "@/components/chat/ChatRoomsDropdown";
+
+// Page title mapping
+const PAGE_TITLES: Record<string, string> = {
+  '/dashboard': 'Dashboard',
+  '/profile': 'My Profile',
+  '/profile/edit': 'Edit Profile',
+  '/profile/change-password': 'Change Password',
+  '/profile/posts': 'My Posts',
+  '/community': 'Communities',
+  '/posts': 'Posts',
+  '/posts/create': 'Create Post',
+  '/bookmarks': 'Bookmarks',
+  '/notifications': 'Notifications',
+  '/settings': 'Settings',
+};
+
+function PageBreadcrumb() {
+  const pathname = usePathname();
+  
+  // Get page title
+  let pageTitle = PAGE_TITLES[pathname] || 'ServeLink';
+  
+  // Handle dynamic routes
+  if (pathname.startsWith('/community/type/')) {
+    const parts = pathname.split('/');
+    const type = parts[3]?.charAt(0).toUpperCase() + parts[3]?.slice(1);
+    if (pathname.includes('/chat')) {
+      pageTitle = `${type} Chat`;
+    } else {
+      pageTitle = `${type} Community`;
+    }
+  } else if (pathname.startsWith('/posts/') && pathname.includes('/edit')) {
+    pageTitle = 'Edit Post';
+  } else if (pathname.match(/^\/posts\/[^/]+$/)) {
+    pageTitle = 'Post Details';
+  }
+  
+  // Build breadcrumb segments
+  const segments = pathname.split('/').filter(Boolean);
+  const breadcrumbs: { label: string; href: string }[] = [];
+  
+  // Add home
+  breadcrumbs.push({ label: 'Home', href: '/dashboard' });
+  
+  // Add intermediate segments
+  let currentPath = '';
+  segments.forEach((segment, index) => {
+    currentPath += `/${segment}`;
+    if (index < segments.length - 1) {
+      const label = PAGE_TITLES[currentPath] || segment.charAt(0).toUpperCase() + segment.slice(1);
+      breadcrumbs.push({ label, href: currentPath });
+    }
+  });
+  
+  return (
+    <div className="flex items-center gap-2">
+      {/* Breadcrumb Navigation */}
+      <nav className="hidden sm:flex items-center gap-1 text-xs">
+        {breadcrumbs.map((crumb, index) => (
+          <Fragment key={crumb.href}>
+            {index === 0 ? (
+              <Link 
+                href={crumb.href}
+                className="flex items-center gap-1 text-white/60 hover:text-white transition-colors"
+              >
+                <Home className="h-3.5 w-3.5" />
+              </Link>
+            ) : (
+              <>
+                <ChevronRight className="h-3 w-3 text-white/30" />
+                <Link 
+                  href={crumb.href}
+                  className="text-white/60 hover:text-white transition-colors"
+                >
+                  {crumb.label}
+                </Link>
+              </>
+            )}
+          </Fragment>
+        ))}
+        {breadcrumbs.length > 0 && (
+          <>
+            <ChevronRight className="h-3 w-3 text-white/30" />
+            <span className="font-medium text-[#FFC107]">{pageTitle}</span>
+          </>
+        )}
+      </nav>
+      
+      {/* Current Page Title (Mobile) */}
+      <div className="flex sm:hidden items-center gap-2">
+        <div className="h-1.5 w-1.5 rounded-full bg-[#FFC107]" />
+        <span className="text-sm font-semibold text-white">{pageTitle}</span>
+      </div>
+    </div>
+  );
+}
 
 export default function Topbar() {
   const { user, logout } = useAuth();
@@ -76,49 +173,10 @@ export default function Topbar() {
       "
     >
       {/* =====================================================
-          SEARCH
+          PAGE BREADCRUMB
       ===================================================== */}
 
-      <div
-        className="
-          flex
-          flex-1
-          items-center
-          gap-2
-          rounded-lg
-          border
-          border-white/10
-          bg-white/5
-          px-3
-          py-2
-          transition-all
-          focus-within:border-[#FFC107]/60
-          focus-within:bg-white/10
-          focus-within:ring-2
-          focus-within:ring-[#FFC107]/20
-          sm:max-w-sm
-        "
-      >
-        <Search
-          className="h-4 w-4 shrink-0 text-white/60"
-          aria-hidden="true"
-        />
-
-        <input
-          type="search"
-          placeholder="Search communities..."
-          aria-label="Search communities"
-          className="
-            min-w-0
-            flex-1
-            bg-transparent
-            text-sm
-            text-white
-            placeholder:text-white/50
-            outline-none
-          "
-        />
-      </div>
+      <PageBreadcrumb />
 
       {/* =====================================================
           RIGHT SIDE

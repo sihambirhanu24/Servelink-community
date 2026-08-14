@@ -25,9 +25,11 @@ function SidebarInner() {
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-slate-700 bg-gradient-to-b from-slate-900 to-slate-800 px-4 py-6 lg:flex">
       <div className="mb-8 flex items-center gap-2 px-2">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#FFC107]">
-          <GraduationCap className="h-5 w-5 text-[#043658]" />
-        </div>
+        <img 
+          src="/logo.png" 
+          alt="ServeLink Logo" 
+          className="h-10 w-10 object-contain"
+        />
         <span className="font-['Lexend'] font-semibold text-white">
           ServeLink
         </span>
