@@ -31,9 +31,11 @@ export function Navbar({ scrolled, menuOpen, setMenuOpen }: Props) {
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-6 px-4 sm:px-6 lg:px-10">
         {/* Logo */}
         <Link href="/landing" className="flex shrink-0 items-center gap-2.5 focus:outline-none">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#043658] shadow-sm">
-            <GraduationCap className="h-5 w-5 text-[#FFC107]" />
-          </div>
+          <img 
+            src="/logo.png" 
+            alt="ServeLink Logo" 
+            className="h-10 w-10 object-contain"
+          />
           <span className="text-lg font-extrabold tracking-tight text-[#043658]">ServeLink</span>
         </Link>
 

@@ -26,25 +26,40 @@ export function HowItWorksSection() {
           <h2 className="text-2xl font-extrabold text-[#043658] lg:text-3xl">How ServeLink Works</h2>
           <p className="mt-1.5 text-sm text-slate-600">Five simple steps from registration to a growing professional network.</p>
         </FI>
-        <div className="mt-4 flex flex-col items-center">
-          {STEPS.map((step, i) => (
-            <div key={step.num} className="flex w-full max-w-md flex-col items-center">
-              <FI d={i*0.07} className="w-full">
-                <div className="flex w-full items-start gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm hover:shadow-md transition-all">
-                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-sm font-black ${step.color}`}>{step.num}</div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <step.icon className="h-3.5 w-3.5 text-[#043658]" />
-                      <h3 className="text-sm font-bold text-[#043658]">{step.title}</h3>
+        
+        {/* Horizontal layout with narrower cards */}
+        <div className="mt-6 overflow-x-auto pb-2">
+          <div className="flex items-center justify-center gap-3 min-w-max px-2">
+            {STEPS.map((step, i) => (
+              <div key={step.num} className="flex items-center">
+                <FI d={i*0.07} className="flex-shrink-0">
+                  <div className="w-40 rounded-xl border border-slate-200 bg-white p-3 shadow-sm hover:shadow-md transition-all">
+                    <div className={`inline-flex h-8 w-8 items-center justify-center rounded-lg text-xs font-black ${step.color} mb-2`}>
+                      {step.num}
                     </div>
-                    <p className="mt-0.5 text-xs text-slate-500">{step.desc}</p>
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <step.icon className="h-3.5 w-3.5 text-[#043658]" />
+                      <h3 className="text-xs font-bold text-[#043658]">{step.title}</h3>
+                    </div>
+                    <p className="text-[11px] text-slate-500 leading-snug">{step.desc}</p>
                   </div>
-                </div>
-              </FI>
-              {i < STEPS.length-1 && <div className="flex h-5 items-center text-[#043658]/25"><ChevronDown className="h-4 w-4" /></div>}
-            </div>
-          ))}
+                </FI>
+                {i < STEPS.length-1 && (
+                  <div className="flex items-center px-1.5 text-[#043658]/30">
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
+        
+        {/* Mobile: Show hint to scroll horizontally */}
+        <FI d={0.4} className="mt-3 text-center lg:hidden">
+          <p className="text-xs text-slate-400">← Scroll to see all steps →</p>
+        </FI>
       </div>
     </section>
   );

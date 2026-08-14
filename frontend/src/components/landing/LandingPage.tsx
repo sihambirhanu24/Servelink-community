@@ -11,7 +11,7 @@ import { FeaturesSection } from './FeaturesSection';
 import { CommunityFeedSection } from './CommunityFeedSection';
 import { ResourceSharingSection } from './ResourceSharingSection';
 import { ProfileSection } from './ProfileSection';
-import { TeacherJourneySection } from './TeacherJourneySection';
+// import { TeacherJourneySection } from './TeacherJourneySection'; - REMOVED
 import { BenefitsSection } from './BenefitsSection';
 import { StatsSection } from './StatsSection';
 import { TestimonialsSection } from './TestimonialsSection';
@@ -42,7 +42,7 @@ export default function LandingPage() {
       <CommunityFeedSection />
       <ResourceSharingSection />
       <ProfileSection />
-      <TeacherJourneySection />
+      {/* <TeacherJourneySection /> - REMOVED */}
       <BenefitsSection />
       <StatsSection />
       <TestimonialsSection />

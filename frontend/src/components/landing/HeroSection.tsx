@@ -344,7 +344,8 @@ export function HeroSection() {
                 </Link>
               </div>
 
-              {/* 3 benefits */}
+              {/* 3 benefits - REMOVED */}
+              {/* 
               <div className="mt-7 grid grid-cols-1 gap-2.5 sm:grid-cols-3">
                 {BENEFITS.map(({ emoji, title, sub }) => (
                   <div
@@ -359,6 +360,7 @@ export function HeroSection() {
                   </div>
                 ))}
               </div>
+              */}
             </motion.div>
 
             {/* ── Right: app window ── */}
