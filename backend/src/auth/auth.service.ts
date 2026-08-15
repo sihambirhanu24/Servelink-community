@@ -11,6 +11,8 @@ import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
 import { ChatService } from '../chat/chat.service';
+import { VerificationService } from '../teacher/verification.service';
+import { TeacherVerificationAction } from '@prisma/client';
 import { RegisterDto } from '../auth/dto/register.dto';
 import { LoginDto } from '../auth/dto/login.dto';
 
@@ -21,10 +23,14 @@ export class AuthService {
     private jwtService: JwtService,
     private mailService: MailService,
     private chatService: ChatService,
+    private verificationService: VerificationService,
   ) {}
 
  
-  async register(registerDto: RegisterDto) {
+  async register(
+    registerDto: RegisterDto,
+    documents: Express.Multer.File[] = [],
+  ) {
     const { email, password } = registerDto;
 
     const existingTeacher = await this.prisma.teacher.findUnique({
@@ -49,7 +55,10 @@ export class AuthService {
         region:     registerDto.region,
         subject:    registerDto.subject,
         department: registerDto.department,
+        teacherIdNumber: registerDto.teacherIdNumber,
         level:      'LEVEL_1',
+        // Verification is always granted by an admin, never by the client.
+        verificationStatus: 'PENDING',
       },
       select: {
         id:         true,
@@ -62,10 +71,23 @@ export class AuthService {
         zone:       true,
         region:     true,
         department: true,
+        verificationStatus: true,
         createdAt:  true,
         updatedAt:  true,
       },
     });
+
+    try {
+      await this.verificationService.submitDocuments(
+        teacher.id,
+        documents,
+        registerDto.documentTypes,
+        TeacherVerificationAction.SUBMITTED,
+      );
+    } catch (error) {
+      await this.prisma.teacher.delete({ where: { id: teacher.id } });
+      throw error;
+    }
 
     // Auto-provision community chat rooms for this teacher.
     // Fire-and-forget — do not block registration on community creation errors.
@@ -123,6 +145,9 @@ export class AuthService {
           profileImage: teacher.profileImage,
           subject: teacher.subject,
           verified: teacher.verified,
+          verificationStatus: teacher.verificationStatus,
+          rejectionReason: teacher.rejectionReason,
+          approvedAt: teacher.approvedAt,
           level: teacher.level,
           school: teacher.school,
           woreda: teacher.woreda,
@@ -171,6 +196,9 @@ export class AuthService {
       email:      true,
       profileImage: true,
       verified:   true,
+      verificationStatus: true,
+      rejectionReason: true,
+      approvedAt: true,
       level:      true,
       school:     true,
       woreda:     true,

@@ -8,9 +8,21 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiConsumes,
 } from '@nestjs/swagger';
-import { Req, Get, UseGuards } from "@nestjs/common";
+import {
+  Req,
+  Get,
+  UseGuards,
+  UploadedFiles,
+  UseInterceptors,
+} from "@nestjs/common";
+import { FilesInterceptor } from "@nestjs/platform-express";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
+import {
+  MAX_VERIFICATION_DOCUMENTS,
+  verificationMulterConfig,
+} from "../teacher/config/verification-multer.config";
 
 import { AuthService } from './auth.service';
 
@@ -36,9 +48,20 @@ export class AuthController {
   description: 'Teacher registered successfully',
 })
 
+@ApiConsumes('multipart/form-data')
 @Post('register')
-register(@Body() dto: RegisterDto) {
-  return this.authService.register(dto);
+@UseInterceptors(
+  FilesInterceptor(
+    'documents',
+    MAX_VERIFICATION_DOCUMENTS,
+    verificationMulterConfig,
+  ),
+)
+register(
+  @Body() dto: RegisterDto,
+  @UploadedFiles() documents: Express.Multer.File[],
+) {
+  return this.authService.register(dto, documents);
 }
 
  @ApiOperation({

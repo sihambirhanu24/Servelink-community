@@ -9,6 +9,7 @@ import {
 } from "@nestjs/common";
 
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { VerifiedTeacherGuard } from "../auth/guards/verified-teacher.guard";
 import { MembershipService } from "./membership.service";
 
 @Controller("membership")
@@ -17,7 +18,7 @@ export class MembershipController {
     private readonly membershipService: MembershipService,
   ) {}
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
   @Post(":communityId")
   join(
     @Param("communityId") communityId: string,
@@ -29,7 +30,7 @@ export class MembershipController {
     );
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
   @Delete(":communityId")
   leave(
     @Param("communityId") communityId: string,
@@ -50,7 +51,7 @@ export class MembershipController {
     );
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
   @Get(":communityId/check")
   check(
     @Param("communityId") communityId: string,

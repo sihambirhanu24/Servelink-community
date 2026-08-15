@@ -15,6 +15,7 @@ import {
 
 
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { VerifiedTeacherGuard } from '../../auth/guards/verified-teacher.guard';
 import { CommunityService } from '../services/community.service';
 import { CreatePostDto } from '../dto/create-post.dto';
 import { CurrentUser } from 'src/auth/decorators/current-user.decorator';
@@ -41,7 +42,7 @@ export class CommunityController {
   @ApiOperation({
     summary: 'Get all communities for teacher',
   })
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
   @Get()
   getCommunities(@CurrentUser() user: any) {
     return this.communityService.getCommunities(user.sub);
@@ -55,7 +56,7 @@ getCategories() {
 }
 
  @Post("posts")
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
 createPost(
   @CurrentUser() user,
   @Body() dto: CreatePostDto,
@@ -74,7 +75,7 @@ createPost(
 @ApiOperation({
   summary: 'Like a post',
 })
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
 @Post('posts/:id/like')
 likePost(
   @Param('id') postId: string,
@@ -91,7 +92,7 @@ likePost(
 @ApiOperation({
   summary: 'Remove like from a post',
 })
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
 @Delete('posts/:id/like')
 unlikePost(
   @Param('id') postId: string,
@@ -110,7 +111,7 @@ unlikePost(
   summary: 'Add comment to a post',
 })
 @Post('posts/:postId/comments')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
 createComment(
   @Param('postId') postId: string,
   @Body() dto: CreateCommentDto,
@@ -132,7 +133,7 @@ createComment(
   @ApiOperation({
   summary: 'Get a post by ID',
 })
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
   @Get('posts/:id')
   getPostById(@Param('id') id: string, @Req() req) {
     return this.communityService.getPostById(id, req.user?.sub);
@@ -144,7 +145,7 @@ createComment(
   summary: 'Update a post',
 })
 @Patch('posts/:id')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
 updatePost(
   @Param('id') id: string,
   @Body() dto: CreatePostDto,
@@ -162,7 +163,7 @@ updatePost(
   summary: 'Delete a post',
 })
 @Delete('posts/:id')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
 deletePost(
   @Param('id') id: string,
   @Req() req,
@@ -178,7 +179,7 @@ deletePost(
   summary: 'Bookmark a post',
 })
 @Post('posts/:postId/bookmark')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
 bookmarkPost(
   @Param('postId') postId: string,
   @Req() req,
@@ -194,7 +195,7 @@ bookmarkPost(
   summary: 'Remove bookmark',
 })
 @Delete('posts/:postId/bookmark')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
 unBookmarkPost(
   @Param('postId') postId: string,
   @Req() req,
@@ -205,7 +206,7 @@ unBookmarkPost(
   );
 }        
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
 @Get("posts")
 getPosts(
   @Req() req,
@@ -239,7 +240,7 @@ getTrending() {
   summary: 'Report a post',
 })
 @Post('posts/:postId/report')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
 reportPost(
   @Param('postId') postId: string,
   @Body() dto: ReportPostDto,
@@ -258,7 +259,7 @@ reportPost(
   summary: 'Upload attachment',
 })
 @Post('posts/:postId/attachment')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
 @UseInterceptors(
   FileInterceptor(
     'file',
@@ -280,7 +281,7 @@ uploadAttachment(
   summary: 'Delete attachment',
 })
 @Delete('attachments/:attachmentId')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
 deleteAttachment(
   @Param('attachmentId') attachmentId: string,
   @Req() req,
@@ -292,14 +293,14 @@ deleteAttachment(
 }
 
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
 @Get('woreda-schools')
 getWoredaSchools(@CurrentUser() user: any) {
   return this.communityService.getWoredaSchools(user.sub);
 }
 
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
 @Get('accessible')
 getAccessibleCommunities(@CurrentUser() user: any) {
   return this.communityService.getAccessibleCommunities(user.sub);
@@ -308,7 +309,7 @@ getAccessibleCommunities(@CurrentUser() user: any) {
 // ─── Community-type routes (level-gated) - must come BEFORE ':id' ─────────────────────────────────────
 
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
 @Get("type/:type")
 getCommunitiesByType(
   @Param("type") type: string,
@@ -318,7 +319,7 @@ getCommunitiesByType(
 }
 
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
 @Get("type/:type/posts")
 getPostsByType(
   @Param("type") type: string,
@@ -340,7 +341,7 @@ getPostsByType(
 }
 
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
 @Get("type/:type/members")
 getMembersByType(
   @Param("type") type: string,
@@ -351,7 +352,7 @@ getMembersByType(
 
 
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
 @Get(':id')
 getCommunity(
   @Param('id') id: string,

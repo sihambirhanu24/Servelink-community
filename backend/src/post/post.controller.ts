@@ -12,6 +12,7 @@ import {
 } from "@nestjs/common";
 
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { VerifiedTeacherGuard } from "../auth/guards/verified-teacher.guard";
 import { PostService } from "../post/post.service";
 import { CreatePostDto } from "../community/dto/create-post.dto";
 
@@ -21,7 +22,7 @@ export class PostController {
     private readonly postService: PostService,
   ) {}
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
   @Post()
   createPost(
     @Req() req,
@@ -61,7 +62,7 @@ export class PostController {
     return this.postService.getPostById(id);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
   @Patch(":id")
   updatePost(
     @Param("id") id: string,
@@ -75,7 +76,7 @@ export class PostController {
     );
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
   @Delete(":id")
   deletePost(
     @Param("id") id: string,

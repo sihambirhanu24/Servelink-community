@@ -24,9 +24,21 @@ export async function login(values: LoginFormValues) {
 }
 
 export async function register(values: RegisterFormValues) {
-  const registerPayload = { ...values };
-  delete (registerPayload as { agreedToTerms?: boolean }).agreedToTerms;
-  const { data } = await api.post('/auth/register', registerPayload);
+  const { agreedToTerms, documents, ...fields } = values;
+  void agreedToTerms;
+
+  // Verification documents make registration multipart; the backend reads the
+  // files from the `documents` field and their labels from `documentTypes`.
+  const formData = new FormData();
+  Object.entries(fields).forEach(([key, value]) => {
+    if (value !== undefined && value !== '') formData.append(key, String(value));
+  });
+  documents.forEach(({ file, documentType }) => {
+    formData.append('documents', file);
+    formData.append('documentTypes', documentType);
+  });
+
+  const { data } = await api.post('/auth/register', formData);
   setAccessToken(data.accessToken);
   localStorage.setItem('token', data.accessToken);
   localStorage.setItem('teacher', JSON.stringify(data.teacher));
