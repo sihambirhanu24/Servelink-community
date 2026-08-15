@@ -12,6 +12,7 @@ import {
   DefaultValuePipe,
 } from '@nestjs/common';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { VerifiedTeacherGuard } from 'src/auth/guards/verified-teacher.guard';
 import { CurrentUser } from 'src/auth/decorators/current-user.decorator';
 import { ChatService } from './chat.service';
 import { ChatMessageResponseDto } from './dto/chat-message-response.dto';
@@ -25,7 +26,7 @@ import { EditMessageDto } from './dto/edit-message.dto';
  * No CommunityMember record is required.
  */
 @Controller('chat')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
 export class ChatGroupsController {
   constructor(private readonly chatService: ChatService) {}
 
@@ -43,7 +44,7 @@ export class ChatGroupsController {
  * before returning any data.
  */
 @Controller('community/:communityId/chat')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
 export class ChatController {
   constructor(private readonly chatService: ChatService) {}
 

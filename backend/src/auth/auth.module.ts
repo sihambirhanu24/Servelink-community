@@ -12,6 +12,7 @@ import { TeacherLevelGuard } from './guards/teacher-level.guard';
 import { StringValue } from 'ms';
 import { MailModule } from 'src/mail/mail.module';
 import { ChatModule } from 'src/chat/chat.module';
+import { TeacherModule } from '../teacher/teacher.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { ChatModule } from 'src/chat/chat.module';
     ConfigModule,
     MailModule,
     ChatModule,
+    TeacherModule,
 
     PassportModule.register({ defaultStrategy: 'jwt' }),
 

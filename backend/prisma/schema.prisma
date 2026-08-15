@@ -25,8 +25,20 @@ model Teacher {
   /// Professional department (e.g. "Mathematics", "English", "Physics").
   /// Required for LEVEL_2–5 teachers; optional/unused for LEVEL_1.
   department         String?
+  /// Teacher / staff identification number supplied at registration.
+  /// Used by admins as extra evidence when reviewing verification.
+  teacherIdNumber    String?
+  /// Verification lifecycle — the backend is the only writer.
+  /// Only APPROVED teachers get community/teacher functionality.
+  verificationStatus TeacherVerificationStatus @default(PENDING)
+  rejectionReason    String?
+  approvedAt         DateTime?
+  /// Admin.id of the admin who approved this teacher.
+  approvedBy         String?
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
+  verificationDocuments TeacherVerificationDocument[]
+  verificationEvents    TeacherVerificationEvent[]
   communityBookmarks CommunityBookmark[]
   comments           CommunityComment[]
   communityLikes     CommunityLike[]
@@ -207,6 +219,60 @@ enum TeacherLevelType {
 enum TeacherStatus {
   ACTIVE
   SUSPENDED
+}
+
+enum TeacherVerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum TeacherVerificationDocumentType {
+  TEACHER_ID
+  EMPLOYMENT_LETTER
+  CERTIFICATE
+  OTHER
+}
+
+/// Private proof-of-teacher evidence. Stored outside the publicly served
+/// `uploads` directory and only readable through authenticated endpoints.
+model TeacherVerificationDocument {
+  id           String                          @id @default(cuid())
+  teacherId    String
+  teacher      Teacher                         @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  documentType TeacherVerificationDocumentType @default(OTHER)
+  fileName     String
+  /// Path on disk relative to the process working directory.
+  filePath     String
+  mimeType     String
+  fileSize     Int
+  /// Superseded documents from a previous submission are archived, not deleted,
+  /// so an approval decision stays auditable.
+  archivedAt   DateTime?
+  uploadedAt   DateTime                        @default(now())
+
+  @@index([teacherId])
+}
+
+enum TeacherVerificationAction {
+  SUBMITTED
+  RESUBMITTED
+  APPROVED
+  REJECTED
+}
+
+/// Lightweight audit trail: who changed a teacher's verification state, when and why.
+model TeacherVerificationEvent {
+  id        String                    @id @default(cuid())
+  teacherId String
+  teacher   Teacher                   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  action    TeacherVerificationAction
+  /// Admin.id when the action was performed by an admin; null for teacher actions.
+  actorAdminId String?
+  reason    String?
+  createdAt DateTime                  @default(now())
+
+  @@index([teacherId])
 }
 
 enum CommunityType {

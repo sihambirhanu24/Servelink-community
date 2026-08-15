@@ -14,12 +14,14 @@ import {
   BarChart3,
   Settings,
   GraduationCap,
+  ShieldCheck,
   X,
 } from "lucide-react";
 
 const ADMIN_NAV_ITEMS = [
   { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { label: "Teachers", href: "/admin/teachers", icon: Users },
+  { label: "Verifications", href: "/admin/verifications", icon: ShieldCheck },
   { label: "Communities", href: "/admin/communities", icon: Building2 },
   { label: "Categories", href: "/admin/categories", icon: Tag },
   { label: "Posts", href: "/admin/posts", icon: MessageSquare },

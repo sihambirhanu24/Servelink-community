@@ -1,18 +1,36 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { RegisterSchema, RegisterFormValues } from '@/lib/auth-schemas';
+import {
+  MAX_VERIFICATION_DOCUMENTS,
+  RegisterSchema,
+  RegisterFormValues,
+  VerificationDocumentValue,
+} from '@/lib/auth-schemas';
 import { getErrorMessage } from '@/lib/error-message';
 import { useRegister } from '@/hooks/useAuth';
+import { VerificationDocumentsField } from './verification-documents-field';
 
 export function RegisterForm() {
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors },
-  } = useForm<RegisterFormValues>({ resolver: zodResolver(RegisterSchema) });
+  } = useForm<RegisterFormValues>({
+    resolver: zodResolver(RegisterSchema),
+    defaultValues: { documents: [] },
+  });
+
+  const [documents, setDocumentState] = useState<VerificationDocumentValue[]>([]);
+
+  const setDocuments = (next: VerificationDocumentValue[]) => {
+    setDocumentState(next);
+    setValue('documents', next, { shouldValidate: true });
+  };
 
   const registerMutation = useRegister();
 
@@ -158,6 +176,39 @@ export function RegisterForm() {
               className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#043658]/20 focus:border-[#043658]"
             />
           </div>
+        </div>
+
+        {/* Verification Documents */}
+        <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+          <h3 className="font-['Lexend'] text-sm font-semibold text-[#043658]">
+            Verification Documents
+          </h3>
+          <p className="mt-0.5 text-[11px] text-slate-600">
+            Upload up to {MAX_VERIFICATION_DOCUMENTS} documents proving you are a teacher
+            (Teacher ID, employment letter or teaching certificate). An administrator
+            reviews them before your community access is enabled.
+          </p>
+
+          <div className="mt-2">
+            <label className="text-xs font-semibold text-slate-700">
+              Teacher / Staff ID number <span className="font-normal text-slate-400">(optional)</span>
+            </label>
+            <input
+              {...register('teacherIdNumber')}
+              placeholder="e.g. TCH-2024-00913"
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#043658]/20 focus:border-[#043658]"
+            />
+          </div>
+
+          <VerificationDocumentsField
+            documents={documents}
+            onChange={setDocuments}
+            error={
+              Array.isArray(errors.documents)
+                ? errors.documents.find(Boolean)?.file?.message
+                : errors.documents?.message
+            }
+          />
         </div>
 
         {/* Terms & Conditions */}

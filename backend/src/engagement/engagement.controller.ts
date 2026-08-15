@@ -10,6 +10,7 @@ import {
 } from "@nestjs/common";
 
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { VerifiedTeacherGuard } from "../auth/guards/verified-teacher.guard";
 import { EngagementService } from "./engagement.service";
 import { CreateCommentDto } from "../community/dto/create-comment.dto";
 import { ReportPostDto } from "../community/dto/report-post.dto";
@@ -20,7 +21,7 @@ export class EngagementController {
     private readonly engagementService: EngagementService,
   ) {}
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
   @Post("posts/:id/like")
   like(
     @Param("id") id: string,
@@ -32,7 +33,7 @@ export class EngagementController {
     );
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
   @Delete("posts/:id/like")
   unlike(
     @Param("id") id: string,
@@ -44,7 +45,7 @@ export class EngagementController {
     );
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
   @Post("posts/:id/comment")
   comment(
     @Param("id") id: string,
@@ -58,7 +59,7 @@ export class EngagementController {
     );
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
   @Post("posts/:id/bookmark")
   bookmark(
     @Param("id") id: string,
@@ -70,7 +71,7 @@ export class EngagementController {
     );
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
   @Delete("posts/:id/bookmark")
   removeBookmark(
     @Param("id") id: string,
@@ -82,7 +83,7 @@ export class EngagementController {
     );
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
   @Post("posts/:id/report")
   report(
     @Param("id") id: string,

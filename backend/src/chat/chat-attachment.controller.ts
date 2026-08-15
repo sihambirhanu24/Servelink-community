@@ -13,13 +13,14 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { type Response } from 'express';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { VerifiedTeacherGuard } from 'src/auth/guards/verified-teacher.guard';
 import { CurrentUser } from 'src/auth/decorators/current-user.decorator';
 import { ChatAttachmentService } from './chat-attachment.service';
 import { ChatService } from './chat.service';
 import { multerConfig } from 'src/upload/config/multer.config';
 
 @Controller('community/:communityId/chat')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
 export class ChatAttachmentController {
   constructor(
     private readonly attachmentService: ChatAttachmentService,

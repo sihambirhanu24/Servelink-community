@@ -1,16 +1,19 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
   IsEmail,
-  IsEnum,
   IsOptional,
   IsString,
-  IsBoolean,
   MinLength,
 } from 'class-validator';
 
-import { TeacherLevelType } from '@prisma/client';
+import { VerificationDocumentsDto } from '../../teacher/dto/verification-documents.dto';
 
-export class RegisterDto {
+/**
+ * Verification state (verificationStatus, approvedAt, approvedBy,
+ * rejectionReason) is owned by the backend and is intentionally absent here so
+ * a client cannot register an already-approved teacher.
+ */
+export class RegisterDto extends VerificationDocumentsDto {
   @ApiProperty({
     example: 'Abel',
     description: 'Teacher first name',
@@ -59,21 +62,14 @@ export class RegisterDto {
   subject?: string;
 
   @ApiProperty({
-    example: false,
+    example: 'TCH-2024-00913',
     required: false,
-    description: 'Whether the teacher is verified',
+    description:
+      'Teacher / staff identification number shown on the uploaded ID',
   })
   @IsOptional()
-  @IsBoolean()
-  verified?: boolean;
-
-  // @ApiProperty({
-  //   enum: TeacherLevelType,
-  //   example: TeacherLevelType.LEVEL_1,
-  //   description: 'Teacher level',
-  // })
-  // @IsEnum(TeacherLevelType)
-  // level: TeacherLevelType;
+  @IsString()
+  teacherIdNumber?: string;
 
   @ApiProperty({
     example: 'Adama Science and Technology University',

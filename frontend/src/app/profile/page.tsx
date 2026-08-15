@@ -11,6 +11,7 @@ import { Avatar } from "@/components/common/Avatar";
 import { DashboardSidebar } from "@/components/layout/Sidebar";
 import Topbar from "@/components/layout/Topbar";
 import { ProfileStrengthCard } from "@/components/profile/ProfileStrengthCard";
+import { VerificationStatusCard } from "@/components/profile/VerificationStatusCard";
 import { ProgressToLevelCard } from "@/components/profile/ProgressToLevelCard";
 import { CommunityAccessListCard } from "@/components/profile/CommunityAccessListCard";
 import { RecentPostsCard } from "@/components/profile/RecentPostsCard";
@@ -412,6 +413,8 @@ export default function ProfilePage() {
 
             {/* Right column */}
             <div className="space-y-6">
+              <VerificationStatusCard />
+
               <ProfileStrengthCard profile={profile} />
               
               <ProgressToLevelCard
