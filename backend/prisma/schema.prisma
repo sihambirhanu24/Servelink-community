@@ -25,6 +25,12 @@ model Teacher {
   /// Professional department (e.g. "Mathematics", "English", "Physics").
   /// Required for LEVEL_2–5 teachers; optional/unused for LEVEL_1.
   department         String?
+  /// Total progression points earned by the teacher
+  points             Int                 @default(0)
+  /// Start time of the current 24-hour privilege (null if no active privilege)
+  privilegeStartAt   DateTime?
+  /// Expiration time of the current 24-hour privilege (null if no active privilege)
+  privilegeExpiresAt DateTime?
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
   communityBookmarks CommunityBookmark[]
@@ -39,6 +45,7 @@ model Teacher {
   chatMessageReads   ChatMessageRead[]
   pinnedMessages     PinnedMessage[]
   chatUnreadCounts   ChatUnreadCount[]
+  activities         TeacherActivity[]
 }
 
 model Admin {
@@ -194,6 +201,27 @@ model PostTag {
   tag    Tag           @relation(fields: [tagId], references: [id])
 
   @@id([postId, tagId])
+}
+
+model TeacherActivity {
+  id          String               @id @default(cuid())
+  teacherId   String
+  teacher     Teacher              @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  type        TeacherActivityType
+  points      Int
+  referenceId String?
+  createdAt   DateTime             @default(now())
+
+  @@index([teacherId])
+  @@index([teacherId, type, createdAt])
+  @@unique([teacherId, type, referenceId])
+}
+
+enum TeacherActivityType {
+  POST_CREATED
+  LIKE_RECEIVED
+  BOOKMARK_RECEIVED
+  VIOLATION_CONFIRMED
 }
 
 enum TeacherLevelType {
