@@ -15,6 +15,7 @@ import { EngagementModule } from './engagement/engagement.module';
 import { TeacherModule } from "./teacher/teacher.module";
 import { DatabaseService } from './database/database.service';
 import { ChatModule } from './chat/chat.module';
+import { ProgressModule } from './progress/progress.module';
 
 import { MailModule } from "./mail/mail.module";
 import { ConfigModule } from '@nestjs/config'
@@ -53,6 +54,7 @@ import { join } from "path";
   SharedModule,
   TeacherModule,
   ChatModule,
+  ProgressModule,
 
   MailModule,
 ],
