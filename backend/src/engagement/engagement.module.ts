@@ -1,10 +1,11 @@
 import { Module } from "@nestjs/common";
 import { PrismaModule } from "../prisma/prisma.module";
+import { ProgressModule } from "../progress/progress.module";
 import { EngagementController } from "./engagement.controller";
 import { EngagementService } from "./engagement.service";
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, ProgressModule],
   controllers: [EngagementController],
   providers: [EngagementService],
 })
