@@ -4,6 +4,7 @@ import {
   ForbiddenException,
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { TeacherProgressService } from "../progress/teacher-progress.service";
 import { CreatePostDto } from "../community/dto/create-post.dto";
 import { AttachmentType } from "@prisma/client";
 import { getPagination } from "../shared/utils/pagination";
@@ -12,13 +13,15 @@ import { getPagination } from "../shared/utils/pagination";
 export class PostService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly progressService: TeacherProgressService,
   ) {}
 
   async createPost(
     teacherId: string,
     dto: CreatePostDto,
   ) {
-    return this.prisma.communityPost.create({
+    // Create the post first
+    const post = await this.prisma.communityPost.create({
       data: {
         title: dto.title,
         description: dto.description,
@@ -32,6 +35,16 @@ export class PostService {
         category: true,
       },
     });
+
+    // After successful post creation, award progression points
+    // This happens asynchronously and won't block the post creation response
+    this.progressService
+      .awardPostPoints(teacherId, post.id)
+      .catch((err) => {
+        console.error(`Failed to award post points: ${err.message}`);
+      });
+
+    return post;
   }
 
   async getPosts(
