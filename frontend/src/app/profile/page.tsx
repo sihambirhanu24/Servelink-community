@@ -11,7 +11,7 @@ import { Avatar } from "@/components/common/Avatar";
 import { DashboardSidebar } from "@/components/layout/Sidebar";
 import Topbar from "@/components/layout/Topbar";
 import { ProfileStrengthCard } from "@/components/profile/ProfileStrengthCard";
-import { ProgressToLevelCard } from "@/components/profile/ProgressToLevelCard";
+import { ProgressCard } from "@/components/progress/ProgressCard";
 import { CommunityAccessListCard } from "@/components/profile/CommunityAccessListCard";
 import { RecentPostsCard } from "@/components/profile/RecentPostsCard";
 import { StatsGrid } from "@/components/profile/StatsGrid";
@@ -414,14 +414,7 @@ export default function ProfilePage() {
             <div className="space-y-6">
               <ProfileStrengthCard profile={profile} />
               
-              <ProgressToLevelCard
-                currentLevel={teacher.level}
-                stats={{
-                  posts: stats?.posts ?? 0,
-                  likes: stats?.likes ?? 0,
-                  communities: stats?.communities ?? 0,
-                }}
-              />
+              <ProgressCard />
               
               <CommunityAccessListCard communityAccess={dashboard.communityAccess} />
             </div>
