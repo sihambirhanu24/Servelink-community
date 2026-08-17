@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
+import { TeacherProgressService } from '../progress/teacher-progress.service';
 import { NotificationEvent } from '../notification/notification.types';
 import { UpgradeLevelDto } from './dto/upgrade-level.dto';
 import { TeachersQueryDto } from './dto/teachers-query.dto';
@@ -11,6 +12,7 @@ export class AdminService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
+    private readonly progressService: TeacherProgressService,
   ) {}
 
   async dashboard() {
@@ -250,17 +252,37 @@ export class AdminService {
   async updateReportStatus(reportId: string, status: string) {
     const report = await this.prisma.communityReport.findUnique({
       where: { id: reportId },
+      include: {
+        post: {
+          select: {
+            id: true,
+            title: true,
+            teacherId: true,
+          },
+        },
+      },
     });
     if (!report) throw new NotFoundException('Report not found');
 
-    return this.prisma.communityReport.update({
+    const updatedReport = await this.prisma.communityReport.update({
       where: { id: reportId },
       data: { status: status as any },
       include: {
         teacher: { select: { firstName: true, lastName: true, email: true } },
-        post: { select: { id: true, title: true } },
+        post: { select: { id: true, title: true, teacherId: true } },
       },
     });
+
+    // If report is RESOLVED (violation confirmed), apply penalty to post owner
+    if (status === 'RESOLVED' && report.post) {
+      this.progressService
+        .applyViolationPenalty(report.post.teacherId, report.post.id, reportId)
+        .catch((err) => {
+          console.error(`Failed to apply violation penalty: ${err.message}`);
+        });
+    }
+
+    return updatedReport;
   }
 
   // ─── Community CRUD (admin-only) ─────────────────────────────────────────
