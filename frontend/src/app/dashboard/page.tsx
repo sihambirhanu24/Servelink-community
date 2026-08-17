@@ -13,6 +13,7 @@ import { DashboardRecentPosts } from '@/components/dashboard/DashboardRecentPost
 import { DashboardCommunityFeed } from '@/components/dashboard/DashboardCommunityFeed';
 import { DashboardRecentActivity } from '@/components/dashboard/DashboardRecentActivity';
 import { DashboardSuggestedCommunities } from '@/components/dashboard/DashboardSuggestedCommunities';
+import { ProgressWidget } from '@/components/progress/ProgressWidget';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -91,6 +92,8 @@ export default function DashboardPage() {
 
       {/* ── Right column ── */}
       <div className="space-y-4 sm:space-y-6 min-w-0 lg:max-w-[300px]">
+
+        <ProgressWidget />
 
         <DashboardRecentActivity notifications={recentNotifications} />
 
