@@ -15,11 +15,14 @@ import {
   Settings,
   GraduationCap,
   X,
+  UserCheck,
+  Clock,
 } from "lucide-react";
 
 const ADMIN_NAV_ITEMS = [
   { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
-  { label: "Teachers", href: "/admin/teachers", icon: Users },
+  { label: "Pending Teachers", href: "/admin/pending-teachers", icon: Clock },
+  { label: "Teachers", href: "/admin/teachers", icon: UserCheck },
   { label: "Communities", href: "/admin/communities", icon: Building2 },
   { label: "Categories", href: "/admin/categories", icon: Tag },
   { label: "Posts", href: "/admin/posts", icon: MessageSquare },
