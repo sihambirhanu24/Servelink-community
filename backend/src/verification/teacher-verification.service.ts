@@ -32,6 +32,7 @@ export class TeacherVerificationService {
 
   /**
    * Upload a verification document for a teacher
+   * Automatically transitions REJECTED → PENDING when a new document is uploaded
    */
   async uploadDocument(
     teacherId: string,
@@ -41,23 +42,55 @@ export class TeacherVerificationService {
     // Validate file
     this.validateFile(file);
 
-    // Create document record
-    const document = await this.prisma.teacherVerificationDocument.create({
-      data: {
-        teacherId,
-        fileName: file.originalname,
-        filePath: file.path.replace(/\\/g, '/'),
-        fileType: documentType,
-        mimeType: file.mimetype,
-        fileSize: file.size,
-      },
+    // Use transaction to ensure document creation and status update succeed together
+    return this.prisma.$transaction(async (tx) => {
+      // Get current teacher status
+      const teacher = await tx.teacher.findUnique({
+        where: { id: teacherId },
+        select: {
+          verificationStatus: true,
+        },
+      });
+
+      if (!teacher) {
+        throw new NotFoundException('Teacher not found');
+      }
+
+      // Create document record
+      const document = await tx.teacherVerificationDocument.create({
+        data: {
+          teacherId,
+          fileName: file.originalname,
+          filePath: file.path.replace(/\\/g, '/'),
+          fileType: documentType,
+          mimeType: file.mimetype,
+          fileSize: file.size,
+        },
+      });
+
+      // If teacher is REJECTED, automatically transition to PENDING
+      if (teacher.verificationStatus === TeacherVerificationStatus.REJECTED) {
+        await tx.teacher.update({
+          where: { id: teacherId },
+          data: {
+            verificationStatus: TeacherVerificationStatus.PENDING,
+            rejectionReason: null,
+            approvedAt: null,
+            approvedBy: null,
+          },
+        });
+
+        this.logger.log(
+          `Teacher ${teacherId} uploaded ${documentType} document and status automatically transitioned from REJECTED to PENDING`,
+        );
+      } else {
+        this.logger.log(
+          `Teacher ${teacherId} uploaded ${documentType} document (status: ${teacher.verificationStatus})`,
+        );
+      }
+
+      return document;
     });
-
-    this.logger.log(
-      `Teacher ${teacherId} uploaded ${documentType} document: ${file.originalname}`,
-    );
-
-    return document;
   }
 
   /**
@@ -143,6 +176,7 @@ export class TeacherVerificationService {
         department: true,
         subject: true,
         createdAt: true,
+        updatedAt: true,
         verificationDocuments: {
           select: {
             id: true,
@@ -154,7 +188,7 @@ export class TeacherVerificationService {
         },
       },
       orderBy: {
-        createdAt: 'asc',
+        updatedAt: 'desc',
       },
     });
   }
@@ -326,44 +360,49 @@ export class TeacherVerificationService {
   /**
    * Resubmit verification (for rejected teachers)
    * This resets status to PENDING after uploading new documents
+   * Uses transaction for data consistency
    */
   async resubmitVerification(teacherId: string) {
-    const teacher = await this.prisma.teacher.findUnique({
-      where: { id: teacherId },
-      select: {
-        verificationStatus: true,
-        verificationDocuments: true,
-      },
+    return this.prisma.$transaction(async (tx) => {
+      const teacher = await tx.teacher.findUnique({
+        where: { id: teacherId },
+        select: {
+          verificationStatus: true,
+          verificationDocuments: true,
+        },
+      });
+
+      if (!teacher) {
+        throw new NotFoundException('Teacher not found');
+      }
+
+      if (teacher.verificationStatus !== TeacherVerificationStatus.REJECTED) {
+        throw new BadRequestException('Only rejected teachers can resubmit verification');
+      }
+
+      if (teacher.verificationDocuments.length === 0) {
+        throw new BadRequestException('Please upload verification documents before resubmitting');
+      }
+
+      // Reset to PENDING status and clear rejection reason
+      const updated = await tx.teacher.update({
+        where: { id: teacherId },
+        data: {
+          verificationStatus: TeacherVerificationStatus.PENDING,
+          rejectionReason: null,
+          approvedAt: null,
+          approvedBy: null,
+        },
+        select: {
+          id: true,
+          verificationStatus: true,
+        },
+      });
+
+      this.logger.log(`Teacher ${teacherId} resubmitted verification`);
+
+      return updated;
     });
-
-    if (!teacher) {
-      throw new NotFoundException('Teacher not found');
-    }
-
-    if (teacher.verificationStatus !== TeacherVerificationStatus.REJECTED) {
-      throw new BadRequestException('Only rejected teachers can resubmit verification');
-    }
-
-    if (teacher.verificationDocuments.length === 0) {
-      throw new BadRequestException('Please upload verification documents before resubmitting');
-    }
-
-    // Reset to PENDING status
-    const updated = await this.prisma.teacher.update({
-      where: { id: teacherId },
-      data: {
-        verificationStatus: TeacherVerificationStatus.PENDING,
-        rejectionReason: null,
-      },
-      select: {
-        id: true,
-        verificationStatus: true,
-      },
-    });
-
-    this.logger.log(`Teacher ${teacherId} resubmitted verification`);
-
-    return updated;
   }
 
   /**
