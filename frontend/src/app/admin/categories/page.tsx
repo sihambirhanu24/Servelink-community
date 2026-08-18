@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Search, Filter, ChevronLeft, ChevronRight, Plus, MoreVertical, X, Archive, Edit2 } from 'lucide-react';
+import { Search, Filter, ChevronLeft, ChevronRight, Plus, MoreVertical, X, Archive, Edit2, Trash2 } from 'lucide-react';
 import AdminLayout from '@/components/admin/layout';
 import { useAdminCategories } from '@/hooks/useAdminCategories';
+import { createCategory, deleteCategory } from '@/services/admin';
+import { toast } from 'sonner';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -13,6 +15,10 @@ export default function AdminCategoriesPage() {
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedCategory, setSelectedCategory] = useState<any | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Use real data from API
   const categories = categoriesData?.data || categoriesData || [];
@@ -81,7 +87,9 @@ export default function AdminCategoriesPage() {
             <h1 className="text-3xl font-bold text-[#043658]">Category Management</h1>
             <p className="mt-1 text-sm text-[#6B7C93]">Manage and organize educational content categories across the platform.</p>
           </div>
-          <button className="flex items-center gap-2 rounded-lg bg-[#043658] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#05456F] transition-colors">
+          <button 
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center gap-2 rounded-lg bg-[#043658] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#05456F] transition-colors">
             <Plus className="h-4 w-4" />
             New Category
           </button>
@@ -166,8 +174,34 @@ export default function AdminCategoriesPage() {
                             {getStatusIcon(category.status)}
                             {category.status}
                           </span>
-                          <button className="rounded-lg p-2 text-[#6B7C93] hover:bg-[#F8FAFC]">
-                            <MoreVertical className="h-4 w-4" />
+                          <button 
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (!confirm(`Are you sure you want to delete "${category.name}"?\n\nThis action cannot be undone.`)) {
+                                return;
+                              }
+                              
+                              setIsDeleting(true);
+                              try {
+                                await deleteCategory(category.id);
+                                toast.success('Category Deleted!', {
+                                  description: `${category.name} has been removed`
+                                });
+                                window.location.reload();
+                              } catch (error: any) {
+                                console.error('Failed to delete category:', error);
+                                toast.error('Cannot Delete Category', {
+                                  description: error.response?.data?.message || error.message || 'This category may be in use'
+                                });
+                              } finally {
+                                setIsDeleting(false);
+                              }
+                            }}
+                            disabled={isDeleting}
+                            className="rounded-lg p-2 text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
+                            title="Delete category"
+                          >
+                            <Trash2 className="h-4 w-4" />
                           </button>
                         </div>
                       </div>
@@ -300,6 +334,90 @@ export default function AdminCategoriesPage() {
           )}
         </div>
       </div>
+
+      {/* Create Category Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
+            <div className="bg-[#043658] px-6 py-4 rounded-t-2xl flex items-center justify-between">
+              <h3 className="text-xl font-bold text-white">Create New Category</h3>
+              <button
+                onClick={() => {
+                  setShowCreateModal(false);
+                  setNewCategoryName('');
+                }}
+                className="text-white/70 hover:text-white transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Category Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  placeholder="e.g., Mathematics, Science, History"
+                  className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:border-[#043658] focus:ring-2 focus:ring-[#043658]/20 outline-none transition-all"
+                  autoFocus
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Category name should be unique and descriptive
+                </p>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={async () => {
+                    if (!newCategoryName.trim()) {
+                      toast.error('Category Name Required', {
+                        description: 'Please enter a category name'
+                      });
+                      return;
+                    }
+                    
+                    setIsCreating(true);
+                    try {
+                      await createCategory(newCategoryName.trim());
+                      toast.success('Category Created!', {
+                        description: `${newCategoryName} has been added successfully`
+                      });
+                      setShowCreateModal(false);
+                      setNewCategoryName('');
+                      window.location.reload();
+                    } catch (error: any) {
+                      console.error('Failed to create category:', error);
+                      toast.error('Failed to Create Category', {
+                        description: error.response?.data?.message || error.message || 'Please try again'
+                      });
+                    } finally {
+                      setIsCreating(false);
+                    }
+                  }}
+                  disabled={isCreating}
+                  className="flex-1 px-5 py-2.5 bg-[#043658] text-white rounded-lg hover:bg-[#05456F] disabled:bg-gray-400 disabled:cursor-not-allowed transition-all font-semibold"
+                >
+                  {isCreating ? 'Creating...' : 'Create Category'}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowCreateModal(false);
+                    setNewCategoryName('');
+                  }}
+                  disabled={isCreating}
+                  className="flex-1 px-5 py-2.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:opacity-50 transition-all font-semibold"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </AdminLayout>
   );
 }
