@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Upload, FileText, X, AlertCircle, CheckCircle } from "lucide-react";
 import { useVerification } from "@/hooks/useVerification";
 
@@ -21,19 +22,20 @@ const ALLOWED_FILE_TYPES = [
 ];
 
 export default function VerificationUpload() {
+  const router = useRouter();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [documentType, setDocumentType] = useState<string>("TEACHER_ID");
   const [error, setError] = useState<string>("");
   const [uploadSuccess, setUploadSuccess] = useState(false);
 
-  const { uploadDocument, isUploading } = useVerification();
+  const { uploadDocument, isUploading, status } = useVerification();
 
   const validateFile = (file: File): string | null => {
     if (file.size > MAX_FILE_SIZE) {
       return "File size must be less than 5MB";
     }
 
-    if (!ALLOWED_FILE_TYPES.includes(file.mimetype || file.type)) {
+    if (!ALLOWED_FILE_TYPES.includes(file.type)) {
       return "Only PDF, DOCX, JPG, and PNG files are allowed";
     }
 
@@ -73,9 +75,17 @@ export default function VerificationUpload() {
       setUploadSuccess(true);
       setSelectedFile(null);
       setError("");
-      
-      // Reset success message after 3 seconds
-      setTimeout(() => setUploadSuccess(false), 3000);
+
+      // If teacher was REJECTED, the backend automatically transitions to PENDING
+      // Redirect to verification-pending page after successful upload
+      if (status?.verificationStatus === "REJECTED") {
+        setTimeout(() => {
+          router.push("/verification-pending");
+        }, 1500);
+      } else {
+        // Reset success message after 3 seconds for non-rejected teachers
+        setTimeout(() => setUploadSuccess(false), 3000);
+      }
     } catch (err: any) {
       setError(err.response?.data?.message || "Failed to upload document");
     }
@@ -177,7 +187,9 @@ export default function VerificationUpload() {
           <div className="flex items-start space-x-2 p-3 bg-green-50 border border-green-200 rounded-lg">
             <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
             <p className="text-sm text-green-700">
-              Document uploaded successfully! Our admin team will review it shortly.
+              {status?.verificationStatus === "REJECTED"
+                ? "Document uploaded successfully! Your verification has been resubmitted and is now pending admin review."
+                : "Document uploaded successfully! Our admin team will review it shortly."}
             </p>
           </div>
         )}
