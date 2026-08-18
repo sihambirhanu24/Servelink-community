@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
+import { TeacherVerificationService } from '../verification/teacher-verification.service';
 import { NotificationEvent } from '../notification/notification.types';
 import { TeacherLevelType, TeacherActivityType } from '@prisma/client';
 import {
@@ -18,6 +19,7 @@ export class TeacherProgressService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
+    private readonly verificationService: TeacherVerificationService,
   ) {}
 
   /**
@@ -207,11 +209,24 @@ export class TeacherProgressService {
   /**
    * Award points for creating a post
    * Enforces daily reward limit (max 3 posts per day)
+   * REQUIRES: Teacher must have APPROVED verification status to earn points
    */
   async awardPostPoints(
     teacherId: string,
     postId: string,
   ): Promise<{ awarded: boolean; reason: string }> {
+    // SECURITY CHECK: Only APPROVED teachers can earn progression points
+    const isVerified = await this.verificationService.isTeacherVerified(teacherId);
+    if (!isVerified) {
+      this.logger.debug(
+        `Teacher ${teacherId} is not verified - post created but no points awarded`,
+      );
+      return {
+        awarded: false,
+        reason: 'Teacher verification required to earn points',
+      };
+    }
+
     // Check daily limit
     const limitReached = await this.hasReachedDailyPostLimit(teacherId);
     if (limitReached) {
