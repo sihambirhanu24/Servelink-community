@@ -27,6 +27,8 @@ interface Category {
   name: string;
 }
 
+import { toast } from 'sonner';
+
 export default function CreatePostBox() {
 
  
@@ -119,7 +121,9 @@ export default function CreatePostBox() {
         !communityId ||
         !categoryId
       ) {
-        alert("Please fill all fields.");
+        toast.error('Missing Information', {
+          description: 'Please fill in all required fields'
+        });
         return;
       }
 
@@ -138,7 +142,9 @@ export default function CreatePostBox() {
         );
       }
 
-      alert("Post published!");
+      toast.success('Post Published!', {
+        description: 'Your post has been shared with the community'
+      });
 
       setTitle("");
       setDescription("");
@@ -150,7 +156,9 @@ export default function CreatePostBox() {
 
     } catch (error) {
       console.error('Unable to publish post', error);
-      alert('Unable to publish post. Please try again.');
+      toast.error('Publish Failed', {
+        description: 'Unable to publish post. Please try again.'
+      });
     } finally {
       setLoading(false);
     }
