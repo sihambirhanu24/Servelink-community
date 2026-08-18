@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { CreatePostDto } from '../dto/create-post.dto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { TeacherProgressService } from '../../progress/teacher-progress.service';
 import { CreateCommentDto } from '../dto/create-comment.dto';
 import { ReportPostDto } from '../dto/report-post.dto';
 import { AttachmentType } from '@prisma/client';
@@ -18,6 +19,7 @@ export class CommunityService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
+    private readonly progressService: TeacherProgressService,
   ) {}
 
   async getAllPosts() {
@@ -44,7 +46,7 @@ export class CommunityService {
   }
 
   async createPost(teacherId: string, dto: CreatePostDto) {
-    return this.prisma.communityPost.create({
+    const post = await this.prisma.communityPost.create({
       data: {
         title: dto.title,
         description: dto.description,
@@ -54,6 +56,15 @@ export class CommunityService {
       },
       include: { teacher: true, category: true, community: true },
     });
+
+    // Award progression points asynchronously after successful post creation
+    this.progressService
+      .awardPostPoints(teacherId, post.id)
+      .catch((err) => {
+        console.error(`Failed to award post points: ${err.message}`);
+      });
+
+    return post;
   }
 
   async getPostById(id: string, teacherId?: string) {
@@ -141,6 +152,14 @@ export class CommunityService {
     ]);
 
     if (post && post.teacherId !== teacherId) {
+      // Award points to post owner (not the liker)
+      this.progressService
+        .awardLikePoints(post.teacherId, postId, teacherId)
+        .catch((err) => {
+          console.error(`Failed to award like points: ${err.message}`);
+        });
+
+      // Send notification
       const senderTeacher = await this.prisma.teacher.findUnique({
         where: { id: teacherId },
         select: { firstName: true, lastName: true },
@@ -165,9 +184,26 @@ export class CommunityService {
   }
 
   async unlikePost(postId: string, teacherId: string) {
-    return this.prisma.communityLike.delete({
+    // Get post owner before deleting the like
+    const post = await this.prisma.communityPost.findUnique({
+      where: { id: postId },
+      select: { teacherId: true },
+    });
+
+    const result = await this.prisma.communityLike.delete({
       where: { teacherId_postId: { teacherId, postId } },
     });
+
+    // Remove points from post owner
+    if (post && post.teacherId !== teacherId) {
+      this.progressService
+        .removeLikePoints(post.teacherId, postId, teacherId)
+        .catch((err) => {
+          console.error(`Failed to remove like points: ${err.message}`);
+        });
+    }
+
+    return result;
   }
 
   async createComment(teacherId: string, postId: string, dto: CreateCommentDto) {
@@ -204,6 +240,14 @@ export class CommunityService {
     ]);
 
     if (post && post.teacherId !== teacherId) {
+      // Award points to post owner (not the bookmarker)
+      this.progressService
+        .awardBookmarkPoints(post.teacherId, postId, teacherId)
+        .catch((err) => {
+          console.error(`Failed to award bookmark points: ${err.message}`);
+        });
+
+      // Send notification
       const senderTeacher = await this.prisma.teacher.findUnique({
         where: { id: teacherId },
         select: { firstName: true, lastName: true },
@@ -228,9 +272,26 @@ export class CommunityService {
   }
 
   async unBookmarkPost(teacherId: string, postId: string) {
-    return this.prisma.communityBookmark.delete({
+    // Get post owner before deleting the bookmark
+    const post = await this.prisma.communityPost.findUnique({
+      where: { id: postId },
+      select: { teacherId: true },
+    });
+
+    const result = await this.prisma.communityBookmark.delete({
       where: { teacherId_postId: { teacherId, postId } },
     });
+
+    // Remove points from post owner
+    if (post && post.teacherId !== teacherId) {
+      this.progressService
+        .removeBookmarkPoints(post.teacherId, postId, teacherId)
+        .catch((err) => {
+          console.error(`Failed to remove bookmark points: ${err.message}`);
+        });
+    }
+
+    return result;
   }
 
   async getPosts(
@@ -423,6 +484,36 @@ export class CommunityService {
     return this.prisma.category.findMany({ orderBy: { name: 'asc' } });
   }
 
+  async createCategory(name: string) {
+    // Check if category already exists
+    const existing = await this.prisma.category.findUnique({
+      where: { name },
+    });
+
+    if (existing) {
+      throw new Error('Category with this name already exists');
+    }
+
+    return this.prisma.category.create({
+      data: { name },
+    });
+  }
+
+  async deleteCategory(id: string) {
+    // Check if category is being used by any posts
+    const postsCount = await this.prisma.communityPost.count({
+      where: { categoryId: id },
+    });
+
+    if (postsCount > 0) {
+      throw new Error(`Cannot delete category: ${postsCount} posts are using it`);
+    }
+
+    return this.prisma.category.delete({
+      where: { id },
+    });
+  }
+
   async getCommunity(id: string) {
     const community = await this.prisma.community.findUnique({
       where: { id },
@@ -473,18 +564,53 @@ export class CommunityService {
     NATIONAL: 5,
   };
 
+  /**
+   * Check if teacher has access to a community type based on level or active privilege
+   * This integrates the 24-hour privilege system
+   */
+  private hasAccessToType(
+    teacherLevel: string,
+    privilegeExpiresAt: Date | null,
+    requiredLevel: number,
+  ): boolean {
+    const teacherLevelNum = CommunityService.LEVEL_ORDER[teacherLevel] ?? 1;
+    
+    // Check if teacher has permanent access (level >= required)
+    if (teacherLevelNum >= requiredLevel) {
+      return true;
+    }
+
+    // Check if teacher has temporary access via 24-hour privilege
+    const hasActivePrivilege = this.progressService.checkPrivilege(privilegeExpiresAt);
+    if (hasActivePrivilege) {
+      // Calculate what level the teacher would need based on points
+      // The privilege allows access to one level above their base level
+      const privilegeLevel = teacherLevelNum + 1;
+      return privilegeLevel >= requiredLevel;
+    }
+
+    return false;
+  }
+
   async getCommunitiesByType(teacherId: string, type: string) {
     const teacher = await this.prisma.teacher.findUnique({
       where: { id: teacherId },
-      select: { level: true, school: true, woreda: true, zone: true, region: true },
+      select: { 
+        level: true, 
+        school: true, 
+        woreda: true, 
+        zone: true, 
+        region: true,
+        privilegeExpiresAt: true,
+      },
     });
     if (!teacher) throw new NotFoundException('Teacher not found');
 
-    const teacherLevelNum = CommunityService.LEVEL_ORDER[teacher.level] ?? 1;
     const normalizedType = type.toUpperCase();
     const requiredLevel = CommunityService.TYPE_MIN_LEVEL[normalizedType] ?? 99;
 
-    if (teacherLevelNum < requiredLevel) {
+    // Check access with privilege system
+    if (!this.hasAccessToType(teacher.level, teacher.privilegeExpiresAt, requiredLevel)) {
       throw new ForbiddenException(
         `Your level (${teacher.level}) does not have access to ${type} communities.`,
       );
@@ -583,16 +709,22 @@ export class CommunityService {
   ) {
     const teacher = await this.prisma.teacher.findUnique({
       where: { id: teacherId },
-      select: { level: true, school: true, woreda: true, zone: true, region: true },
+      select: { 
+        level: true, 
+        school: true, 
+        woreda: true, 
+        zone: true, 
+        region: true,
+        privilegeExpiresAt: true,
+      },
     });
     if (!teacher) throw new NotFoundException('Teacher not found');
 
-    const teacherLevelNum = CommunityService.LEVEL_ORDER[teacher.level] ?? 1;
     const normalizedType = type.toUpperCase();
-    const requiredLevel =
-      CommunityService.TYPE_MIN_LEVEL[normalizedType] ?? 99;
+    const requiredLevel = CommunityService.TYPE_MIN_LEVEL[normalizedType] ?? 99;
 
-    if (teacherLevelNum < requiredLevel) {
+    // Check access with privilege system
+    if (!this.hasAccessToType(teacher.level, teacher.privilegeExpiresAt, requiredLevel)) {
       throw new ForbiddenException(
         `Your level does not have access to ${type} communities.`,
       );
@@ -680,14 +812,16 @@ export class CommunityService {
   async getMembersByType(teacherId: string, type: string) {
     const teacher = await this.prisma.teacher.findUnique({
       where: { id: teacherId },
-      select: { level: true },
+      select: { level: true, privilegeExpiresAt: true },
     });
     if (!teacher) throw new NotFoundException('Teacher not found');
 
-    const teacherLevelNum = CommunityService.LEVEL_ORDER[teacher.level] ?? 1;
-    const requiredLevel =
-      CommunityService.TYPE_MIN_LEVEL[type.toUpperCase()] ?? 99;
-    if (teacherLevelNum < requiredLevel) throw new ForbiddenException('Access denied');
+    const requiredLevel = CommunityService.TYPE_MIN_LEVEL[type.toUpperCase()] ?? 99;
+    
+    // Check access with privilege system
+    if (!this.hasAccessToType(teacher.level, teacher.privilegeExpiresAt, requiredLevel)) {
+      throw new ForbiddenException('Access denied');
+    }
 
     return this.prisma.communityMember.findMany({
       where: { community: { type: type.toUpperCase() as any } },
@@ -713,12 +847,12 @@ export class CommunityService {
   async getWoredaSchools(teacherId: string) {
     const teacher = await this.prisma.teacher.findUnique({
       where: { id: teacherId },
-      select: { level: true, woreda: true },
+      select: { level: true, woreda: true, privilegeExpiresAt: true },
     });
     if (!teacher) throw new NotFoundException('Teacher not found');
 
-    const teacherLevelNum = CommunityService.LEVEL_ORDER[teacher.level] ?? 1;
-    if (teacherLevelNum < 2) {
+    // Check access with privilege system (WOREDA requires level 2)
+    if (!this.hasAccessToType(teacher.level, teacher.privilegeExpiresAt, 2)) {
       throw new ForbiddenException(
         'Level 2 or above required to access Woreda school communities.',
       );
@@ -757,17 +891,28 @@ export class CommunityService {
   async getAccessibleCommunities(teacherId: string) {
     const teacher = await this.prisma.teacher.findUnique({
       where: { id: teacherId },
-      select: { level: true, school: true, woreda: true, zone: true, region: true },
+      select: { 
+        level: true, 
+        school: true, 
+        woreda: true, 
+        zone: true, 
+        region: true,
+        privilegeExpiresAt: true,
+      },
     });
     if (!teacher) throw new NotFoundException('Teacher not found');
 
     const levelNum = CommunityService.LEVEL_ORDER[teacher.level] ?? 1;
+    const hasActivePrivilege = this.progressService.checkPrivilege(teacher.privilegeExpiresAt);
+    
+    // Effective level includes privilege bonus
+    const effectiveLevel = hasActivePrivilege ? levelNum + 1 : levelNum;
 
     // Build OR conditions for each unlocked type, scoped to the teacher's geography
     const orClauses: any[] = [];
 
     // SCHOOL always accessible (level 1+), scoped to teacher's school
-    if (levelNum >= 1) {
+    if (effectiveLevel >= 1) {
       if (teacher.school) {
         orClauses.push({
           type: 'SCHOOL',
@@ -780,7 +925,7 @@ export class CommunityService {
     }
 
     // WOREDA accessible at level 2+, scoped to teacher's woreda
-    if (levelNum >= 2) {
+    if (effectiveLevel >= 2) {
       if (teacher.woreda) {
         orClauses.push({
           type: 'WOREDA',
@@ -793,7 +938,7 @@ export class CommunityService {
     }
 
     // ZONE accessible at level 3+, scoped to teacher's zone
-    if (levelNum >= 3) {
+    if (effectiveLevel >= 3) {
       if (teacher.zone) {
         orClauses.push({
           type: 'ZONE',
@@ -805,7 +950,7 @@ export class CommunityService {
     }
 
     // REGION accessible at level 4+, scoped to teacher's region
-    if (levelNum >= 4) {
+    if (effectiveLevel >= 4) {
       if (teacher.region) {
         orClauses.push({
           type: 'REGION',
@@ -817,7 +962,7 @@ export class CommunityService {
     }
 
     // NATIONAL accessible at level 5+ — no geographic filter
-    if (levelNum >= 5) {
+    if (effectiveLevel >= 5) {
       orClauses.push({ type: 'NATIONAL' });
     }
 
@@ -832,7 +977,7 @@ export class CommunityService {
     });
 
     const unlockedTypes = ['SCHOOL', 'WOREDA', 'ZONE', 'REGION', 'NATIONAL'].filter(
-      (t) => (CommunityService.TYPE_MIN_LEVEL[t] ?? 99) <= levelNum,
+      (t) => (CommunityService.TYPE_MIN_LEVEL[t] ?? 99) <= effectiveLevel,
     );
 
     return { teacherLevel: teacher.level, communities, unlockedTypes };
@@ -857,17 +1002,24 @@ export class CommunityService {
       }),
       this.prisma.teacher.findUnique({
         where: { id: teacherId },
-        select: { level: true, school: true, woreda: true, zone: true, region: true },
+        select: { 
+          level: true, 
+          school: true, 
+          woreda: true, 
+          zone: true, 
+          region: true,
+          privilegeExpiresAt: true,
+        },
       }),
     ]);
 
     if (!community) throw new NotFoundException('Community not found');
     if (!teacher) throw new NotFoundException('Teacher not found');
 
-    const levelNum = CommunityService.LEVEL_ORDER[teacher.level] ?? 1;
     const requiredLevel = CommunityService.TYPE_MIN_LEVEL[community.type] ?? 99;
 
-    if (levelNum < requiredLevel) {
+    // Check access with privilege system
+    if (!this.hasAccessToType(teacher.level, teacher.privilegeExpiresAt, requiredLevel)) {
       throw new ForbiddenException(
         `Your level does not have access to ${community.type} communities.`,
       );
