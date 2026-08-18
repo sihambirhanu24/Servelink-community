@@ -16,6 +16,7 @@ import { TeacherModule } from "./teacher/teacher.module";
 import { DatabaseService } from './database/database.service';
 import { ChatModule } from './chat/chat.module';
 import { ProgressModule } from './progress/progress.module';
+import { VerificationModule } from './verification/verification.module';
 
 import { MailModule } from "./mail/mail.module";
 import { ConfigModule } from '@nestjs/config'
@@ -55,6 +56,7 @@ import { join } from "path";
   TeacherModule,
   ChatModule,
   ProgressModule,
+  VerificationModule,
 
   MailModule,
 ],
