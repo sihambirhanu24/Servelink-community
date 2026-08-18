@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Search, Filter, ChevronLeft, ChevronRight, CheckCircle2, AlertCircle, Ban, Clock } from 'lucide-react';
+import { Search, Filter, ChevronLeft, ChevronRight, CheckCircle2, AlertCircle, Ban, Clock, RefreshCw } from 'lucide-react';
 import AdminLayout from '@/components/admin/layout';
 import { useTeachers } from '@/hooks/useTeachers';
 import { approveTeacherVerification, rejectTeacherVerification } from '@/services/admin';
@@ -50,6 +50,15 @@ export default function PendingTeachersPage() {
 
   const getInitials = (firstName: string, lastName: string) => {
     return `${firstName?.[0] || ''}${lastName?.[0] || ''}`.toUpperCase();
+  };
+
+  const isResubmitted = (teacher: any) => {
+    if (!teacher.createdAt || !teacher.updatedAt) return false;
+    const createdDate = new Date(teacher.createdAt);
+    const updatedDate = new Date(teacher.updatedAt);
+    // If updatedAt is more than 1 minute after createdAt, it's likely a resubmission
+    const diffMinutes = (updatedDate.getTime() - createdDate.getTime()) / (1000 * 60);
+    return diffMinutes > 1;
   };
 
   if (isLoading) {
@@ -142,9 +151,17 @@ export default function PendingTeachersPage() {
                             {getInitials(teacher.firstName, teacher.lastName)}
                           </div>
                           <div>
-                            <p className="text-sm font-semibold text-[#043658]">
-                              {teacher.firstName} {teacher.lastName}
-                            </p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-semibold text-[#043658]">
+                                {teacher.firstName} {teacher.lastName}
+                              </p>
+                              {isResubmitted(teacher) && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
+                                  <RefreshCw className="w-3 h-3" />
+                                  Resubmitted
+                                </span>
+                              )}
+                            </div>
                             <p className="text-xs text-[#6B7C93]">{teacher.email}</p>
                           </div>
                         </div>
