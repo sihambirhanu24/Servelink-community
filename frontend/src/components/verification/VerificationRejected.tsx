@@ -15,13 +15,16 @@ import {
   Mail,
   Clock,
   ShieldAlert,
+  RefreshCw,
+  Upload,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useVerification } from "@/hooks/useVerification";
+import VerificationUpload from "./VerificationUpload";
 
 export default function VerificationRejected() {
   const router = useRouter();
-  const { status } = useVerification();
+  const { status, resubmit, isResubmitting } = useVerification();
 
   // Get teacher info from localStorage
   const getTeacherInfo = () => {
@@ -46,11 +49,18 @@ export default function VerificationRejected() {
     router.push("/auth/login");
   };
 
+  const handleResubmit = async () => {
+    // This function is no longer needed since upload automatically transitions status
+    // The teacher simply uploads a new document and is redirected to pending page
+    // Kept for backward compatibility but does nothing
+    console.log("Manual resubmit is deprecated. Upload a document to automatically resubmit.");
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-orange-50">
       {/* Animated Header */}
       <header className="bg-white/90 backdrop-blur-md border-b border-red-200 sticky top-0 z-50 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div className="w-full px-2 sm:px-4 lg:px-6 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 bg-gradient-to-br from-red-600 to-red-700 rounded-lg flex items-center justify-center shadow-lg transform hover:rotate-6 transition-transform duration-300">
@@ -73,7 +83,7 @@ export default function VerificationRejected() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="w-full px-2 sm:px-4 lg:px-6 py-6">
         {/* Alert Hero Section */}
         <div className="relative bg-gradient-to-r from-red-100 via-red-50 to-orange-100 border-2 border-red-300 rounded-2xl p-8 mb-8 shadow-2xl overflow-hidden animate-fade-in">
           {/* Animated background circles */}
@@ -128,8 +138,13 @@ export default function VerificationRejected() {
           </div>
         )}
 
+        {/* Document Upload Section */}
+        <div className="mb-8">
+          <VerificationUpload />
+        </div>
+
         {/* Two Column Action Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           {/* Required Actions */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-lg p-6 hover:shadow-xl transition-all duration-300">
             <h2 className="text-xl font-bold text-[#043658] mb-6 flex items-center">
@@ -179,26 +194,18 @@ export default function VerificationRejected() {
           </div>
         </div>
 
-        {/* Contact Support CTA */}
+        {/* Resubmit Verification CTA */}
         <div className="bg-gradient-to-r from-blue-100 to-indigo-100 border-2 border-blue-300 rounded-xl p-8 shadow-lg text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-4 shadow-xl">
-            <MessageCircle className="w-8 h-8 text-white" />
+            <Upload className="w-8 h-8 text-white" />
           </div>
-          <h3 className="text-2xl font-bold text-[#043658] mb-3">Need to Resubmit?</h3>
+          <h3 className="text-2xl font-bold text-[#043658] mb-3">Ready to Resubmit?</h3>
           <p className="text-sm text-gray-700 mb-6 max-w-xl mx-auto">
-            Contact our support team to provide a corrected teacher certificate. 
-            They'll guide you through the resubmission process and answer any questions.
+            Please review the administrator's feedback above and upload your corrected verification document using the form above.
+            Your verification will automatically be resubmitted for admin review after uploading.
           </p>
-          <button
-            onClick={() => window.location.href = "mailto:support@servelink.et"}
-            className="inline-flex items-center space-x-3 px-8 py-4 bg-gradient-to-r from-[#043658] to-[#0A5C8F] text-white rounded-xl hover:shadow-2xl transition-all duration-300 text-lg font-bold transform hover:scale-105 group"
-          >
-            <MessageCircle className="w-6 h-6 group-hover:scale-110 transition-transform" />
-            <span>Contact Support Team</span>
-            <ArrowRight className="w-5 h-5" />
-          </button>
           <p className="mt-4 text-sm text-gray-600">
-            Email: <a href="mailto:support@servelink.et" className="font-semibold text-[#043658] underline">support@servelink.et</a>
+            After uploading your document, you'll be redirected to the verification pending page.
           </p>
         </div>
       </main>
