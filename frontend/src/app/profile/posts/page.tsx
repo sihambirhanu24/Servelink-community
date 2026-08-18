@@ -9,14 +9,13 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { DashboardSidebar } from "@/components/layout/Sidebar";
 import Topbar from "@/components/layout/Topbar";
 import { getMyPosts } from "@/services/profile";
 import { deletePost } from "@/services/community";
 import { getMediaUrl } from "@/lib/media";
-import { useToast } from "@/hooks/useToast";
 import { useConfirm } from "@/hooks/useConfirm";
-import { ToastContainer } from "@/components/ui/ToastContainer";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 interface Post {
@@ -36,7 +35,6 @@ interface Post {
 export default function MyPostsPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const toast = useToast();
   const confirm = useConfirm();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -149,7 +147,6 @@ export default function MyPostsPage() {
       <div className="h-screen overflow-hidden bg-[#F5F8FB]">
         <DashboardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
         <Topbar onMenuClick={() => setSidebarOpen(true)} />
-        <ToastContainer toasts={toast.toasts} onRemove={toast.removeToast} />
         <main className="mt-16 lg:ml-64 h-[calc(100vh-4rem)] overflow-y-auto">
           <div className="flex items-center justify-center min-h-[60vh]">
             <Loader2 className="h-8 w-8 animate-spin text-[#043658]" />
@@ -163,7 +160,6 @@ export default function MyPostsPage() {
     <div className="h-screen overflow-hidden bg-[#F5F8FB]">
       <DashboardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <Topbar onMenuClick={() => setSidebarOpen(true)} />
-      <ToastContainer toasts={toast.toasts} onRemove={toast.removeToast} />
       <ConfirmDialog
         isOpen={confirm.isOpen}
         title={confirm.options.title}
