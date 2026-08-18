@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Search, Filter, ChevronLeft, ChevronRight, Plus, MoreVertical, CheckCircle2, AlertCircle, Ban } from 'lucide-react';
+import { Search, Filter, ChevronLeft, ChevronRight, Plus, CheckCircle2, AlertCircle, Ban } from 'lucide-react';
 import AdminLayout from '@/components/admin/layout';
 import { useTeachers } from '@/hooks/useTeachers';
 import { suspendTeacher, activateTeacher } from '@/services/admin';
@@ -13,16 +13,16 @@ export default function AdminTeachersPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLevel, setSelectedLevel] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
-  const [selectedVerification, setSelectedVerification] = useState('all');
+  const [selectedVerification, setSelectedVerification] = useState('approved'); // Show only approved teachers
   const [currentPage, setCurrentPage] = useState(1);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   // Use real data from API
   const teachers = (teachersData?.data || []) as any[];
 
-  // Filter teachers
+  // Filter teachers - only show APPROVED by default
   const filteredTeachers = useMemo(() => {
-    return teachers.filter((teacher: any) => {
+    const filtered = teachers.filter((teacher: any) => {
       const matchesSearch =
         (teacher.firstName?.toLowerCase().includes(searchQuery.toLowerCase()) || false) ||
         (teacher.lastName?.toLowerCase().includes(searchQuery.toLowerCase()) || false) ||
@@ -31,13 +31,18 @@ export default function AdminTeachersPage() {
 
       const matchesLevel = selectedLevel === 'all' || teacher.level === selectedLevel;
       const matchesStatus = selectedStatus === 'all' || teacher.status === selectedStatus;
+      
+      // Filter by verification status
       const matchesVerification =
         selectedVerification === 'all' ||
-        (selectedVerification === 'verified' && teacher.verified) ||
-        (selectedVerification === 'pending' && !teacher.verified);
+        (selectedVerification === 'approved' && teacher.verificationStatus === 'APPROVED') ||
+        (selectedVerification === 'pending' && teacher.verificationStatus === 'PENDING') ||
+        (selectedVerification === 'rejected' && teacher.verificationStatus === 'REJECTED');
 
       return matchesSearch && matchesLevel && matchesStatus && matchesVerification;
     });
+    
+    return filtered;
   }, [teachers, searchQuery, selectedLevel, selectedStatus, selectedVerification]);
 
   // Pagination
@@ -66,8 +71,8 @@ export default function AdminTeachersPage() {
     return <span className="h-2 w-2 rounded-full bg-red-500" />;
   };
 
-  const getVerificationBadge = (verified: boolean) => {
-    if (verified) {
+  const getVerificationBadge = (teacher: any) => {
+    if (teacher.verificationStatus === 'APPROVED') {
       return (
         <div className="flex items-center gap-1 text-xs font-medium text-green-700">
           <CheckCircle2 className="h-3.5 w-3.5" />
@@ -75,10 +80,29 @@ export default function AdminTeachersPage() {
         </div>
       );
     }
+    
+    if (teacher.verificationStatus === 'REJECTED') {
+      return (
+        <div className="flex items-center gap-1 text-xs font-medium text-red-700">
+          <Ban className="h-3.5 w-3.5" />
+          Rejected
+        </div>
+      );
+    }
+    
+    if (teacher.verificationStatus === 'PENDING') {
+      return (
+        <div className="flex items-center gap-1 text-xs font-medium text-amber-700">
+          <AlertCircle className="h-3.5 w-3.5" />
+          Pending
+        </div>
+      );
+    }
+    
     return (
-      <div className="flex items-center gap-1 text-xs font-medium text-amber-700">
+      <div className="flex items-center gap-1 text-xs font-medium text-gray-500">
         <AlertCircle className="h-3.5 w-3.5" />
-        Pending
+        Unknown
       </div>
     );
   };
@@ -125,22 +149,17 @@ export default function AdminTeachersPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-[#043658]">Teacher Management</h1>
-            <p className="mt-1 text-sm text-[#6B7C93]">Manage, verify, and support educators on the platform.</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-[#043658]">Approved Teachers</h1>
+            <p className="mt-1 text-sm text-[#6B7C93]">Manage and support verified educators on the platform</p>
           </div>
-          <button className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-lg bg-[#043658] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#05456F] transition-colors">
-            <Plus className="h-4 w-4" />
-            Add New Teacher
-          </button>
         </div>
 
-        {/* Filters Card */}
-        <div className="rounded-xl border border-[#D9E2EC] bg-white p-4 sm:p-6 shadow-sm">
-          <div className="space-y-4">
+        {/* Filters Card - Single Row */}
+        <div className="rounded-xl border border-[#D9E2EC] bg-white p-4 shadow-sm">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
             {/* Search */}
-            <div>
-              <label className="text-sm font-semibold text-[#043658] mb-2 block">Search Teachers</label>
-              <div className="flex items-center gap-2 rounded-lg border border-[#D9E2EC] bg-white px-3 py-2.5">
+            <div className="lg:col-span-1">
+              <div className="flex items-center gap-2 rounded-lg border border-[#D9E2EC] bg-white px-3 py-2">
                 <Search className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
                 <input
                   type="text"
@@ -155,61 +174,56 @@ export default function AdminTeachersPage() {
               </div>
             </div>
 
-            {/* Filter Row */}
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              {/* Level */}
-              <div>
-                <label className="text-sm font-semibold text-[#043658] mb-2 block">Level</label>
-                <select
-                  value={selectedLevel}
-                  onChange={(e) => {
-                    setSelectedLevel(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="w-full rounded-lg border border-[#D9E2EC] bg-white px-3 py-2.5 text-sm text-[#043658] outline-none hover:border-[#043658]/40"
-                >
-                  <option value="all">All Levels</option>
-                  <option value="LEVEL_1">Level 1</option>
-                  <option value="LEVEL_2">Level 2</option>
-                  <option value="LEVEL_3">Level 3</option>
-                  <option value="LEVEL_4">Level 4</option>
-                  <option value="LEVEL_5">Level 5</option>
-                </select>
-              </div>
+            {/* Level Filter */}
+            <div>
+              <select
+                value={selectedLevel}
+                onChange={(e) => {
+                  setSelectedLevel(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="w-full rounded-lg border border-[#D9E2EC] bg-white px-3 py-2 text-sm text-[#043658] outline-none hover:border-[#043658]/40"
+              >
+                <option value="all">All Levels</option>
+                <option value="LEVEL_1">Level 1</option>
+                <option value="LEVEL_2">Level 2</option>
+                <option value="LEVEL_3">Level 3</option>
+                <option value="LEVEL_4">Level 4</option>
+                <option value="LEVEL_5">Level 5</option>
+              </select>
+            </div>
 
-              {/* Status */}
-              <div>
-                <label className="text-sm font-semibold text-[#043658] mb-2 block">Status</label>
-                <select
-                  value={selectedStatus}
-                  onChange={(e) => {
-                    setSelectedStatus(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="w-full rounded-lg border border-[#D9E2EC] bg-white px-3 py-2.5 text-sm text-[#043658] outline-none hover:border-[#043658]/40"
-                >
-                  <option value="all">All Statuses</option>
-                  <option value="ACTIVE">Active</option>
-                  <option value="SUSPENDED">Suspended</option>
-                </select>
-              </div>
+            {/* Status Filter */}
+            <div>
+              <select
+                value={selectedStatus}
+                onChange={(e) => {
+                  setSelectedStatus(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="w-full rounded-lg border border-[#D9E2EC] bg-white px-3 py-2 text-sm text-[#043658] outline-none hover:border-[#043658]/40"
+              >
+                <option value="all">All Statuses</option>
+                <option value="ACTIVE">Active</option>
+                <option value="SUSPENDED">Suspended</option>
+              </select>
+            </div>
 
-              {/* Verification */}
-              <div>
-                <label className="text-sm font-semibold text-[#043658] mb-2 block">Verification</label>
-                <select
-                  value={selectedVerification}
-                  onChange={(e) => {
-                    setSelectedVerification(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="w-full rounded-lg border border-[#D9E2EC] bg-white px-3 py-2.5 text-sm text-[#043658] outline-none hover:border-[#043658]/40"
-                >
-                  <option value="all">All Verification</option>
-                  <option value="verified">Verified</option>
-                  <option value="pending">Pending</option>
-                </select>
-              </div>
+            {/* Verification Filter */}
+            <div>
+              <select
+                value={selectedVerification}
+                onChange={(e) => {
+                  setSelectedVerification(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="w-full rounded-lg border border-[#D9E2EC] bg-white px-3 py-2 text-sm text-[#043658] outline-none hover:border-[#043658]/40"
+              >
+                <option value="all">All Verification</option>
+                <option value="approved">Approved</option>
+                <option value="pending">Pending</option>
+                <option value="rejected">Rejected</option>
+              </select>
             </div>
           </div>
         </div>
@@ -287,7 +301,7 @@ export default function AdminTeachersPage() {
                       </td>
 
                       {/* Verification */}
-                      <td className="px-6 py-4">{getVerificationBadge(teacher.verified)}</td>
+                      <td className="px-6 py-4">{getVerificationBadge(teacher)}</td>
 
                       {/* Actions */}
                       <td className="px-6 py-4">
