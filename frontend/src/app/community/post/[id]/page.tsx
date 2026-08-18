@@ -23,7 +23,7 @@ import {
 } from "@/services/community";
 import { getPostComments, createComment } from "@/services/comment.service";
 import { getMediaUrl } from "@/lib/media";
-import { useToast } from "@/hooks/useToast";
+import { toast } from "sonner";
 import { useConfirm } from "@/hooks/useConfirm";
 
 const TRENDING_TOPICS = [
