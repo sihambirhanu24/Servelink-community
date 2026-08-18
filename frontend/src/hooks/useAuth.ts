@@ -52,8 +52,29 @@ export function useLogin() {
       // If the response contains an 'admin' key, it's an admin login
       if (data?.admin) {
         router.push('/admin');
-      } else {
+        return;
+      }
+      
+      // Check teacher verification status
+      const teacher = data?.teacher;
+      if (!teacher) {
         router.push('/dashboard');
+        return;
+      }
+
+      // Route based on verification status
+      switch (teacher.verificationStatus) {
+        case 'APPROVED':
+          router.push('/dashboard');
+          break;
+        case 'PENDING':
+          router.push('/verification-pending');
+          break;
+        case 'REJECTED':
+          router.push('/verification-rejected');
+          break;
+        default:
+          router.push('/dashboard');
       }
     },
 
@@ -70,8 +91,9 @@ export function useRegister() {
     mutationFn: register,
 
     onSuccess() {
-      
-      router.push("/auth/login");
+      // After registration, redirect to verification-pending page
+      // New registrations always have PENDING status
+      router.push("/verification-pending");
     },
 
     onError(error) {
