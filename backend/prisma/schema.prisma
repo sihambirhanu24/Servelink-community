@@ -8,44 +8,53 @@ datasource db {
 }
 
 model Teacher {
-  id                 String              @id @default(cuid())
-  firstName          String
-  lastName           String
-  email              String              @unique
-  password           String
-  profileImage       String?
-  subject            String?
-  verified           Boolean             @default(false)
-  level              TeacherLevelType    @default(LEVEL_1)
-  status             TeacherStatus       @default(ACTIVE)
-  school             String
-  woreda             String
-  zone               String
-  region             String
+  id                    String                        @id @default(cuid())
+  firstName             String
+  lastName              String
+  email                 String                        @unique
+  password              String
+  profileImage          String?
+  subject               String?
+  verified              Boolean                       @default(false)
+  level                 TeacherLevelType              @default(LEVEL_1)
+  status                TeacherStatus                 @default(ACTIVE)
+  school                String
+  woreda                String
+  zone                  String
+  region                String
   /// Professional department (e.g. "Mathematics", "English", "Physics").
   /// Required for LEVEL_2–5 teachers; optional/unused for LEVEL_1.
-  department         String?
+  department            String?
   /// Total progression points earned by the teacher
-  points             Int                 @default(0)
+  points                Int                           @default(0)
   /// Start time of the current 24-hour privilege (null if no active privilege)
-  privilegeStartAt   DateTime?
+  privilegeStartAt      DateTime?
   /// Expiration time of the current 24-hour privilege (null if no active privilege)
-  privilegeExpiresAt DateTime?
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
-  communityBookmarks CommunityBookmark[]
-  comments           CommunityComment[]
-  communityLikes     CommunityLike[]
-  communityMembers   CommunityMember[]
-  posts              CommunityPost[]
-  communityReports   CommunityReport[]
-  notifications      Notification[]
-  chatMessages       ChatMessage[]
-  chatReactions      ChatReaction[]
-  chatMessageReads   ChatMessageRead[]
-  pinnedMessages     PinnedMessage[]
-  chatUnreadCounts   ChatUnreadCount[]
-  activities         TeacherActivity[]
+  privilegeExpiresAt    DateTime?
+  /// Teacher verification status for admin approval
+  verificationStatus    TeacherVerificationStatus     @default(PENDING)
+  /// Reason provided by admin if verification was rejected
+  rejectionReason       String?
+  /// When the teacher was approved by admin
+  approvedAt            DateTime?
+  /// Admin ID who approved this teacher
+  approvedBy            String?
+  createdAt             DateTime                      @default(now())
+  updatedAt             DateTime                      @updatedAt
+  communityBookmarks    CommunityBookmark[]
+  comments              CommunityComment[]
+  communityLikes        CommunityLike[]
+  communityMembers      CommunityMember[]
+  posts                 CommunityPost[]
+  communityReports      CommunityReport[]
+  notifications         Notification[]
+  chatMessages          ChatMessage[]
+  chatReactions         ChatReaction[]
+  chatMessageReads      ChatMessageRead[]
+  pinnedMessages        PinnedMessage[]
+  chatUnreadCounts      ChatUnreadCount[]
+  activities            TeacherActivity[]
+  verificationDocuments TeacherVerificationDocument[]
 }
 
 model Admin {
@@ -215,6 +224,33 @@ model TeacherActivity {
   @@index([teacherId])
   @@index([teacherId, type, createdAt])
   @@unique([teacherId, type, referenceId])
+}
+
+model TeacherVerificationDocument {
+  id           String                     @id @default(cuid())
+  teacherId    String
+  teacher      Teacher                    @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  fileName     String
+  filePath     String
+  fileType     VerificationDocumentType
+  mimeType     String
+  fileSize     Int
+  uploadedAt   DateTime                   @default(now())
+
+  @@index([teacherId])
+}
+
+enum VerificationDocumentType {
+  TEACHER_ID
+  EMPLOYMENT_LETTER
+  TEACHING_CERTIFICATE
+  OTHER
+}
+
+enum TeacherVerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum TeacherActivityType {
