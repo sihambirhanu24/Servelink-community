@@ -1,6 +1,7 @@
 "use client";
 
- import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from 'sonner';
 
 import {
   bookmarkPost,
@@ -85,7 +86,9 @@ async function useBookmark() {
       `${window.location.origin}/community/post/${post.id}`
     );
 
-    alert("Link copied!");
+    toast.success('Link Copied!', {
+      description: 'Post link copied to clipboard'
+    });
   }
 
   function handleComment() {
