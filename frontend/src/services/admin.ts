@@ -37,6 +37,19 @@ export async function activateTeacher(teacherId: string) {
   return data;
 }
 
+// ============ TEACHER VERIFICATION ============
+export async function approveTeacherVerification(teacherId: string) {
+  const { data } = await adminApi.patch(`/admin/teachers/${teacherId}/approve-verification`);
+  return data;
+}
+
+export async function rejectTeacherVerification(teacherId: string, reason: string) {
+  const { data } = await adminApi.patch(`/admin/teachers/${teacherId}/reject-verification`, {
+    reason,
+  });
+  return data;
+}
+
 // ============ MEMBERSHIP REQUESTS ============
 export async function getMembershipRequests() {
   const { data } = await adminApi.get("/admin/memberships");
@@ -67,5 +80,37 @@ export async function deleteAdminPost(id: string) {
 // ============ CATEGORIES ============
 export async function getAdminCategories(query?: any) {
   const { data } = await adminApi.get("/community/categories", { params: query });
+  return data;
+}
+
+export async function createCategory(name: string) {
+  const { data } = await adminApi.post("/community/categories", { name });
+  return data;
+}
+
+export async function deleteCategory(categoryId: string) {
+  const { data } = await adminApi.delete(`/community/categories/${categoryId}`);
+  return data;
+}
+
+// ============ COMMUNITIES ============
+export async function createCommunity(communityData: {
+  name: string;
+  description: string;
+  type: string;
+  subtype?: string;
+  isActive?: boolean;
+}) {
+  const { data } = await adminApi.post("/admin/communities", communityData);
+  return data;
+}
+
+export async function getAdminCommunities(query?: any) {
+  const { data } = await adminApi.get("/admin/communities", { params: query });
+  return data;
+}
+
+export async function toggleCommunityActive(communityId: string) {
+  const { data } = await adminApi.patch(`/admin/communities/${communityId}/toggle-active`);
   return data;
 }
