@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useVerification } from "@/hooks/useVerification";
 import VerificationRejected from "@/components/verification/VerificationRejected";
+import VerificationUpload from "@/components/verification/VerificationUpload";
 
 export default function VerificationPendingPage() {
   const router = useRouter();
@@ -112,7 +113,7 @@ export default function VerificationPendingPage() {
     <div className="min-h-screen bg-gradient-to-br from-[#F7F9FC] via-white to-blue-50">
       {/* Animated Header */}
       <header className="bg-white/90 backdrop-blur-md border-b border-gray-200 sticky top-0 z-50 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div className="w-full px-2 sm:px-4 lg:px-6 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 bg-gradient-to-br from-[#043658] to-[#0A5C8F] rounded-lg flex items-center justify-center shadow-lg transform hover:rotate-6 transition-transform duration-300">
@@ -135,7 +136,7 @@ export default function VerificationPendingPage() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="w-full px-2 sm:px-4 lg:px-6 py-6">
         {/* Hero Section with Animation */}
         <div className="text-center mb-10 animate-fade-in">
           <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-[#FFC107] to-[#FFD54F] rounded-2xl mb-4 shadow-lg animate-bounce-slow">
@@ -230,8 +231,13 @@ export default function VerificationPendingPage() {
           </div>
         </div>
 
+        {/* Document Upload Section */}
+        <div className="mb-8">
+          <VerificationUpload />
+        </div>
+
         {/* Interactive Info Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           {/* Submitted Details - Expandable */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
             <div 
