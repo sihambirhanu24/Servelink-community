@@ -50,20 +50,24 @@ export class AuthService {
         subject:    registerDto.subject,
         department: registerDto.department,
         level:      'LEVEL_1',
+        // SECURITY: Always set verificationStatus to PENDING on registration.
+        // Never trust client-provided verification status.
+        verificationStatus: 'PENDING',
       },
       select: {
-        id:         true,
-        firstName:  true,
-        lastName:   true,
-        email:      true,
-        level:      true,
-        school:     true,
-        woreda:     true,
-        zone:       true,
-        region:     true,
-        department: true,
-        createdAt:  true,
-        updatedAt:  true,
+        id:                 true,
+        firstName:          true,
+        lastName:           true,
+        email:              true,
+        level:              true,
+        school:             true,
+        woreda:             true,
+        zone:               true,
+        region:             true,
+        department:         true,
+        verificationStatus: true,
+        createdAt:          true,
+        updatedAt:          true,
       },
     });
 
@@ -84,6 +88,7 @@ export class AuthService {
 
     const accessToken = await this.jwtService.signAsync({
       sub:          teacher.id,
+      teacherId:    teacher.id, // Used by VerifiedTeacherGuard
       email:        teacher.email,
       // 'teacherLevel' is what RolesGuard reads — do not change this key name.
       teacherLevel: teacher.level,
@@ -108,6 +113,7 @@ export class AuthService {
 
       const payload = {
         sub: teacher.id,
+        teacherId: teacher.id, // Used by VerifiedTeacherGuard
         email: teacher.email,
         teacherLevel: teacher.level,
         isAdmin: false,
@@ -123,6 +129,7 @@ export class AuthService {
           profileImage: teacher.profileImage,
           subject: teacher.subject,
           verified: teacher.verified,
+          verificationStatus: teacher.verificationStatus, // New verification status
           level: teacher.level,
           school: teacher.school,
           woreda: teacher.woreda,
@@ -165,18 +172,19 @@ export class AuthService {
   return this.prisma.teacher.findUnique({
     where: { id },
     select: {
-      id:         true,
-      firstName:  true,
-      lastName:   true,
-      email:      true,
-      profileImage: true,
-      verified:   true,
-      level:      true,
-      school:     true,
-      woreda:     true,
-      zone:       true,
-      region:     true,
-      department: true,
+      id:                 true,
+      firstName:          true,
+      lastName:           true,
+      email:              true,
+      profileImage:       true,
+      verified:           true,
+      verificationStatus: true,
+      level:              true,
+      school:             true,
+      woreda:             true,
+      zone:               true,
+      region:             true,
+      department:         true,
     },
   });
 }
