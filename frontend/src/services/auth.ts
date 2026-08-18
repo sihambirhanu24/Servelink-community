@@ -27,9 +27,12 @@ export async function register(values: RegisterFormValues) {
   const registerPayload = { ...values };
   delete (registerPayload as { agreedToTerms?: boolean }).agreedToTerms;
   const { data } = await api.post('/auth/register', registerPayload);
+  
+  // Store the token and teacher data
   setAccessToken(data.accessToken);
   localStorage.setItem('token', data.accessToken);
   localStorage.setItem('teacher', JSON.stringify(data.teacher));
+  
   return data;
 }
 
