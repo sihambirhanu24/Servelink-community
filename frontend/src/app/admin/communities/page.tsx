@@ -1,8 +1,10 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Search, Filter, ChevronLeft, ChevronRight, Plus, MoreVertical, Users, MessageCircle } from 'lucide-react';
+import { Search, Filter, ChevronLeft, ChevronRight, Plus, MoreVertical, Users, MessageCircle, X } from 'lucide-react';
 import AdminLayout from '@/components/admin/layout';
+import { createCommunity } from '@/services/admin';
+import { toast } from 'sonner';
 
 interface Community {
   id: string;
@@ -86,6 +88,15 @@ export default function AdminCommunitiesPage() {
   const [selectedType, setSelectedType] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [newCommunity, setNewCommunity] = useState({
+    name: '',
+    description: '',
+    type: 'WOREDA',
+    subtype: '',
+    isActive: true,
+  });
 
   // Filter communities
   const filteredCommunities = useMemo(() => {
@@ -143,7 +154,9 @@ export default function AdminCommunitiesPage() {
             <h1 className="text-3xl font-bold text-[#043658]">Community Management</h1>
             <p className="mt-1 text-sm text-[#6B7C93]">Overview and administration of all ServeLink network tiers.</p>
           </div>
-          <button className="flex items-center gap-2 rounded-lg bg-[#043658] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#05456F] transition-colors">
+          <button 
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center gap-2 rounded-lg bg-[#043658] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#05456F] transition-colors">
             <Plus className="h-4 w-4" />
             New Community
           </button>
@@ -371,6 +384,160 @@ export default function AdminCommunitiesPage() {
           )}
         </div>
       </div>
+
+      {/* Create Community Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full">
+            <div className="bg-[#043658] px-6 py-4 rounded-t-2xl flex items-center justify-between">
+              <h3 className="text-xl font-bold text-white">Create New Community</h3>
+              <button
+                onClick={() => {
+                  setShowCreateModal(false);
+                  setNewCommunity({
+                    name: '',
+                    description: '',
+                    type: 'WOREDA',
+                    subtype: '',
+                    isActive: true,
+                  });
+                }}
+                className="text-white/70 hover:text-white transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Community Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newCommunity.name}
+                  onChange={(e) => setNewCommunity({ ...newCommunity, name: e.target.value })}
+                  placeholder="Enter community name"
+                  className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:border-[#043658] focus:ring-2 focus:ring-[#043658]/20 outline-none transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Description <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={newCommunity.description}
+                  onChange={(e) => setNewCommunity({ ...newCommunity, description: e.target.value })}
+                  placeholder="Enter community description"
+                  className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:border-[#043658] focus:ring-2 focus:ring-[#043658]/20 outline-none resize-none transition-all"
+                  rows={3}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Community Type <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={newCommunity.type}
+                  onChange={(e) => setNewCommunity({ ...newCommunity, type: e.target.value })}
+                  className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:border-[#043658] focus:ring-2 focus:ring-[#043658]/20 outline-none transition-all"
+                >
+                  <option value="NATIONAL">National</option>
+                  <option value="REGION">Region</option>
+                  <option value="ZONE">Zone</option>
+                  <option value="WOREDA">Woreda</option>
+                  <option value="SCHOOL">School</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Subtype (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={newCommunity.subtype}
+                  onChange={(e) => setNewCommunity({ ...newCommunity, subtype: e.target.value })}
+                  placeholder="e.g., Mathematics, Science"
+                  className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:border-[#043658] focus:ring-2 focus:ring-[#043658]/20 outline-none transition-all"
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="isActive"
+                  checked={newCommunity.isActive}
+                  onChange={(e) => setNewCommunity({ ...newCommunity, isActive: e.target.checked })}
+                  className="w-4 h-4 rounded border-gray-300 text-[#043658] focus:ring-[#043658]"
+                />
+                <label htmlFor="isActive" className="text-sm font-medium text-gray-700">
+                  Active (members can join immediately)
+                </label>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={async () => {
+                    if (!newCommunity.name || !newCommunity.description) {
+                      toast.error('Missing Fields', {
+                        description: 'Please fill in all required fields'
+                      });
+                      return;
+                    }
+                    
+                    setIsCreating(true);
+                    try {
+                      await createCommunity(newCommunity);
+                      toast.success('Community Created!', {
+                        description: 'The community has been created successfully'
+                      });
+                      setShowCreateModal(false);
+                      setNewCommunity({
+                        name: '',
+                        description: '',
+                        type: 'WOREDA',
+                        subtype: '',
+                        isActive: true,
+                      });
+                      window.location.reload();
+                    } catch (error: any) {
+                      console.error('Failed to create community:', error);
+                      toast.error('Failed to Create Community', {
+                        description: error.response?.data?.message || error.message || 'Please try again'
+                      });
+                    } finally {
+                      setIsCreating(false);
+                    }
+                  }}
+                  disabled={isCreating}
+                  className="flex-1 px-5 py-2.5 bg-[#043658] text-white rounded-lg hover:bg-[#05456F] disabled:bg-gray-400 disabled:cursor-not-allowed transition-all font-semibold"
+                >
+                  {isCreating ? 'Creating...' : 'Create Community'}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowCreateModal(false);
+                    setNewCommunity({
+                      name: '',
+                      description: '',
+                      type: 'WOREDA',
+                      subtype: '',
+                      isActive: true,
+                    });
+                  }}
+                  disabled={isCreating}
+                  className="flex-1 px-5 py-2.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:opacity-50 transition-all font-semibold"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </AdminLayout>
   );
 }
