@@ -15,6 +15,7 @@ import {
 
 
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { VerifiedTeacherGuard } from '../../verification/guards/verified-teacher.guard';
 import { CommunityService } from '../services/community.service';
 import { CreatePostDto } from '../dto/create-post.dto';
 import { CurrentUser } from 'src/auth/decorators/current-user.decorator';
@@ -54,8 +55,28 @@ getCategories() {
   return this.communityService.getCategories();
 }
 
- @Post("posts")
+@ApiBearerAuth()
+@ApiOperation({
+  summary: "Create a new category (Admin only)",
+})
 @UseGuards(JwtAuthGuard)
+@Post("categories")
+createCategory(@Body('name') name: string) {
+  return this.communityService.createCategory(name);
+}
+
+@ApiBearerAuth()
+@ApiOperation({
+  summary: "Delete a category (Admin only)",
+})
+@UseGuards(JwtAuthGuard)
+@Delete("categories/:id")
+deleteCategory(@Param('id') id: string) {
+  return this.communityService.deleteCategory(id);
+}
+
+ @Post("posts")
+@UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
 createPost(
   @CurrentUser() user,
   @Body() dto: CreatePostDto,
@@ -74,7 +95,7 @@ createPost(
 @ApiOperation({
   summary: 'Like a post',
 })
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
 @Post('posts/:id/like')
 likePost(
   @Param('id') postId: string,
@@ -110,7 +131,7 @@ unlikePost(
   summary: 'Add comment to a post',
 })
 @Post('posts/:postId/comments')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
 createComment(
   @Param('postId') postId: string,
   @Body() dto: CreateCommentDto,
@@ -178,7 +199,7 @@ deletePost(
   summary: 'Bookmark a post',
 })
 @Post('posts/:postId/bookmark')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
 bookmarkPost(
   @Param('postId') postId: string,
   @Req() req,
