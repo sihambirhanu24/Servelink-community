@@ -34,9 +34,8 @@ import {
 import { DashboardSidebar } from "@/components/layout/Sidebar";
 import Topbar from "@/components/layout/Topbar";
 import { getMediaUrl } from "@/lib/media";
-import { useToast } from "@/hooks/useToast";
+import { toast } from "sonner";
 import { useConfirm } from "@/hooks/useConfirm";
-import { ToastContainer } from "@/components/ui/ToastContainer";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 interface Attachment {
@@ -86,7 +85,6 @@ export default function EditPostPage() {
   const router = useRouter();
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const toast = useToast();
   const confirm = useConfirm();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -265,7 +263,6 @@ export default function EditPostPage() {
       <DashboardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="flex-1">
         <Topbar onMenuClick={() => setSidebarOpen(true)} />
-        <ToastContainer toasts={toast.toasts} onRemove={toast.removeToast} />
         <ConfirmDialog
           isOpen={confirm.isOpen}
           title={confirm.options.title}
