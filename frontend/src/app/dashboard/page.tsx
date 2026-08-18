@@ -20,6 +20,28 @@ export default function DashboardPage() {
   const queryClient = useQueryClient();
   const { data, isLoading, isError, refetch } = useDashboard();
 
+  // Check verification status and redirect if not approved
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const teacherData = localStorage.getItem('teacher');
+      if (teacherData) {
+        try {
+          const teacher = JSON.parse(teacherData);
+          if (teacher.verificationStatus === 'PENDING') {
+            router.replace('/verification-pending');
+            return;
+          }
+          if (teacher.verificationStatus === 'REJECTED') {
+            router.replace('/verification-rejected');
+            return;
+          }
+        } catch (err) {
+          console.error('Error parsing teacher data:', err);
+        }
+      }
+    }
+  }, [router]);
+
   // Redirect to admin if not a teacher — use useEffect to avoid render-time navigation
   useEffect(() => {
     if (data && !data.teacher) {
