@@ -20,7 +20,7 @@ export class TeacherProgressService {
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
     private readonly verificationService: TeacherVerificationService,
-  ) {}
+  ) { }
 
   /**
    * Calculate the appropriate level based on points
@@ -78,31 +78,7 @@ export class TeacherProgressService {
     return Math.min(100, Math.round((progress / range) * 100));
   }
 
-  /**
-   * Check if a privilege is currently active
-   */
-  checkPrivilege(privilegeExpiresAt: Date | null): boolean {
-    if (!privilegeExpiresAt) return false;
-    return new Date() < privilegeExpiresAt;
-  }
-
-  /**
-   * Activate a 24-hour privilege for a teacher
-   */
-  private async activatePrivilege(teacherId: string): Promise<void> {
-    const now = new Date();
-    const expiresAt = new Date(now.getTime() + PRIVILEGE_DURATION_MS);
-
-    await this.prisma.teacher.update({
-      where: { id: teacherId },
-      data: {
-        privilegeStartAt: now,
-        privilegeExpiresAt: expiresAt,
-      },
-    });
-
-    this.logger.log(`Activated 24-hour privilege for teacher ${teacherId} until ${expiresAt}`);
-  }
+  // 24-hour privilege logic removed as per user request (level-ups are now permanent without trial text)
 
   /**
    * Update teacher level and activate privilege if upgraded
@@ -131,14 +107,13 @@ export class TeacherProgressService {
 
     if (newIndex > oldIndex) {
       // Level upgraded
-      await this.activatePrivilege(teacherId);
 
       // Send notification
       this.notificationService
         .create({
           receiverId: teacherId,
           title: 'Level Upgrade! 🎉',
-          message: `Congratulations ${teacherName}! You've been upgraded to ${newLevel.replace('_', ' ')}. You now have 24-hour trial access to new communities!`,
+          message: `Congratulations ${teacherName}! You've been permanently upgraded to ${newLevel.replace('_', ' ')}. You now have full access to new communities!`,
           type: NotificationEvent.LEVEL_UPGRADE,
         })
         .catch((err) => this.logger.error(`Failed to send upgrade notification: ${err.message}`));
@@ -444,7 +419,6 @@ export class TeacherProgressService {
     const nextLevel = this.getNextLevel(teacher.level);
     const pointsToNextLevel = this.calculatePointsToNextLevel(teacher.points, teacher.level);
     const progressPercentage = this.calculateProgressPercentage(teacher.points, teacher.level);
-    const privilegeActive = this.checkPrivilege(teacher.privilegeExpiresAt);
 
     return {
       points: teacher.points,
@@ -452,8 +426,8 @@ export class TeacherProgressService {
       nextLevel,
       pointsToNextLevel,
       progressPercentage,
-      privilegeActive,
-      privilegeExpiresAt: teacher.privilegeExpiresAt,
+      privilegeActive: false,
+      privilegeExpiresAt: null,
     };
   }
 

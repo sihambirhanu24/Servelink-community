@@ -51,16 +51,32 @@ export class VerifiedTeacherGuard implements CanActivate {
       throw new ForbiddenException('Teacher account required');
     }
 
-    // Check if teacher is verified
-    const isVerified = await this.verificationService.isTeacherVerified(user.teacherId);
+    // Check teacher verification status
+    const state = await this.verificationService.getTeacherVerificationState(user.teacherId);
 
-    if (!isVerified) {
-      this.logger.log(
-        `VerifiedTeacherGuard: Teacher ${user.teacherId} is not verified (blocked access)`,
-      );
-      throw new ForbiddenException(
-        'Your teacher account must be verified before accessing this resource. Please upload verification documents and wait for admin approval.',
-      );
+    if (state?.verificationStatus === 'PENDING') {
+      this.logger.log(`VerifiedTeacherGuard: Teacher ${user.teacherId} is PENDING (blocked access)`);
+      throw new ForbiddenException({
+        code: 'VERIFICATION_PENDING',
+        message: 'Teacher verification is pending.',
+      });
+    }
+
+    if (state?.verificationStatus === 'REJECTED') {
+      this.logger.log(`VerifiedTeacherGuard: Teacher ${user.teacherId} is REJECTED (blocked access)`);
+      throw new ForbiddenException({
+        code: 'VERIFICATION_REJECTED',
+        message: 'Teacher verification was rejected.',
+        rejectionReason: state.rejectionReason,
+      });
+    }
+
+    if (state?.verificationStatus !== 'APPROVED') {
+      this.logger.log(`VerifiedTeacherGuard: Teacher ${user.teacherId} has unknown status (blocked access)`);
+      throw new ForbiddenException({
+        code: 'VERIFICATION_REQUIRED',
+        message: 'Your teacher account must be verified before accessing this resource.',
+      });
     }
 
     return true;

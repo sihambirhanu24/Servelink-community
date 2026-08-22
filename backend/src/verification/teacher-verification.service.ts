@@ -68,26 +68,9 @@ export class TeacherVerificationService {
         },
       });
 
-      // If teacher is REJECTED, automatically transition to PENDING
-      if (teacher.verificationStatus === TeacherVerificationStatus.REJECTED) {
-        await tx.teacher.update({
-          where: { id: teacherId },
-          data: {
-            verificationStatus: TeacherVerificationStatus.PENDING,
-            rejectionReason: null,
-            approvedAt: null,
-            approvedBy: null,
-          },
-        });
-
-        this.logger.log(
-          `Teacher ${teacherId} uploaded ${documentType} document and status automatically transitioned from REJECTED to PENDING`,
-        );
-      } else {
-        this.logger.log(
-          `Teacher ${teacherId} uploaded ${documentType} document (status: ${teacher.verificationStatus})`,
-        );
-      }
+      this.logger.log(
+        `Teacher ${teacherId} uploaded ${documentType} document (status: ${teacher.verificationStatus})`,
+      );
 
       return document;
     });
@@ -204,12 +187,25 @@ export class TeacherVerificationService {
         firstName: true,
         lastName: true,
         email: true,
+        phone: true,
         school: true,
         woreda: true,
         zone: true,
         region: true,
         department: true,
         subject: true,
+        profession: true,
+        teacherIdNumber: true,
+        specialization: true,
+        skills: true,
+        gradeLevel: true,
+        yearsOfExperience: true,
+        schoolType: true,
+        city: true,
+        schoolLocation: true,
+        gender: true,
+        dateOfBirth: true,
+        bio: true,
         verificationStatus: true,
         rejectionReason: true,
         approvedAt: true,
@@ -358,6 +354,25 @@ export class TeacherVerificationService {
   }
 
   /**
+   * Check if a teacher is verified (APPROVED status)
+   * Used by guards and other services to verify teacher status
+   */
+  async isTeacherVerified(teacherId: string): Promise<boolean> {
+    const teacher = await this.prisma.teacher.findUnique({
+      where: { id: teacherId },
+      select: {
+        verificationStatus: true,
+      },
+    });
+
+    if (!teacher) {
+      return false;
+    }
+
+    return teacher.verificationStatus === TeacherVerificationStatus.APPROVED;
+  }
+
+  /**
    * Resubmit verification (for rejected teachers)
    * This resets status to PENDING after uploading new documents
    * Uses transaction for data consistency
@@ -488,14 +503,71 @@ export class TeacherVerificationService {
   }
 
   /**
-   * Check if teacher is verified (for use in guards)
+   * Get teacher verification state for guards
    */
-  async isTeacherVerified(teacherId: string): Promise<boolean> {
+  async getTeacherVerificationState(teacherId: string) {
     const teacher = await this.prisma.teacher.findUnique({
       where: { id: teacherId },
-      select: { verificationStatus: true },
+      select: { verificationStatus: true, rejectionReason: true },
+    });
+    return teacher;
+  }
+
+  /**
+   * Update teacher verification setup information
+   * Handles personal, professional, and school information
+   */
+  async updateVerificationInfo(teacherId: string, data: any) {
+    const updated = await this.prisma.teacher.update({
+      where: { id: teacherId },
+      data: {
+        verificationStatus: TeacherVerificationStatus.PENDING,
+        rejectionReason: null,
+        approvedAt: null,
+        approvedBy: null,
+        ...(data.gender !== undefined && { gender: data.gender }),
+        ...(data.dateOfBirth !== undefined && { dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : undefined }),
+        ...(data.bio !== undefined && { bio: data.bio }),
+        ...(data.phone !== undefined && { phone: data.phone }),
+        ...(data.profession !== undefined && { profession: data.profession }),
+        ...(data.teacherIdNumber !== undefined && { teacherIdNumber: data.teacherIdNumber }),
+        ...(data.specialization !== undefined && { specialization: data.specialization }),
+        ...(data.skills !== undefined && { skills: data.skills }),
+        ...(data.gradeLevel !== undefined && { gradeLevel: data.gradeLevel }),
+        ...(data.yearsOfExperience !== undefined && { yearsOfExperience: data.yearsOfExperience }),
+        ...(data.schoolType !== undefined && { schoolType: data.schoolType }),
+        ...(data.city !== undefined && { city: data.city }),
+        ...(data.schoolLocation !== undefined && { schoolLocation: data.schoolLocation }),
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        gender: true,
+        dateOfBirth: true,
+        bio: true,
+        phone: true,
+        profession: true,
+        teacherIdNumber: true,
+        specialization: true,
+        skills: true,
+        gradeLevel: true,
+        yearsOfExperience: true,
+        schoolType: true,
+        city: true,
+        schoolLocation: true,
+        school: true,
+        woreda: true,
+        zone: true,
+        region: true,
+        subject: true,
+        department: true,
+        level: true,
+        verificationStatus: true,
+      },
     });
 
-    return teacher?.verificationStatus === TeacherVerificationStatus.APPROVED;
+    return updated;
   }
 }

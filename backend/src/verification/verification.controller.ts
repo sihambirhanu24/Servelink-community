@@ -5,6 +5,7 @@ import {
   Delete,
   Body,
   Param,
+  Patch,
   UseGuards,
   UseInterceptors,
   UploadedFile,
@@ -18,6 +19,7 @@ import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { TeacherVerificationService } from './teacher-verification.service';
 import { UploadDocumentDto } from './dto/upload-document.dto';
+import { VerificationSetupDto } from './dto/verification-setup.dto';
 import { verificationMulterConfig } from './config/verification-multer.config';
 
 /**
@@ -91,6 +93,23 @@ export class VerificationController {
       success: true,
       message: 'Verification resubmitted successfully. Please wait for admin review.',
       verificationStatus: result.verificationStatus,
+    };
+  }
+
+  /**
+   * Submit verification setup information (personal, professional, school info)
+   * PATCH /verification/setup
+   */
+  @Patch('setup')
+  @UseGuards(JwtAuthGuard)
+  async setupVerification(@Request() req, @Body() setupDto: VerificationSetupDto) {
+    const teacherId = req.user.teacherId || req.user.sub;
+    const result = await this.verificationService.updateVerificationInfo(teacherId, setupDto);
+
+    return {
+      success: true,
+      message: 'Verification information updated successfully.',
+      teacher: result,
     };
   }
 
