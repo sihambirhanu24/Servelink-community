@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { FileText, Heart, FolderOpen, ArrowRight, LucideIcon } from "lucide-react";
+import { FileText, Heart, FolderOpen, ArrowRight, LucideIcon, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import { getMyPosts } from "@/services/profile";
 
@@ -21,6 +21,7 @@ interface StatCard {
   href?: string;
   color: string;
   bg: string;
+  trend?: number;
 }
 
 export function StatsGrid({ posts: fallbackPosts = 0, likes = 0, resources = 0 }: StatsGridProps) {
@@ -48,6 +49,7 @@ export function StatsGrid({ posts: fallbackPosts = 0, likes = 0, resources = 0 }
       href: "/profile/posts",
       color: "text-[#043658]",
       bg: "bg-[#043658]/10",
+      trend: postCount > 0 ? 12 : 0,
     },
     {
       icon: Heart,
@@ -56,6 +58,7 @@ export function StatsGrid({ posts: fallbackPosts = 0, likes = 0, resources = 0 }
       sublabel: "Across all posts",
       color: "text-rose-600",
       bg: "bg-rose-50",
+      trend: totalLikes > 0 ? 8 : 0,
     },
     {
       icon: FolderOpen,
@@ -64,6 +67,7 @@ export function StatsGrid({ posts: fallbackPosts = 0, likes = 0, resources = 0 }
       sublabel: "PDFs, docs & files",
       color: "text-amber-600",
       bg: "bg-amber-50",
+      trend: resources > 0 ? 5 : 0,
     },
   ];
 
@@ -76,9 +80,19 @@ export function StatsGrid({ posts: fallbackPosts = 0, likes = 0, resources = 0 }
               ${stat.href ? "hover:-translate-y-0.5 hover:border-[#043658]/30 hover:shadow-md cursor-pointer" : ""}
             `}
           >
-            {/* Icon */}
-            <div className={`inline-flex h-10 w-10 items-center justify-center rounded-xl ${stat.bg}`}>
-              <stat.icon className={`h-5 w-5 ${stat.color}`} />
+            <div className="flex items-start justify-between">
+              {/* Icon */}
+              <div className={`inline-flex h-11 w-11 items-center justify-center rounded-xl ${stat.bg}`}>
+                <stat.icon className={`h-5 w-5 ${stat.color}`} />
+              </div>
+
+              {/* Trend */}
+              {stat.trend && stat.trend > 0 && (
+                <div className="flex items-center gap-1 text-xs font-semibold text-green-600">
+                  <TrendingUp className="h-3 w-3" />
+                  +{stat.trend}%
+                </div>
+              )}
             </div>
 
             {/* Value */}
