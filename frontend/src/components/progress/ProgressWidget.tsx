@@ -69,12 +69,6 @@ export function ProgressWidget() {
           )}
         </div>
 
-        {/* Privilege Badge */}
-        {progress.privilegeActive && (
-          <div className="mt-2 px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded text-center">
-            🎉 24h Trial Access Active
-          </div>
-        )}
       </div>
     </Link>
   );

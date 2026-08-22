@@ -11,35 +11,6 @@ interface TimeRemaining {
 
 export function ProgressCard() {
   const { data: progress, isLoading, error } = useProgress();
-  const [timeRemaining, setTimeRemaining] = useState<TimeRemaining | null>(null);
-
-  // Calculate time remaining for privilege
-  useEffect(() => {
-    if (!progress?.privilegeActive || !progress?.privilegeExpiresAt) {
-      setTimeRemaining(null);
-      return;
-    }
-
-    const calculateTimeRemaining = () => {
-      const now = new Date();
-      const expiresAt = new Date(progress.privilegeExpiresAt!);
-      const diff = expiresAt.getTime() - now.getTime();
-
-      if (diff <= 0) {
-        setTimeRemaining(null);
-        return;
-      }
-
-      const hours = Math.floor(diff / (1000 * 60 * 60));
-      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-      setTimeRemaining({ hours, minutes });
-    };
-
-    calculateTimeRemaining();
-    const interval = setInterval(calculateTimeRemaining, 60000); // Update every minute
-
-    return () => clearInterval(interval);
-  }, [progress?.privilegeActive, progress?.privilegeExpiresAt]);
 
   if (isLoading) {
     return (
@@ -116,18 +87,8 @@ export function ProgressCard() {
         </div>
       )}
 
-      {/* 24-Hour Privilege Status */}
-      {progress.privilegeActive && timeRemaining ? (
-        <div className="flex items-center gap-2 p-3 bg-green-50 rounded-lg border border-green-200">
-          <Clock className="w-5 h-5 text-green-600" />
-          <div className="text-sm">
-            <div className="font-semibold text-green-900">24-Hour Trial Access Active!</div>
-            <div className="text-green-700">
-              Expires in: {timeRemaining.hours}h {timeRemaining.minutes}m
-            </div>
-          </div>
-        </div>
-      ) : progress.level === "LEVEL_5" ? (
+      {/* 24-Hour Privilege Status removed */}
+      {progress.level === "LEVEL_5" ? (
         <div className="flex items-center gap-2 p-3 bg-yellow-50 rounded-lg">
           <Trophy className="w-5 h-5 text-yellow-600" />
           <div className="text-sm">

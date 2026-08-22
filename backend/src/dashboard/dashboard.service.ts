@@ -47,6 +47,8 @@ export class DashboardService {
           region: true,
           subject: true,
           verified: true,
+          verificationStatus: true,
+          rejectionReason: true,
         },
       }),
       this.prisma.communityPost.count({ where: { teacherId } }),
