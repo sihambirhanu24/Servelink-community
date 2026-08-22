@@ -8,6 +8,21 @@ export interface UpdateProfilePayload {
   woreda?: string;
   zone?: string;
   region?: string;
+  department?: string;
+  // Personal
+  gender?: string;
+  bio?: string;
+  phone?: string;
+  // Professional
+  profession?: string;
+  specialization?: string;
+  skills?: string;
+  gradeLevel?: string;
+  yearsOfExperience?: number;
+  // School
+  schoolType?: string;
+  city?: string;
+  schoolLocation?: string;
 }
 
 export const getProfile = async () => {

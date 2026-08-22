@@ -71,6 +71,7 @@ export class AuthService {
       },
     });
 
+
     // Auto-provision community chat rooms for this teacher.
     // Fire-and-forget — do not block registration on community creation errors.
     this.chatService

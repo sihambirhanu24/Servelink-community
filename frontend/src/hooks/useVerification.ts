@@ -1,5 +1,4 @@
-import { useState, useEffect } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/axios";
 
 export interface VerificationDocument {
@@ -23,7 +22,6 @@ export interface VerificationStatus {
 export function useVerification() {
   const queryClient = useQueryClient();
 
-  // Fetch verification status
   const {
     data: status,
     isLoading,
@@ -85,6 +83,19 @@ export function useVerification() {
     },
   });
 
+  // Submit verification setup information mutation
+  const setupMutation = useMutation({
+    mutationFn: async (setupData: Record<string, unknown>) => {
+      const response = await api.patch("/verification/setup", setupData);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["verification-status"] });
+      queryClient.invalidateQueries({ queryKey: ["profile"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+  });
+
   const uploadDocument = async (file: File, documentType: string) => {
     return uploadMutation.mutateAsync({ file, documentType });
   };
@@ -95,6 +106,10 @@ export function useVerification() {
 
   const resubmit = async () => {
     return resubmitMutation.mutateAsync();
+  };
+
+  const submitVerificationSetup = async (setupData: Record<string, unknown>) => {
+    return setupMutation.mutateAsync(setupData);
   };
 
   return {
@@ -109,5 +124,7 @@ export function useVerification() {
     isDeleting: deleteMutation.isPending,
     resubmit,
     isResubmitting: resubmitMutation.isPending,
+    submitVerificationSetup,
+    isSubmittingSetup: setupMutation.isPending,
   };
 }

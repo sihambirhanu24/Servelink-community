@@ -4,19 +4,21 @@ import { useState } from "react";
 import { changePassword } from "@/services/profile";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { 
-  ArrowLeft, 
-  Eye, 
-  EyeOff, 
-  Lock, 
-  Shield, 
-  CheckCircle2, 
+import {
+  ArrowLeft,
+  Eye,
+  EyeOff,
+  Lock,
+  Shield,
+  CheckCircle2,
   XCircle,
   Loader2,
   KeyRound
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { DashboardSidebar } from "@/components/layout/Sidebar";
+import Topbar from "@/components/layout/Topbar";
 
 interface PasswordStrength {
   score: number;
@@ -43,6 +45,7 @@ function calculatePasswordStrength(password: string): PasswordStrength {
 
 export default function ChangePasswordPage() {
   const router = useRouter();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -90,256 +93,263 @@ export default function ChangePasswordPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-[#043658] via-[#043658]/95 to-slate-900 flex items-center justify-center p-4">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="w-full max-w-lg"
-      >
-        {/* Header Card */}
-        <div className="mb-6 flex items-center gap-4">
-          <Link href="/profile">
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-white backdrop-blur-sm hover:bg-white/20 transition-colors"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </motion.button>
-          </Link>
-          <div>
-            <h1 className="font-['Lexend'] text-2xl font-bold text-white">
-              Change Password
-            </h1>
-            <p className="text-sm text-slate-300">
-              Keep your account secure
-            </p>
-          </div>
-        </div>
+    <div className="h-screen overflow-hidden bg-[#F5F8FB]">
+      <DashboardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Topbar onMenuClick={() => setSidebarOpen(true)} />
 
-        {/* Main Form Card */}
-        <motion.form
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.1, duration: 0.5 }}
-          onSubmit={handleSubmit}
-          className="rounded-2xl bg-white p-8 shadow-2xl"
-        >
-          {/* Security Badge */}
-          <div className="mb-6 flex items-center justify-center">
-            <div className="rounded-full bg-gradient-to-br from-[#FFC107] to-amber-400 p-4">
-              <Shield className="h-8 w-8 text-[#043658]" />
-            </div>
-          </div>
-
-          {/* Current Password */}
-          <div className="mb-5">
-            <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
-              <Lock className="h-4 w-4 text-[#043658]" />
-              Current Password
-            </label>
-            <div className="relative">
-              <input
-                type={showOldPassword ? "text" : "password"}
-                placeholder="Enter your current password"
-                value={oldPassword}
-                onChange={(e) => setOldPassword(e.target.value)}
-                onFocus={() => setFocusedField('old')}
-                onBlur={() => setFocusedField(null)}
-                className={`w-full rounded-xl border-2 bg-slate-50 p-3.5 pr-12 text-sm text-slate-700 transition-all focus:outline-none ${
-                  focusedField === 'old'
-                    ? 'border-[#043658] bg-white ring-4 ring-[#043658]/10'
-                    : 'border-slate-200'
-                }`}
-              />
-              <button
-                type="button"
-                onClick={() => setShowOldPassword(!showOldPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#043658]"
-              >
-                {showOldPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-              </button>
-            </div>
-          </div>
-
-          {/* New Password */}
-          <div className="mb-3">
-            <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
-              <KeyRound className="h-4 w-4 text-[#043658]" />
-              New Password
-            </label>
-            <div className="relative">
-              <input
-                type={showNewPassword ? "text" : "password"}
-                placeholder="Enter your new password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                onFocus={() => setFocusedField('new')}
-                onBlur={() => setFocusedField(null)}
-                className={`w-full rounded-xl border-2 bg-slate-50 p-3.5 pr-12 text-sm text-slate-700 transition-all focus:outline-none ${
-                  focusedField === 'new'
-                    ? 'border-[#043658] bg-white ring-4 ring-[#043658]/10'
-                    : 'border-slate-200'
-                }`}
-              />
-              <button
-                type="button"
-                onClick={() => setShowNewPassword(!showNewPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#043658]"
-              >
-                {showNewPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-              </button>
-            </div>
-            
-            {/* Password Strength Indicator */}
-            {newPassword && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                className="mt-3"
-              >
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="text-xs font-medium text-slate-600">
-                    Password Strength:
-                  </span>
-                  <span className={`text-xs font-bold ${passwordStrength.color}`}>
-                    {passwordStrength.label}
-                  </span>
-                </div>
-                <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${(passwordStrength.score / 4) * 100}%` }}
-                    transition={{ duration: 0.3 }}
-                    className={`h-full ${passwordStrength.bgColor} rounded-full`}
-                  />
-                </div>
-              </motion.div>
-            )}
-          </div>
-
-          {/* Requirements Checklist */}
-          {newPassword && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              className="mb-5 rounded-xl bg-slate-50 p-4"
-            >
-              <p className="mb-2 text-xs font-semibold text-slate-600">Password Requirements:</p>
-              <div className="space-y-1.5">
-                {requirements.map((req, idx) => (
-                  <motion.div
-                    key={idx}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: idx * 0.05 }}
-                    className="flex items-center gap-2"
-                  >
-                    {req.met ? (
-                      <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                    ) : (
-                      <XCircle className="h-4 w-4 text-slate-300" />
-                    )}
-                    <span className={`text-xs ${req.met ? 'text-emerald-600 font-medium' : 'text-slate-400'}`}>
-                      {req.label}
-                    </span>
-                  </motion.div>
-                ))}
-              </div>
-            </motion.div>
-          )}
-
-          {/* Confirm Password */}
-          <div className="mb-6">
-            <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
-              <KeyRound className="h-4 w-4 text-[#043658]" />
-              Confirm New Password
-            </label>
-            <div className="relative">
-              <input
-                type={showConfirmPassword ? "text" : "password"}
-                placeholder="Re-enter your new password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                onFocus={() => setFocusedField('confirm')}
-                onBlur={() => setFocusedField(null)}
-                className={`w-full rounded-xl border-2 bg-slate-50 p-3.5 pr-12 text-sm text-slate-700 transition-all focus:outline-none ${
-                  focusedField === 'confirm'
-                    ? passwordsMatch
-                      ? 'border-emerald-500 bg-white ring-4 ring-emerald-500/10'
-                      : passwordsDontMatch
-                      ? 'border-red-500 bg-white ring-4 ring-red-500/10'
-                      : 'border-[#043658] bg-white ring-4 ring-[#043658]/10'
-                    : passwordsMatch
-                    ? 'border-emerald-200'
-                    : passwordsDontMatch
-                    ? 'border-red-200'
-                    : 'border-slate-200'
-                }`}
-              />
-              <button
-                type="button"
-                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#043658]"
-              >
-                {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-              </button>
-            </div>
-            
-            {/* Match Feedback */}
-            {confirmPassword && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="mt-2"
-              >
-                {passwordsMatch ? (
-                  <div className="flex items-center gap-1.5 text-xs text-emerald-600">
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                    <span className="font-medium">Passwords match!</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1.5 text-xs text-red-600">
-                    <XCircle className="h-3.5 w-3.5" />
-                    <span className="font-medium">Passwords don't match</span>
-                  </div>
-                )}
-              </motion.div>
-            )}
-          </div>
-
-          {/* Submit Button */}
-          <motion.button
-            whileHover={{ scale: canSubmit ? 1.02 : 1 }}
-            whileTap={{ scale: canSubmit ? 0.98 : 1 }}
-            disabled={!canSubmit || loading}
-            type="submit"
-            className={`w-full rounded-xl py-3.5 font-semibold text-white transition-all ${
-              canSubmit
-                ? 'bg-gradient-to-r from-[#043658] to-[#043658]/90 hover:shadow-lg'
-                : 'cursor-not-allowed bg-slate-300'
-            }`}
+      <main className="mt-16 lg:ml-64 h-[calc(100vh-4rem)] overflow-y-auto">
+        <div className="min-h-screen flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="w-full max-w-lg"
           >
-            {loading ? (
-              <span className="flex items-center justify-center gap-2">
-                <Loader2 className="h-5 w-5 animate-spin" />
-                Updating Password...
-              </span>
-            ) : (
-              <span className="flex items-center justify-center gap-2">
-                <Shield className="h-5 w-5" />
-                Change Password
-              </span>
-            )}
-          </motion.button>
+            {/* Header Card */}
+            <div className="mb-6 flex items-center gap-4">
+              <Link href="/profile">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-white backdrop-blur-sm hover:bg-white/20 transition-colors"
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </motion.button>
+              </Link>
+              <div>
+                <h1 className="font-['Lexend'] text-2xl font-bold text-white">
+                  Change Password
+                </h1>
+                <p className="text-sm text-slate-300">
+                  Keep your account secure
+                </p>
+              </div>
+            </div>
 
-          {/* Help Text */}
-          <p className="mt-4 text-center text-xs text-slate-500">
-            Make sure your new password is strong and unique
-          </p>
-        </motion.form>
-      </motion.div>
-    </main>
+            {/* Main Form Card */}
+            <motion.form
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.1, duration: 0.5 }}
+              onSubmit={handleSubmit}
+              className="rounded-2xl bg-white p-8 shadow-2xl"
+            >
+              {/* Security Badge */}
+              <div className="mb-6 flex items-center justify-center">
+                <div className="rounded-full bg-gradient-to-br from-[#FFC107] to-amber-400 p-4">
+                  <Shield className="h-8 w-8 text-[#043658]" />
+                </div>
+              </div>
+
+              {/* Current Password */}
+              <div className="mb-5">
+                <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
+                  <Lock className="h-4 w-4 text-[#043658]" />
+                  Current Password
+                </label>
+                <div className="relative">
+                  <input
+                    type={showOldPassword ? "text" : "password"}
+                    placeholder="Enter your current password"
+                    value={oldPassword}
+                    onChange={(e) => setOldPassword(e.target.value)}
+                    onFocus={() => setFocusedField('old')}
+                    onBlur={() => setFocusedField(null)}
+                    className={`w-full rounded-xl border-2 bg-slate-50 p-3.5 pr-12 text-sm text-slate-700 transition-all focus:outline-none ${
+                      focusedField === 'old'
+                        ? 'border-[#043658] bg-white ring-4 ring-[#043658]/10'
+                        : 'border-slate-200'
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowOldPassword(!showOldPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#043658]"
+                  >
+                    {showOldPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* New Password */}
+              <div className="mb-3">
+                <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
+                  <KeyRound className="h-4 w-4 text-[#043658]" />
+                  New Password
+                </label>
+                <div className="relative">
+                  <input
+                    type={showNewPassword ? "text" : "password"}
+                    placeholder="Enter your new password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    onFocus={() => setFocusedField('new')}
+                    onBlur={() => setFocusedField(null)}
+                    className={`w-full rounded-xl border-2 bg-slate-50 p-3.5 pr-12 text-sm text-slate-700 transition-all focus:outline-none ${
+                      focusedField === 'new'
+                        ? 'border-[#043658] bg-white ring-4 ring-[#043658]/10'
+                        : 'border-slate-200'
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#043658]"
+                  >
+                    {showNewPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  </button>
+                </div>
+
+                {/* Password Strength Indicator */}
+                {newPassword && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    className="mt-3"
+                  >
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="text-xs font-medium text-slate-600">
+                        Password Strength:
+                      </span>
+                      <span className={`text-xs font-bold ${passwordStrength.color}`}>
+                        {passwordStrength.label}
+                      </span>
+                    </div>
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${(passwordStrength.score / 4) * 100}%` }}
+                        transition={{ duration: 0.3 }}
+                        className={`h-full ${passwordStrength.bgColor} rounded-full`}
+                      />
+                    </div>
+                  </motion.div>
+                )}
+              </div>
+
+              {/* Requirements Checklist */}
+              {newPassword && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  className="mb-5 rounded-xl bg-slate-50 p-4"
+                >
+                  <p className="mb-2 text-xs font-semibold text-slate-600">Password Requirements:</p>
+                  <div className="space-y-1.5">
+                    {requirements.map((req, idx) => (
+                      <motion.div
+                        key={idx}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: idx * 0.05 }}
+                        className="flex items-center gap-2"
+                      >
+                        {req.met ? (
+                          <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                        ) : (
+                          <XCircle className="h-4 w-4 text-slate-300" />
+                        )}
+                        <span className={`text-xs ${req.met ? 'text-emerald-600 font-medium' : 'text-slate-400'}`}>
+                          {req.label}
+                        </span>
+                      </motion.div>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Confirm Password */}
+              <div className="mb-6">
+                <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
+                  <KeyRound className="h-4 w-4 text-[#043658]" />
+                  Confirm New Password
+                </label>
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? "text" : "password"}
+                    placeholder="Re-enter your new password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    onFocus={() => setFocusedField('confirm')}
+                    onBlur={() => setFocusedField(null)}
+                    className={`w-full rounded-xl border-2 bg-slate-50 p-3.5 pr-12 text-sm text-slate-700 transition-all focus:outline-none ${
+                      focusedField === 'confirm'
+                        ? passwordsMatch
+                          ? 'border-emerald-500 bg-white ring-4 ring-emerald-500/10'
+                          : passwordsDontMatch
+                          ? 'border-red-500 bg-white ring-4 ring-red-500/10'
+                          : 'border-[#043658] bg-white ring-4 ring-[#043658]/10'
+                        : passwordsMatch
+                          ? 'border-emerald-200'
+                          : passwordsDontMatch
+                          ? 'border-red-200'
+                          : 'border-slate-200'
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#043658]"
+                  >
+                    {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  </button>
+                </div>
+
+                {/* Match Feedback */}
+                {confirmPassword && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="mt-2"
+                  >
+                    {passwordsMatch ? (
+                      <div className="flex items-center gap-1.5 text-xs text-emerald-600">
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        <span className="font-medium">Passwords match!</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 text-xs text-red-600">
+                        <XCircle className="h-3.5 w-3.5" />
+                        <span className="font-medium">Passwords don't match</span>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+              </div>
+
+              {/* Submit Button */}
+              <motion.button
+                whileHover={{ scale: canSubmit ? 1.02 : 1 }}
+                whileTap={{ scale: canSubmit ? 0.98 : 1 }}
+                disabled={!canSubmit || loading}
+                type="submit"
+                className={`w-full rounded-xl py-3.5 font-semibold text-white transition-all ${
+                  canSubmit
+                    ? 'bg-gradient-to-r from-[#043658] to-[#043658]/90 hover:shadow-lg'
+                    : 'cursor-not-allowed bg-slate-300'
+                }`}
+              >
+                {loading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    Updating Password...
+                  </span>
+                ) : (
+                  <span className="flex items-center justify-center gap-2">
+                    <Shield className="h-5 w-5" />
+                    Change Password
+                  </span>
+                )}
+              </motion.button>
+
+              {/* Help Text */}
+              <p className="mt-4 text-center text-xs text-slate-500">
+                Make sure your new password is strong and unique
+              </p>
+            </motion.form>
+          </motion.div>
+        </div>
+      </main>
+    </div>
   );
 }

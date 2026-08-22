@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { toast } from 'sonner';
 
 export const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL, // e.g. http://localhost:4000
@@ -47,6 +48,15 @@ api.interceptors.response.use(
       // Notify AuthContext to update its state
       if (onTokenInvalidated) {
         onTokenInvalidated();
+      }
+    }
+
+    if (error.response?.status === 403) {
+      const { code } = error.response.data || {};
+      if (code === 'VERIFICATION_PENDING' || code === 'VERIFICATION_REJECTED' || code === 'VERIFICATION_REQUIRED') {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('show-verification-modal'));
+        }
       }
     }
 

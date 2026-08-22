@@ -57,6 +57,19 @@ return this.prisma.communityPost.findMany({
         woreda: true,
         zone: true,
         region: true,
+        gender: true,
+        dateOfBirth: true,
+        bio: true,
+        phone: true,
+        profession: true,
+        specialization: true,
+        skills: true,
+        gradeLevel: true,
+        yearsOfExperience: true,
+        schoolType: true,
+        city: true,
+        schoolLocation: true,
+        verificationStatus: true,
       },
     });
   }
@@ -97,6 +110,20 @@ async updateProfile(
       subject: dto.subject,
       department: dto.department,
       profileImage: dto.profileImage,
+      // Personal
+      gender: dto.gender,
+      bio: dto.bio,
+      phone: dto.phone,
+      // Professional
+      profession: dto.profession,
+      specialization: dto.specialization,
+      skills: dto.skills,
+      gradeLevel: dto.gradeLevel,
+      yearsOfExperience: dto.yearsOfExperience,
+      // School
+      schoolType: dto.schoolType,
+      city: dto.city,
+      schoolLocation: dto.schoolLocation,
     },
   });
 }

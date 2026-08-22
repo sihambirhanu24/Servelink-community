@@ -9,8 +9,10 @@ import {
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
-import { Req, Get, UseGuards } from "@nestjs/common";
+import { Req, Get, UseGuards, UseInterceptors, UploadedFile, BadRequestException } from "@nestjs/common";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
+import { FileInterceptor } from "@nestjs/platform-express";
+import { verificationMulterConfig } from "../verification/config/verification-multer.config";
 
 import { AuthService } from './auth.service';
 
@@ -37,7 +39,9 @@ export class AuthController {
 })
 
 @Post('register')
-register(@Body() dto: RegisterDto) {
+register(
+  @Body() dto: RegisterDto
+) {
   return this.authService.register(dto);
 }
 

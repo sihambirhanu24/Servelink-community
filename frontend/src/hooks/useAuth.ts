@@ -55,27 +55,8 @@ export function useLogin() {
         return;
       }
       
-      // Check teacher verification status
-      const teacher = data?.teacher;
-      if (!teacher) {
-        router.push('/dashboard');
-        return;
-      }
-
-      // Route based on verification status
-      switch (teacher.verificationStatus) {
-        case 'APPROVED':
-          router.push('/dashboard');
-          break;
-        case 'PENDING':
-          router.push('/verification-pending');
-          break;
-        case 'REJECTED':
-          router.push('/verification-rejected');
-          break;
-        default:
-          router.push('/dashboard');
-      }
+      // Always route to dashboard; gates handle verification UI
+      router.push('/dashboard');
     },
 
     onError(error) {
@@ -91,9 +72,9 @@ export function useRegister() {
     mutationFn: register,
 
     onSuccess() {
-      // After registration, redirect to verification-pending page
-      // New registrations always have PENDING status
-      router.push("/verification-pending");
+      // After registration, redirect to dashboard.
+      // The dashboard UI handles verification pending messages.
+      router.push("/dashboard");
     },
 
     onError(error) {

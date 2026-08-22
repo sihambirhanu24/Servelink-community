@@ -1,5 +1,6 @@
 import { ApiPropertyOptional } from "@nestjs/swagger";
-import { IsOptional, IsString } from "class-validator";
+import { IsOptional, IsString, IsInt, Min, Max } from "class-validator";
+import { Type } from "class-transformer";
 
 export class UpdateProfileDto {
   @ApiPropertyOptional()
@@ -37,9 +38,7 @@ export class UpdateProfileDto {
   @IsString()
   subject?: string;
 
-  @ApiPropertyOptional({
-    description: 'Professional department (e.g. Mathematics, English, Physics). Required for LEVEL_2-5 teachers.',
-  })
+  @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   department?: string;
@@ -48,4 +47,68 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsString()
   profileImage?: string;
+
+  // ── Personal ──────────────────────────────────────────────────────────────
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  gender?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  bio?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  phone?: string;
+
+  // ── Professional ──────────────────────────────────────────────────────────
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  profession?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  specialization?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  skills?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  gradeLevel?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(60)
+  yearsOfExperience?: number;
+
+  // ── School ────────────────────────────────────────────────────────────────
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  schoolType?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  city?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  schoolLocation?: string;
 }
