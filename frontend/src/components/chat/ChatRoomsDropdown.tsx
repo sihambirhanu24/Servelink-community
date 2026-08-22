@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Menu, Transition } from "@headlessui/react";
 import { MessageSquare, Users, Loader2, ChevronRight } from "lucide-react";
 import api from "@/lib/axios";
+import { useVerification } from "@/hooks/useVerification";
 
 interface ChatGroup {
   id: string;
@@ -38,6 +39,22 @@ async function getChatGroups(): Promise<ChatGroup[]> {
 
 export function ChatRoomsDropdown() {
   const router = useRouter();
+  const { status } = useVerification();
+  const isVerified = status?.verificationStatus === 'APPROVED';
+
+  const handleProtectedAction = (e?: React.MouseEvent) => {
+    if (!isVerified) {
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('show-verification-modal'));
+      }
+      return false;
+    }
+    return true;
+  };
   
   const { data: chatGroups = [], isLoading } = useQuery({
     queryKey: ["chat-groups"],
@@ -54,7 +71,9 @@ export function ChatRoomsDropdown() {
 
   const totalUnread = chatGroups.reduce((sum, group) => sum + group.unreadCount, 0);
 
-  const handleRoomClick = (group: ChatGroup) => {
+  const handleRoomClick = (group: ChatGroup, e?: React.MouseEvent) => {
+    if (!handleProtectedAction(e)) return;
+    
     // Navigate to the appropriate chat route based on community type and subtype
     const typeMap: Record<string, string> = {
       SCHOOL: "school",
@@ -145,6 +164,7 @@ export function ChatRoomsDropdown() {
   return (
     <Menu as="div" className="relative">
       <Menu.Button
+        onClick={(e: any) => handleProtectedAction(e)}
         aria-label="Chat rooms"
         title="Chat Rooms"
         className="
@@ -261,7 +281,7 @@ export function ChatRoomsDropdown() {
                   <Menu.Item key={group.id}>
                     {({ active }) => (
                       <button
-                        onClick={() => handleRoomClick(group)}
+                        onClick={(e) => handleRoomClick(group, e as any)}
                         className={`
                           flex
                           w-full
