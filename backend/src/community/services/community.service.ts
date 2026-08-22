@@ -46,6 +46,23 @@ export class CommunityService {
   }
 
   async createPost(teacherId: string, dto: CreatePostDto) {
+    // Limit to 3 posts per day
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    
+    const postCountToday = await this.prisma.communityPost.count({
+      where: {
+        teacherId,
+        createdAt: {
+          gte: startOfDay,
+        },
+      },
+    });
+
+    if (postCountToday >= 3) {
+      throw new ForbiddenException('You have reached your daily limit of 3 posts.');
+    }
+
     const post = await this.prisma.communityPost.create({
       data: {
         title: dto.title,
@@ -580,15 +597,6 @@ export class CommunityService {
       return true;
     }
 
-    // Check if teacher has temporary access via 24-hour privilege
-    const hasActivePrivilege = this.progressService.checkPrivilege(privilegeExpiresAt);
-    if (hasActivePrivilege) {
-      // Calculate what level the teacher would need based on points
-      // The privilege allows access to one level above their base level
-      const privilegeLevel = teacherLevelNum + 1;
-      return privilegeLevel >= requiredLevel;
-    }
-
     return false;
   }
 
@@ -903,10 +911,9 @@ export class CommunityService {
     if (!teacher) throw new NotFoundException('Teacher not found');
 
     const levelNum = CommunityService.LEVEL_ORDER[teacher.level] ?? 1;
-    const hasActivePrivilege = this.progressService.checkPrivilege(teacher.privilegeExpiresAt);
     
-    // Effective level includes privilege bonus
-    const effectiveLevel = hasActivePrivilege ? levelNum + 1 : levelNum;
+    // Effective level is just the actual level
+    const effectiveLevel = levelNum;
 
     // Build OR conditions for each unlocked type, scoped to the teacher's geography
     const orClauses: any[] = [];

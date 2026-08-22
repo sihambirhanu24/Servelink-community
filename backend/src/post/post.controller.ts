@@ -92,4 +92,16 @@ export class PostController {
   trending() {
     return this.postService.getTrendingPosts();
   }
+
+  @UseGuards(JwtAuthGuard)
+  @Get("saved")
+  getSavedPosts(@Req() req) {
+    return this.postService.getSavedPosts(req.user.sub);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get("my-communities")
+  getMyCommunitiesPosts(@Req() req) {
+    return this.postService.getMyCommunitiesPosts(req.user.sub);
+  }
 }

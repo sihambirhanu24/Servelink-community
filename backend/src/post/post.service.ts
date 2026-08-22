@@ -20,6 +20,23 @@ export class PostService {
     teacherId: string,
     dto: CreatePostDto,
   ) {
+    // Limit to 3 posts per day
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    
+    const postCountToday = await this.prisma.communityPost.count({
+      where: {
+        teacherId,
+        createdAt: {
+          gte: startOfDay,
+        },
+      },
+    });
+
+    if (postCountToday >= 3) {
+      throw new ForbiddenException('You have reached your daily limit of 3 posts.');
+    }
+
     // Create the post first
     const post = await this.prisma.communityPost.create({
       data: {
@@ -250,6 +267,76 @@ export class PostService {
 
       take: 10,
     });
+  }
+
+  async getSavedPosts(teacherId: string) {
+    const bookmarks = await this.prisma.communityBookmark.findMany({
+      where: { teacherId },
+      include: {
+        post: {
+          include: {
+            teacher: true,
+            community: true,
+            category: true,
+            comments: true,
+            communityLikes: true,
+            attachments: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    return bookmarks.map((bookmark) => ({
+      ...bookmark.post,
+      likesCount: bookmark.post.communityLikes.length,
+      commentsCount: bookmark.post.comments.length,
+      liked: bookmark.post.communityLikes.some((like) => like.teacherId === teacherId),
+      bookmarked: true,
+    }));
+  }
+
+  async getMyCommunitiesPosts(teacherId: string) {
+    const memberships = await this.prisma.communityMember.findMany({
+      where: { 
+        teacherId,
+        status: 'APPROVED',
+      },
+      select: { communityId: true },
+    });
+
+    const communityIds = memberships.map((m) => m.communityId);
+
+    if (communityIds.length === 0) {
+      return [];
+    }
+
+    const posts = await this.prisma.communityPost.findMany({
+      where: {
+        communityId: { in: communityIds },
+      },
+      include: {
+        teacher: true,
+        community: true,
+        category: true,
+        comments: true,
+        communityLikes: true,
+        attachments: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    return posts.map((post) => ({
+      ...post,
+      likesCount: post.communityLikes.length,
+      commentsCount: post.comments.length,
+      liked: post.communityLikes.some((like) => like.teacherId === teacherId),
+      bookmarked: false,
+    }));
   }
 
   async uploadAttachment(

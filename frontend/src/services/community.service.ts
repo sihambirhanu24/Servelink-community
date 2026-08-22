@@ -115,6 +115,12 @@ export const CommunityService = {
   getMyPosts: () =>
     api.get("/community/my-posts"),
 
+  getSavedPosts: () =>
+    api.get("/posts/saved"),
+
+  getMyCommunitiesPosts: () =>
+    api.get("/posts/my-communities"),
+
 
 
   getCommunities: () =>
@@ -237,6 +243,16 @@ export const reportPost = async (postId: string, reason: string) => {
 
 export const getMyPosts = async () => {
   const { data } = await CommunityService.getMyPosts();
+  return data;
+};
+
+export const getSavedPosts = async () => {
+  const { data } = await CommunityService.getSavedPosts();
+  return data;
+};
+
+export const getMyCommunitiesPosts = async () => {
+  const { data } = await CommunityService.getMyCommunitiesPosts();
   return data;
 };
 
