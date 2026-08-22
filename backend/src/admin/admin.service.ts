@@ -132,6 +132,15 @@ export class AdminService {
           rejectionReason: true,
           approvedAt: true,
           createdAt: true,
+          verificationDocuments: {
+            select: {
+              id: true,
+              fileName: true,
+              fileType: true,
+              fileSize: true,
+              uploadedAt: true,
+            },
+          },
         },
       }),
       this.prisma.teacher.count({ where }),
@@ -277,16 +286,79 @@ export class AdminService {
       },
     });
 
-    // If report is RESOLVED (violation confirmed), apply penalty to post owner
-    if (status === 'RESOLVED' && report.post) {
-      this.progressService
-        .applyViolationPenalty(report.post.teacherId, report.post.id, reportId)
+    // Points are only deducted when admin explicitly deletes/removes the post,
+    // NOT when the status is merely updated to RESOLVED or any other value.
+    // The penalty is applied in removeContentFromReport() below.
+
+    return updatedReport;
+  }
+
+  /**
+   * Warn the user: marks report RESOLVED but does NOT deduct points.
+   * The teacher receives a notification warning without any point penalty.
+   */
+  async warnUserFromReport(reportId: string) {
+    const report = await this.prisma.communityReport.findUnique({
+      where: { id: reportId },
+      include: {
+        post: { select: { id: true, title: true, teacherId: true } },
+      },
+    });
+    if (!report) throw new NotFoundException('Report not found');
+
+    const updated = await this.prisma.communityReport.update({
+      where: { id: reportId },
+      data: { status: 'RESOLVED' as any },
+      include: {
+        teacher: { select: { firstName: true, lastName: true, email: true } },
+        post: { select: { id: true, title: true, teacherId: true } },
+      },
+    });
+
+    // Send a warning notification — no point deduction
+    if (report.post?.teacherId) {
+      this.notificationService
+        .create({
+          receiverId: report.post.teacherId,
+          title: 'Content Warning',
+          message: `Your post "${report.post.title}" has been reviewed and received a warning from the ServeLink administrators. Please review our community guidelines.`,
+          type: NotificationEvent.REPORT,
+        })
         .catch((err) => {
-          console.error(`Failed to apply violation penalty: ${err.message}`);
+          console.error(`Failed to send warning notification: ${err.message}`);
         });
     }
 
-    return updatedReport;
+    return updated;
+  }
+
+  async removeContentFromReport(reportId: string) {
+    const report = await this.prisma.communityReport.findUnique({
+      where: { id: reportId },
+      include: { post: true }
+    });
+
+    if (!report) throw new NotFoundException('Report not found');
+
+    if (report.post) {
+      const postId = report.post.id;
+      // Also apply violation penalty
+      this.progressService
+        .applyViolationPenalty(report.post.teacherId, postId, reportId)
+        .catch((err) => console.error(`Failed to apply violation penalty: ${err.message}`));
+
+      await this.prisma.$transaction(async (tx) => {
+        await tx.attachment.deleteMany({ where: { postId } });
+        await tx.communityComment.deleteMany({ where: { postId } });
+        await tx.communityLike.deleteMany({ where: { postId } });
+        await tx.communityBookmark.deleteMany({ where: { postId } });
+        await tx.communityReport.deleteMany({ where: { postId } });
+        await tx.postTag.deleteMany({ where: { postId } });
+        await tx.communityPost.delete({ where: { id: postId } });
+      });
+    }
+
+    return { message: 'Content removed successfully' };
   }
 
   // ─── Community CRUD (admin-only) ─────────────────────────────────────────

@@ -74,6 +74,16 @@ export class AdminController {
     return this.adminService.updateReportStatus(id, status);
   }
 
+  @Post('reports/:id/warn')
+  warnUserFromReport(@Param('id') id: string) {
+    return this.adminService.warnUserFromReport(id);
+  }
+
+  @Post('reports/:id/remove-content')
+  removeContentFromReport(@Param('id') id: string) {
+    return this.adminService.removeContentFromReport(id);
+  }
+
   // ─── Community management ─────────────────────────────────────────────────
 
   @Get('communities')

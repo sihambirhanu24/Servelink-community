@@ -13,6 +13,7 @@ import {
   Settings,
   User,
   MenuIcon,
+  Megaphone,
 } from "lucide-react";
 
 import { useRouter } from "next/navigation";
@@ -147,37 +148,69 @@ export default function AdminTopbar({ onMenuClick }: AdminTopbarProps) {
           >
             <Search className="h-5 w-5" />
           </button>
-          {/* Quick action */}
-          <button
-            type="button"
-            aria-label="Quick action"
-            title="Quick Action"
-            onClick={() => router.push("/admin")}
-            className="
-              flex
-              h-9
-              w-9
-              sm:h-10
-              sm:w-10
-              items-center
-              justify-center
-              rounded-xl
-              bg-[#FFC107]
-              text-[#043658]
-              shadow-sm
-              transition-all
-              hover:bg-[#FFD54F]
-              hover:shadow-md
-              hover:-translate-y-[1px]
-              focus:outline-none
-              focus:ring-2
-              focus:ring-[#FFC107]
-              focus:ring-offset-2
-              focus:ring-offset-[#043658]
-            "
-          >
-            <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
-          </button>
+          {/* Quick action — dropdown */}
+          <Menu as="div" className="relative">
+            <Menu.Button
+              type="button"
+              aria-label="Quick actions"
+              title="Quick Actions"
+              className="
+                flex
+                h-9
+                w-9
+                sm:h-10
+                sm:w-10
+                items-center
+                justify-center
+                rounded-xl
+                bg-[#FFC107]
+                text-[#043658]
+                shadow-sm
+                transition-all
+                hover:bg-[#FFD54F]
+                hover:shadow-md
+                hover:-translate-y-[1px]
+                focus:outline-none
+                focus:ring-2
+                focus:ring-[#FFC107]
+                focus:ring-offset-2
+                focus:ring-offset-[#043658]
+              "
+            >
+              <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
+            </Menu.Button>
+            <Transition
+              as={Fragment}
+              enter="transition ease-out duration-100"
+              enterFrom="transform opacity-0 scale-95"
+              enterTo="transform opacity-100 scale-100"
+              leave="transition ease-in duration-75"
+              leaveFrom="transform opacity-100 scale-100"
+              leaveTo="transform opacity-0 scale-95"
+            >
+              <Menu.Items className="absolute right-0 mt-2 w-52 origin-top-right overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl focus:outline-none">
+                <div className="px-3 py-2 border-b border-slate-100">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Quick Create</p>
+                </div>
+                <div className="p-1.5">
+                  <Menu.Item>
+                    {({ active }) => (
+                      <button
+                        type="button"
+                        onClick={() => router.push('/admin/announcements')}
+                        className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm transition-colors ${
+                          active ? 'bg-[#043658]/5 text-[#043658]' : 'text-slate-600'
+                        }`}
+                      >
+                        <Megaphone className="h-4 w-4 text-[#043658]" />
+                        Create Announcement
+                      </button>
+                    )}
+                  </Menu.Item>
+                </div>
+              </Menu.Items>
+            </Transition>
+          </Menu>
           {/* Notification */}
           <div
             className="

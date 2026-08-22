@@ -17,18 +17,22 @@ import {
   X,
   UserCheck,
   Clock,
+  MapPin,
+  Megaphone,
 } from "lucide-react";
 
 const ADMIN_NAV_ITEMS = [
-  { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
-  { label: "Pending Teachers", href: "/admin/pending-teachers", icon: Clock },
-  { label: "Teachers", href: "/admin/teachers", icon: UserCheck },
-  { label: "Communities", href: "/admin/communities", icon: Building2 },
-  { label: "Categories", href: "/admin/categories", icon: Tag },
-  { label: "Posts", href: "/admin/posts", icon: MessageSquare },
-  { label: "Reports", href: "/admin/reports", icon: Flag },
-  { label: "Analytics", href: "/admin/analytics", icon: BarChart3 },
-  { label: "Settings", href: "/admin/settings", icon: Settings },
+  { label: "Dashboard",       href: "/admin",                  icon: LayoutDashboard },
+  { label: "Pending Teachers",href: "/admin/pending-teachers", icon: Clock           },
+  { label: "Location Requests",href:"/admin/location-requests",icon: MapPin          },
+  { label: "Teachers",        href: "/admin/teachers",         icon: UserCheck       },
+  { label: "Announcements",   href: "/admin/announcements",    icon: Megaphone       },
+  { label: "Communities",     href: "/admin/communities",      icon: Building2       },
+  { label: "Categories",      href: "/admin/categories",       icon: Tag             },
+  { label: "Posts",           href: "/admin/posts",            icon: MessageSquare   },
+  { label: "Reports",         href: "/admin/reports",          icon: Flag            },
+  { label: "Analytics",       href: "/admin/analytics",        icon: BarChart3       },
+  { label: "Settings",        href: "/admin/settings",         icon: Settings        },
 ];
 
 interface AdminSidebarProps {

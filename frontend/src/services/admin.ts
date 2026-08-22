@@ -114,3 +114,19 @@ export async function toggleCommunityActive(communityId: string) {
   const { data } = await adminApi.patch(`/admin/communities/${communityId}/toggle-active`);
   return data;
 }
+
+// ============ REPORTS ============
+export async function getAdminReports(query?: any) {
+  const { data } = await adminApi.get("/admin/reports", { params: query });
+  return data;
+}
+
+export async function warnUserReport(reportId: string) {
+  const { data } = await adminApi.post(`/admin/reports/${reportId}/warn`);
+  return data;
+}
+
+export async function removeReportContent(reportId: string) {
+  const { data } = await adminApi.post(`/admin/reports/${reportId}/remove-content`);
+  return data;
+}

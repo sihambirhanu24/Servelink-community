@@ -82,7 +82,7 @@ export default function AdminLoginPage() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@servelink.com"
+                  placeholder="admin@servelink.et"
                   required
                   className="w-full rounded-lg border border-[#D9E2EC] px-4 py-2.5 text-sm text-[#043658] placeholder:text-[#6B7C93] focus:outline-none focus:ring-2 focus:ring-[#043658]/20 focus:border-[#043658]"
                 />

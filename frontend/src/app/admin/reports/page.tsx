@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import { Search, Filter, ChevronLeft, ChevronRight, MoreVertical, AlertTriangle, X, Eye, AlertCircle, Trash2 } from 'lucide-react';
 import AdminLayout from '@/components/admin/layout';
-import { useAdminReports } from '@/hooks/useAdminReports';
+import { useAdminReports, useResolveReport } from '@/hooks/useAdminReports';
 
 interface ReviewReportProps {
   report: any;
@@ -12,28 +12,25 @@ interface ReviewReportProps {
 }
 
 function ReviewReportModal({ report, onClose, onResolve }: ReviewReportProps) {
-  const [warnLoading, setWarnLoading] = useState(false);
-  const [removeLoading, setRemoveLoading] = useState(false);
+  const { warnMutation, removeMutation } = useResolveReport();
 
   const handleWarn = async () => {
     try {
-      setWarnLoading(true);
-      // Call warn API
+      await warnMutation.mutateAsync(report.id);
       onResolve?.();
       onClose();
-    } finally {
-      setWarnLoading(false);
+    } catch (err) {
+      console.error('Failed to warn user:', err);
     }
   };
 
   const handleRemoveContent = async () => {
     try {
-      setRemoveLoading(true);
-      // Call remove content API
+      await removeMutation.mutateAsync(report.id);
       onResolve?.();
       onClose();
-    } finally {
-      setRemoveLoading(false);
+    } catch (err) {
+      console.error('Failed to remove content:', err);
     }
   };
 
@@ -122,19 +119,19 @@ function ReviewReportModal({ report, onClose, onResolve }: ReviewReportProps) {
           </button>
           <button
             onClick={handleWarn}
-            disabled={warnLoading}
+            disabled={warnMutation.isPending}
             className="flex items-center gap-2 rounded-lg border border-[#FFC107] bg-[#FFC107]/10 px-4 py-2.5 text-sm font-semibold text-[#FFC107] hover:bg-[#FFC107]/20 transition-colors disabled:opacity-50"
           >
             <AlertTriangle className="h-4 w-4" />
-            {warnLoading ? 'Warning...' : 'Warn User'}
+            {warnMutation.isPending ? 'Warning...' : 'Warn User'}
           </button>
           <button
             onClick={handleRemoveContent}
-            disabled={removeLoading}
+            disabled={removeMutation.isPending}
             className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 transition-colors disabled:opacity-50"
           >
             <Trash2 className="h-4 w-4" />
-            {removeLoading ? 'Removing...' : 'Remove Content'}
+            {removeMutation.isPending ? 'Removing...' : 'Remove Content'}
           </button>
         </div>
       </div>
