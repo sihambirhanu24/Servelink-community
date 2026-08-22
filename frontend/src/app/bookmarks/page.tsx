@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useMemo, useState } from "react";
+import React, { memo, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle, ArrowRight, ArrowUpRight, BadgeCheck,
@@ -303,6 +303,8 @@ function QuickActionsCard() {
 }
 
 // ── Main page ──────────────────────────────────────────
+export const dynamic = 'force-dynamic';
+
 export default function BookmarksPage() {
   const queryClient = useQueryClient();
   const [sidebarOpen, setSidebarOpen] = useState(false);

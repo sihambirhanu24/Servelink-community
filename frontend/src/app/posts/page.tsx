@@ -11,7 +11,9 @@ import {
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
+import { useProgress } from "@/hooks/useProgress";
 import { useDashboard } from "@/hooks/useDashboard";
+import { useVerification } from "@/hooks/useVerification";
 import { getCategories, getAccessibleCommunities, getCommunities, getPosts, createPost, uploadAttachment } from "@/services/community";
 import { DashboardSidebar } from "@/components/layout/Sidebar";
 import Topbar from "@/components/layout/Topbar";
@@ -42,7 +44,6 @@ const TYPE_MIN_LEVEL: Record<string, number> = { SCHOOL:1, WOREDA:2, ZONE:3, REG
 const TYPE_LABEL: Record<string, string> = { SCHOOL:"School Community", WOREDA:"Woreda Community", ZONE:"Zone Community", REGION:"Regional Community", NATIONAL:"National Community" };
 const TYPE_ROUTE: Record<string, string> = { SCHOOL:"/community/type/school", WOREDA:"/community/type/woreda", ZONE:"/community/type/zone", REGION:"/community/type/region", NATIONAL:"/community/type/national" };
 const TYPE_ICON: Record<string, React.ElementType> = { SCHOOL:GraduationCap, WOREDA:Building2, ZONE:Building2, REGION:Globe, NATIONAL:Globe };
-const TRENDING_TAGS = ["#STEMEducation","#Mathematics","#ClassroomManagement","#Assessment","#DigitalLearning","#LessonPlanning","#ActiveLearning"];
 const MemoPostCard = memo(PostCard);
 
 function formatBytes(bytes: number) {
@@ -113,6 +114,16 @@ function PostComposer({ communities, categories, onSuccess, onCancel }: Composer
   const [publishError, setPublishError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
+  const { status } = useVerification();
+  const isVerified = status?.verificationStatus === 'APPROVED';
+
+  const handleProtectedAction = (action: () => void) => {
+    if (!isVerified) {
+      if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('show-verification-modal'));
+      return;
+    }
+    action();
+  };
 
   function validate() {
     const e: Record<string, string> = {};
@@ -334,7 +345,7 @@ function PostComposer({ communities, categories, onSuccess, onCancel }: Composer
             className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-[#043658]/20">
             Cancel
           </button>
-          <button type="button" onClick={handlePublish} disabled={publishState === "publishing" || publishState === "success"}
+          <button type="button" onClick={() => handleProtectedAction(handlePublish)} disabled={publishState === "publishing" || publishState === "success"}
             className={`inline-flex min-w-[100px] items-center justify-center gap-1.5 rounded-lg px-4 py-1.5 text-sm font-bold text-white shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-[#043658]/30 disabled:cursor-not-allowed disabled:opacity-70 ${
               publishState === "success" ? "bg-emerald-600" : "bg-[#043658] hover:bg-[#032d4a] active:scale-[0.98]"}`}>
             {publishState === "idle" && "Publish Post"}
@@ -385,10 +396,10 @@ function CommunitiesSideCard() {
 }
 
 function ProgressSideCard() {
-  const { data: profile, isLoading } = useProfile();
-  const level = profile?.level ?? "LEVEL_1";
+  const { data: progress, isLoading } = useProgress();
+  const level = progress?.level ?? "LEVEL_1";
   const levelNum = LEVEL_ORDER[level] ?? 1;
-  const pct = Math.round((levelNum / 5) * 100);
+  const pct = Math.round(progress?.progressPercentage ?? 0);
   const label = level.replace("_"," ");
   return (
     <div className="rounded-xl border border-[#D9E2EC] bg-[#F8FAFC] shadow-sm">
@@ -397,7 +408,7 @@ function ProgressSideCard() {
         <p className="mt-0.5 text-xs text-slate-400">Keep contributing to reach the next level.</p>
       </div>
       <div className="p-4">
-        {isLoading ? <div className="animate-pulse space-y-3"><div className="h-4 w-16 rounded bg-slate-200"/><div className="h-2 w-full rounded-full bg-slate-200"/><div className="h-3 w-24 rounded bg-slate-100"/></div> : (
+        {isLoading || !progress ? <div className="animate-pulse space-y-3"><div className="h-4 w-16 rounded bg-slate-200"/><div className="h-2 w-full rounded-full bg-slate-200"/><div className="h-3 w-24 rounded bg-slate-100"/></div> : (
           <>
             <div className="flex items-center justify-between">
               <span className="text-sm font-bold text-[#043658]">{label}</span>
@@ -410,7 +421,13 @@ function ProgressSideCard() {
               <span>{label}</span>
               {levelNum < 5 && <span>Level {levelNum+1}</span>}
             </div>
-            {levelNum < 5 ? <p className="mt-2 text-xs text-slate-500">{levelNum} of 5 levels reached</p> : <p className="mt-2 text-xs font-semibold text-[#043658]">Maximum level reached 🎉</p>}
+            {levelNum < 5 ? (
+              <p className="mt-2 text-xs text-slate-500">
+                <span className="font-semibold text-[#043658]">{progress.points}</span> points · Need <span className="font-semibold text-[#043658]">{progress.pointsToNextLevel}</span> more for next level
+              </p>
+            ) : (
+              <p className="mt-2 text-xs font-semibold text-[#043658]">Maximum level reached 🎉</p>
+            )}
           </>
         )}
       </div>
@@ -418,18 +435,7 @@ function ProgressSideCard() {
   );
 }
 
-function TrendingTopicsSideCard() {
-  return (
-    <div className="rounded-xl border border-[#D9E2EC] bg-[#F8FAFC] shadow-sm">
-      <div className="border-b border-slate-100 px-4 py-3"><h3 className="text-sm font-semibold text-[#043658]">Trending Topics</h3></div>
-      <div className="flex flex-wrap gap-2 p-4">
-        {TRENDING_TAGS.map(tag => (
-          <span key={tag} className="cursor-pointer rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-[#043658] transition-colors hover:bg-[#043658]/8">{tag}</span>
-        ))}
-      </div>
-    </div>
-  );
-}
+
 
 function PopularResourcesSideCard() {
   const { data, isLoading } = useDashboard();
@@ -460,6 +466,7 @@ function PopularResourcesSideCard() {
 }
 
 export default function PostsPage() {
+  const { user } = useAuth();
   const [search, setSearch] = useState("");
   const [communityId, setCommunityId] = useState("all");
   const [categoryId, setCategoryId] = useState("all");
@@ -468,6 +475,16 @@ export default function PostsPage() {
   const [toast, setToast] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const queryClient = useQueryClient();
+  const { status } = useVerification();
+  const isVerified = status?.verificationStatus === 'APPROVED';
+
+  const handleProtectedAction = (action: () => void) => {
+    if (!isVerified) {
+      if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('show-verification-modal'));
+      return;
+    }
+    action();
+  };
 
   const communitiesQuery = useQuery({ queryKey: ["communities"], queryFn: getCommunities, staleTime: 60_000 });
   const accessibleCommunitiesQuery = useQuery({ queryKey: ["accessible-communities"], queryFn: getAccessibleCommunities, staleTime: 60_000 });
@@ -510,7 +527,7 @@ export default function PostsPage() {
       <Topbar onMenuClick={() => setSidebarOpen(true)} />
 
       <main className="mt-16 lg:ml-64 h-[calc(100vh-4rem)] overflow-y-auto">
-        <div className="mx-auto max-w-6xl px-4 py-5 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-5xl px-4 py-5 sm:px-6 lg:px-8">
 
           {/* Page header */}
           <div className="mb-4 flex items-start justify-between gap-4">
@@ -518,7 +535,7 @@ export default function PostsPage() {
               <h1 className="text-xl font-bold text-[#043658]">Teacher Community</h1>
               <p className="mt-0.5 text-sm text-slate-500">Connect, share resources, and collaborate with fellow educators.</p>
             </div>
-            <button type="button" onClick={() => setComposerOpen(o => !o)}
+            <button type="button" onClick={() => handleProtectedAction(() => setComposerOpen(o => !o))}
               className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-[#043658] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#032d4a] hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98]">
               {composerOpen ? <><X className="h-4 w-4"/> Cancel</> : <><Plus className="h-4 w-4"/> Create Post</>}
             </button>
@@ -562,13 +579,32 @@ export default function PostsPage() {
 
               {/* Collapsed composer prompt */}
               {!composerOpen && (
-                <button type="button" onClick={() => setComposerOpen(true)}
-                  className="w-full flex items-center gap-3 rounded-xl border border-[#D9E2EC] bg-[#F8FAFC] px-4 py-3.5 text-sm text-slate-400 shadow-sm transition hover:border-[#043658]/30 hover:bg-[#F5F8FB] text-left">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#043658]/10">
-                    <MessageSquarePlus className="h-4 w-4 text-[#043658]" />
+                <div className="rounded-xl border border-[#D9E2EC] bg-white p-4 shadow-sm">
+                  <div className="flex gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#043658] text-sm font-bold text-white">
+                      {user?.firstName?.charAt(0) ?? "T"}
+                    </div>
+                    <div className="flex-1">
+                      <button type="button" onClick={() => handleProtectedAction(() => setComposerOpen(true))}
+                        className="w-full rounded-full border border-slate-200 bg-slate-50 px-4 py-2.5 text-left text-sm text-slate-500 transition hover:bg-slate-100">
+                        What&apos;s on your mind, teacher?
+                      </button>
+                    </div>
                   </div>
-                  What&apos;s on your mind, teacher? Share an idea, question, or resource…
-                </button>
+                  <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3">
+                    <div className="flex items-center gap-2">
+                      <button type="button" onClick={() => handleProtectedAction(() => setComposerOpen(true))} className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-500 transition hover:bg-slate-50 hover:text-[#043658]">
+                        <ImageIcon className="h-4 w-4 text-emerald-500" /> Photo/Video
+                      </button>
+                      <button type="button" onClick={() => handleProtectedAction(() => setComposerOpen(true))} className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-500 transition hover:bg-slate-50 hover:text-[#043658]">
+                        <FileText className="h-4 w-4 text-blue-500" /> Resource
+                      </button>
+                    </div>
+                    <button type="button" onClick={() => handleProtectedAction(() => setComposerOpen(true))} className="rounded-full bg-[#FFC107] px-4 py-1.5 text-xs font-bold text-[#043658] transition hover:bg-[#FFD54F]">
+                      Create Post
+                    </button>
+                  </div>
+                </div>
               )}
 
               {/* Expanded composer */}
@@ -603,7 +639,7 @@ export default function PostsPage() {
                   {hasFilters ? (
                     <><Search className="h-8 w-8 text-slate-300"/><p className="mt-3 font-semibold text-[#043658]">No posts found.</p><p className="mt-1 text-sm text-slate-400">Try another search or remove some filters.</p></>
                   ) : (
-                    <><p className="font-semibold text-[#043658]">Your community is waiting for its first conversation.</p><p className="mt-1 text-sm text-slate-400">Share a teaching idea, question, or useful resource.</p><button type="button" onClick={() => setComposerOpen(true)} className="mt-4 inline-flex items-center gap-2 rounded-lg bg-[#043658] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#032742]"><Plus className="h-4 w-4"/>Create Your First Post</button></>
+                    <><p className="font-semibold text-[#043658]">Your community is waiting for its first conversation.</p><p className="mt-1 text-sm text-slate-400">Share a teaching idea, question, or useful resource.</p><button type="button" onClick={() => handleProtectedAction(() => setComposerOpen(true))} className="mt-4 inline-flex items-center gap-2 rounded-lg bg-[#043658] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#032742]"><Plus className="h-4 w-4"/>Create Your First Post</button></>
                   )}
                 </div>
               ) : (
@@ -616,7 +652,6 @@ export default function PostsPage() {
               <div className="sticky top-0 space-y-4">
                 <CommunitiesSideCard/>
                 <ProgressSideCard/>
-                <TrendingTopicsSideCard/>
                 <PopularResourcesSideCard/>
               </div>
             </aside>
@@ -626,7 +661,6 @@ export default function PostsPage() {
           <div className="mt-6 space-y-4 lg:hidden">
             <CommunitiesSideCard/>
             <ProgressSideCard/>
-            <TrendingTopicsSideCard/>
             <PopularResourcesSideCard/>
           </div>
         </div>

@@ -5,6 +5,8 @@ import { AuthProvider } from "@/context/AuthContext";
 import QueryProvider from "@/providers/QueryProvider";
 import { NotificationProvider } from "@/context/NotificationContext";
 import { Toaster } from "sonner";
+import { ProtectedActionModal } from "@/components/verification/ProtectedActionModal";
+import { VerificationRequiredModal } from "@/components/community/VerificationRequiredModal";
 
 // const geistSans = Geist({
 //   variable: "--font-geist-sans",
@@ -38,6 +40,8 @@ export default function RootLayout({
       <NotificationProvider>
         {children}
         <Toaster position="top-right" richColors />
+        <ProtectedActionModal />
+        <VerificationRequiredModal />
       </NotificationProvider>
     </QueryProvider>
   </AuthProvider>

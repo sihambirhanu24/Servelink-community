@@ -10,6 +10,8 @@ export interface DashboardTeacher {
   region: string;
   subject?: string | null;
   verified: boolean;
+  verificationStatus?: string;
+  rejectionReason?: string | null;
 }
 
 export interface DashboardStats {

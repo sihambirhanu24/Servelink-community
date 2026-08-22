@@ -165,9 +165,7 @@ export default function Topbar({ onMenuClick }: TopbarProps) {
         h-16
         border-b
         border-white/10
-        bg-gradient-to-b
-        from-slate-900
-        to-slate-800
+        bg-primary
         px-3
         sm:px-4
         lg:px-8

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, RefreshCw } from 'lucide-react';
@@ -13,34 +13,17 @@ import { DashboardRecentPosts } from '@/components/dashboard/DashboardRecentPost
 import { DashboardCommunityFeed } from '@/components/dashboard/DashboardCommunityFeed';
 import { DashboardRecentActivity } from '@/components/dashboard/DashboardRecentActivity';
 import { DashboardSuggestedCommunities } from '@/components/dashboard/DashboardSuggestedCommunities';
+import { AnnouncementsWidget } from '@/components/dashboard/AnnouncementsWidget';
 import { ProgressWidget } from '@/components/progress/ProgressWidget';
+import { DashboardSidebar } from '@/components/layout/Sidebar';
+import Topbar from '@/components/layout/Topbar';
 
 export default function DashboardPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { data, isLoading, isError, refetch } = useDashboard();
 
-  // Check verification status and redirect if not approved
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const teacherData = localStorage.getItem('teacher');
-      if (teacherData) {
-        try {
-          const teacher = JSON.parse(teacherData);
-          if (teacher.verificationStatus === 'PENDING') {
-            router.replace('/verification-pending');
-            return;
-          }
-          if (teacher.verificationStatus === 'REJECTED') {
-            router.replace('/verification-rejected');
-            return;
-          }
-        } catch (err) {
-          console.error('Error parsing teacher data:', err);
-        }
-      }
-    }
-  }, [router]);
+    // Removed verification status redirect. Unverified teachers can browse the dashboard.
 
   // Redirect to admin if not a teacher — use useEffect to avoid render-time navigation
   useEffect(() => {
@@ -94,35 +77,27 @@ export default function DashboardPage() {
   const { teacher, stats, recentPosts, communityFeed, recentNotifications, suggestedCommunities, communityAccess } = data;
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
+    <div className="mx-auto max-w-6xl">
+      <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
+        {/* ── Left column ── */}
+        <div className="space-y-4 sm:space-y-6 min-w-0">
+          <DashboardLevelCard
+            teacher={teacher}
+            communityAccess={communityAccess}
+          />
+          <DashboardStatsRow stats={stats} />
+          <DashboardRecentPosts posts={recentPosts} />
+          <DashboardCommunityFeed posts={communityFeed} />
+        </div>
 
-      {/* ── Left column ── */}
-      <div className="space-y-4 sm:space-y-6 min-w-0">
-
-        <DashboardLevelCard
-          teacher={teacher}
-          communityAccess={communityAccess}
-        />
-
-        <DashboardStatsRow stats={stats} />
-
-        <DashboardRecentPosts posts={recentPosts} />
-
-        <DashboardCommunityFeed posts={communityFeed} />
-
+        {/* ── Right column ── */}
+        <div className="space-y-4 sm:space-y-6 min-w-0 lg:max-w-[300px]">
+          <AnnouncementsWidget />
+          <ProgressWidget />
+          <DashboardRecentActivity notifications={recentNotifications} />
+          <DashboardSuggestedCommunities />
+        </div>
       </div>
-
-      {/* ── Right column ── */}
-      <div className="space-y-4 sm:space-y-6 min-w-0 lg:max-w-[300px]">
-
-        <ProgressWidget />
-
-        <DashboardRecentActivity notifications={recentNotifications} />
-
-        <DashboardSuggestedCommunities />
-
-      </div>
-
     </div>
   );
 }

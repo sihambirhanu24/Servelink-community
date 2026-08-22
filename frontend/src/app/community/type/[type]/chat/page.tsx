@@ -37,6 +37,7 @@ import {
   fetchChatMessages,
   type ChatMessage,
 } from '@/services/chat';
+import { useVerification } from '@/hooks/useVerification';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -143,6 +144,16 @@ interface Props { params: Promise<{ type: string }> }
 export default function TypeChatPage({ params }: Props) {
   const { type } = use(params);
   const { user, token } = useAuth();
+  const { status } = useVerification();
+  const isVerified = status?.verificationStatus === 'APPROVED';
+
+  const handleProtectedAction = (action: () => void) => {
+    if (!isVerified) {
+      if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('show-verification-modal'));
+      return;
+    }
+    action();
+  };
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -296,12 +307,14 @@ export default function TypeChatPage({ params }: Props) {
 
   // ── Send ──────────────────────────────────────────────────────────────────
   const handleSend = useCallback(() => {
-    const content = input.trim();
-    if (!content || !connected || sending || !communityId) return;
-    chatSocket.sendMessage(communityId, content);
-    setInput('');
-    inputRef.current?.focus();
-  }, [input, connected, sending, communityId]);
+    handleProtectedAction(() => {
+      const content = input.trim();
+      if (!content || !connected || sending || !communityId) return;
+      chatSocket.sendMessage(communityId, content);
+      setInput('');
+      inputRef.current?.focus();
+    });
+  }, [input, connected, sending, communityId, isVerified]);
 
   const handleKey = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }

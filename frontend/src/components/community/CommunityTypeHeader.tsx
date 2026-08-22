@@ -13,6 +13,8 @@ import {
 import type { CommunityTypeData } from '@/services/community';
 import { useProfile } from '@/hooks/useProfile';
 import { useAuth } from '@/context/AuthContext';
+import { useVerification } from '@/hooks/useVerification';
+import { useRouter } from 'next/navigation';
 
 const TYPE_LABEL: Record<string, string> = {
   SCHOOL: 'School Community',
@@ -41,6 +43,19 @@ interface Props {
 export function CommunityTypeHeader({ community, type }: Props) {
   const { user } = useAuth();
   const { data: profile } = useProfile();
+  const router = useRouter();
+  const { status } = useVerification();
+  const isVerified = status?.verificationStatus === 'APPROVED';
+
+  const handleProtectedAction = (action: () => void) => {
+    if (!isVerified) {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('show-verification-modal'));
+      }
+      return;
+    }
+    action();
+  };
 
   const Icon = TYPE_ICON[type.toUpperCase()] ?? GraduationCap;
   const label = TYPE_LABEL[type.toUpperCase()] ?? `${type} Community`;
@@ -88,21 +103,23 @@ export function CommunityTypeHeader({ community, type }: Props) {
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
-        <Link
-          href={chatHref}
+        <button
+          type="button"
+          onClick={() => handleProtectedAction(() => router.push(chatHref))}
           className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 transition-colors hover:border-[#043658]/30 hover:bg-slate-50 hover:text-[#043658] focus:outline-none focus:ring-2 focus:ring-[#043658]/30"
         >
           <MessageCircle className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">{chatLabel}</span>
           <span className="sm:hidden">Chat</span>
-        </Link>
-        <Link
-          href="/posts"
+        </button>
+        <button
+          type="button"
+          onClick={() => handleProtectedAction(() => router.push('/posts'))}
           className="flex items-center gap-1.5 rounded-lg bg-[#043658] px-3 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[#043658]/30"
         >
           <PenSquare className="h-3.5 w-3.5" />
           <span>Create Post</span>
-        </Link>
+        </button>
       </div>
     </div>
   );
