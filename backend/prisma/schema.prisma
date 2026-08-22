@@ -14,7 +14,24 @@ model Teacher {
   email                 String                        @unique
   password              String
   profileImage          String?
+  bannerUrl             String?
   subject               String?
+  /// Personal information for verification
+  gender                String?
+  dateOfBirth           DateTime?
+  bio                   String?
+  phone                 String?
+  /// Professional information for verification
+  profession            String?
+  specialization        String?
+  skills                String?
+  gradeLevel            String?
+  yearsOfExperience     Int?
+  teacherIdNumber       String?
+  /// School information for verification
+  schoolType            String?
+  city                  String?
+  schoolLocation        String?
   verified              Boolean                       @default(false)
   level                 TeacherLevelType              @default(LEVEL_1)
   status                TeacherStatus                 @default(ACTIVE)
@@ -55,6 +72,25 @@ model Teacher {
   chatUnreadCounts      ChatUnreadCount[]
   activities            TeacherActivity[]
   verificationDocuments TeacherVerificationDocument[]
+  locationChangeRequests TeacherLocationChangeRequest[]
+  locationHistory       TeacherLocationHistory[]
+  followers             TeacherFollow[]                @relation("TeacherFollows")
+  following             TeacherFollow[]                @relation("TeacherFollowing")
+  announcementReads     AnnouncementRead[]
+}
+
+model TeacherFollow {
+  id         String   @id @default(cuid())
+  followerId String
+  followingId String
+  createdAt  DateTime @default(now())
+
+  follower   Teacher @relation("TeacherFollows", fields: [followerId], references: [id], onDelete: Cascade)
+  following  Teacher @relation("TeacherFollowing", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
 }
 
 model Admin {
@@ -87,6 +123,7 @@ model Community {
   communityMembers CommunityMember[]
   posts            CommunityPost[]
   chatRoom         ChatRoom?
+  announcements    Announcement[]
 
   // Prevent duplicate COMMON communities for the same type+geography.
   // Prevent duplicate DEPARTMENT communities for the same type+geography+department.
@@ -241,9 +278,11 @@ model TeacherVerificationDocument {
 }
 
 enum VerificationDocumentType {
+  NATIONAL_ID
   TEACHER_ID
   EMPLOYMENT_LETTER
   TEACHING_CERTIFICATE
+  DEGREE_CERTIFICATE
   OTHER
 }
 
@@ -251,6 +290,13 @@ enum TeacherVerificationStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+enum LocationChangeStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
 }
 
 enum TeacherActivityType {
@@ -446,4 +492,119 @@ model ChatUnreadCount {
   @@unique([chatRoomId, teacherId])
   @@index([chatRoomId])
   @@index([teacherId])
+}
+
+model TeacherLocationChangeRequest {
+  id                 String               @id @default(cuid())
+  teacherId          String
+  currentSchool      String?
+  requestedSchool    String?
+  currentWoreda      String?
+  requestedWoreda    String?
+  currentZone        String?
+  requestedZone      String?
+  currentRegion      String?
+  requestedRegion    String?
+  currentSubject     String?
+  requestedSubject   String?
+  reason             String               @db.Text
+  status             LocationChangeStatus @default(PENDING)
+  
+  fileName           String?
+  filePath           String?
+  mimeType           String?
+  fileSize           Int?
+
+  adminId            String?
+  adminComment       String?              @db.Text
+  
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  reviewedAt         DateTime?
+  
+  teacher            Teacher              @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  
+  @@index([teacherId])
+  @@index([status])
+}
+
+model TeacherLocationHistory {
+  id                 String               @id @default(cuid())
+  teacherId          String
+  school             String?
+  woreda             String?
+  zone               String?
+  region             String?
+  subject            String?
+  startedAt          DateTime
+  endedAt            DateTime             @default(now())
+  changeRequestId    String?
+  
+  teacher            Teacher              @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  
+  @@index([teacherId])
+}
+
+// ─── Announcements ────────────────────────────────────────────────────────────
+
+model Announcement {
+  id             String              @id @default(cuid())
+  title          String
+  content        String              @db.Text
+  type           AnnouncementType    @default(GENERAL)
+  status         AnnouncementStatus  @default(DRAFT)
+  targetAudience AnnouncementTarget  @default(ALL_TEACHERS)
+  communityId    String?
+  community      Community?          @relation(fields: [communityId], references: [id], onDelete: SetNull)
+  /// Admin ID who created this announcement
+  createdById    String
+  /// Snapshot of the admin's name at creation time
+  createdByName  String
+  attachmentUrl  String?
+  attachmentName String?
+  attachmentSize Int?
+  publishedAt    DateTime?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  reads          AnnouncementRead[]
+
+  @@index([status])
+  @@index([createdById])
+  @@index([targetAudience])
+  @@index([publishedAt])
+}
+
+model AnnouncementRead {
+  id             String       @id @default(cuid())
+  announcementId String
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  teacherId      String
+  teacher        Teacher      @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  readAt         DateTime     @default(now())
+
+  @@unique([announcementId, teacherId])
+  @@index([announcementId])
+  @@index([teacherId])
+}
+
+enum AnnouncementType {
+  GENERAL
+  IMPORTANT
+  URGENT
+  COMMUNITY_UPDATE
+  SYSTEM_UPDATE
+}
+
+enum AnnouncementStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum AnnouncementTarget {
+  ALL_TEACHERS
+  SCHOOL
+  WOREDA
+  ZONE
+  REGION
+  NATIONAL
 }
