@@ -17,6 +17,8 @@ import { DatabaseService } from './database/database.service';
 import { ChatModule } from './chat/chat.module';
 import { ProgressModule } from './progress/progress.module';
 import { VerificationModule } from './verification/verification.module';
+import { LocationChangeModule } from './location-change/location-change.module';
+import { AnnouncementModule } from './announcement/announcement.module';
 
 import { MailModule } from "./mail/mail.module";
 import { ConfigModule } from '@nestjs/config'
@@ -57,6 +59,8 @@ import { join } from "path";
   ChatModule,
   ProgressModule,
   VerificationModule,
+  LocationChangeModule,
+  AnnouncementModule,
 
   MailModule,
 ],
