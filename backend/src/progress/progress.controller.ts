@@ -1,4 +1,4 @@
-import { Controller, Get, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Req, UseGuards, Query } from '@nestjs/common';
 import { TeacherProgressService } from './teacher-progress.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
@@ -20,7 +20,7 @@ export class ProgressController {
    */
   @UseGuards(JwtAuthGuard)
   @Get('activity')
-  async getMyActivity(@Req() req) {
-    return this.progressService.getActivityHistory(req.user.sub);
+  async getMyActivity(@Req() req, @Query('limit') limit?: string) {
+    return this.progressService.getActivityHistory(req.user.sub, limit ? parseInt(limit) : 50);
   }
 }

@@ -109,7 +109,10 @@ export function ProgressCard() {
       <div className="mt-4 pt-4 border-t border-gray-200">
         <div className="text-xs font-semibold text-gray-700 mb-2">Earn Points By:</div>
         <ul className="text-xs text-gray-600 space-y-1">
-          <li>• Creating posts: +5 points (max 3/day)</li>
+          <li>• Creating questions: +2 points</li>
+          <li>• Creating discussions: +3 points</li>
+          <li>• Creating resources: +5 points</li>
+          <li>• Best answer selected: +10 points</li>
           <li>• Receiving likes: +1 point each</li>
           <li>• Receiving bookmarks: +1 point each</li>
         </ul>

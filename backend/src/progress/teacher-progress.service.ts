@@ -182,9 +182,129 @@ export class TeacherProgressService {
   }
 
   /**
+   * Award points for creating a question
+   */
+  async awardQuestionPoints(teacherId: string, questionId: string): Promise<void> {
+    const isVerified = await this.verificationService.isTeacherVerified(teacherId);
+    if (!isVerified) {
+      this.logger.debug(`Teacher ${teacherId} is not verified - question created but no points awarded`);
+      return;
+    }
+
+    const result = await this.recordActivity(
+      teacherId,
+      TeacherActivityType.QUESTION_CREATED,
+      questionId,
+      POINT_VALUES.QUESTION_CREATED,
+    );
+
+    if (result.success) {
+      await this.recalculateTeacherProgress(teacherId);
+      this.logger.log(`Awarded ${POINT_VALUES.QUESTION_CREATED} points to teacher ${teacherId} for question ${questionId}`);
+    }
+  }
+
+  /**
+   * Award points for creating a discussion
+   */
+  async awardDiscussionPoints(teacherId: string, discussionId: string): Promise<void> {
+    this.logger.log(`Attempting to award discussion points to teacher ${teacherId} for discussion ${discussionId}`);
+    
+    const isVerified = await this.verificationService.isTeacherVerified(teacherId);
+    if (!isVerified) {
+      this.logger.warn(`Teacher ${teacherId} is not verified - discussion created but no points awarded`);
+      return;
+    }
+
+    this.logger.log(`Teacher ${teacherId} is verified, recording DISCUSSION_CREATED activity`);
+
+    const result = await this.recordActivity(
+      teacherId,
+      TeacherActivityType.DISCUSSION_CREATED,
+      discussionId,
+      POINT_VALUES.DISCUSSION_CREATED,
+    );
+
+    this.logger.log(`Activity record result: ${JSON.stringify(result)}`);
+
+    if (result.success) {
+      await this.recalculateTeacherProgress(teacherId);
+      this.logger.log(`Awarded ${POINT_VALUES.DISCUSSION_CREATED} points to teacher ${teacherId} for discussion ${discussionId}`);
+    } else {
+      this.logger.warn(`Failed to record activity for discussion ${discussionId}: ${result.reason}`);
+    }
+  }
+
+  /**
+   * Award points for creating a resource
+   */
+  async awardResourcePoints(teacherId: string, postId: string): Promise<void> {
+    const isVerified = await this.verificationService.isTeacherVerified(teacherId);
+    if (!isVerified) {
+      this.logger.debug(`Teacher ${teacherId} is not verified - resource created but no points awarded`);
+      return;
+    }
+
+    const result = await this.recordActivity(
+      teacherId,
+      TeacherActivityType.RESOURCE_CREATED,
+      postId,
+      POINT_VALUES.RESOURCE_CREATED,
+    );
+
+    if (result.success) {
+      await this.recalculateTeacherProgress(teacherId);
+      this.logger.log(`Awarded ${POINT_VALUES.RESOURCE_CREATED} points to teacher ${teacherId} for resource ${postId}`);
+    }
+  }
+
+  /**
+   * Award points to discussion owner for receiving a bookmark
+   */
+  async awardDiscussionBookmarkPoints(discussionOwnerId: string, discussionId: string, bookmarkerId: string): Promise<void> {
+    const referenceId = `${discussionId}:${bookmarkerId}`;
+
+    const result = await this.recordActivity(
+      discussionOwnerId,
+      TeacherActivityType.DISCUSSION_BOOKMARK_RECEIVED,
+      referenceId,
+      POINT_VALUES.DISCUSSION_BOOKMARK_RECEIVED,
+    );
+
+    if (result.success) {
+      await this.recalculateTeacherProgress(discussionOwnerId);
+      this.logger.log(`Awarded ${POINT_VALUES.DISCUSSION_BOOKMARK_RECEIVED} point to teacher ${discussionOwnerId} for bookmark on discussion ${discussionId}`);
+    }
+  }
+
+  /**
+   * Remove points when a discussion bookmark is removed
+   */
+  async removeDiscussionBookmarkPoints(discussionOwnerId: string, discussionId: string, bookmarkerId: string): Promise<void> {
+    const referenceId = `${discussionId}:${bookmarkerId}`;
+
+    try {
+      await this.prisma.teacherActivity.delete({
+        where: {
+          teacherId_type_referenceId: {
+            teacherId: discussionOwnerId,
+            type: TeacherActivityType.DISCUSSION_BOOKMARK_RECEIVED,
+            referenceId,
+          },
+        },
+      });
+
+      await this.recalculateTeacherProgress(discussionOwnerId);
+      this.logger.log(`Removed ${POINT_VALUES.DISCUSSION_BOOKMARK_RECEIVED} point from teacher ${discussionOwnerId} for unbookmark on discussion ${discussionId}`);
+    } catch (error) {
+      this.logger.debug(`Discussion bookmark activity not found for removal: ${referenceId}`);
+    }
+  }
+
+  /**
    * Award points for creating a post
-   * Enforces daily reward limit (max 3 posts per day)
-   * REQUIRES: Teacher must have APPROVED verification status to earn points
+   * DEPRECATED: Use specific methods (awardQuestionPoints, awardDiscussionPoints, awardResourcePoints)
+   * This method is kept for backward compatibility but should not be used for new code
    */
   async awardPostPoints(
     teacherId: string,
@@ -212,28 +332,11 @@ export class TeacherProgressService {
       };
     }
 
-    // Record activity
-    const result = await this.recordActivity(
-      teacherId,
-      TeacherActivityType.POST_CREATED,
-      postId,
-      POINT_VALUES.POST_CREATED,
-    );
-
-    if (!result.success) {
-      return {
-        awarded: false,
-        reason: 'Post already rewarded',
-      };
-    }
-
-    // Update teacher points and level
-    await this.recalculateTeacherProgress(teacherId);
-
-    this.logger.log(`Awarded ${POINT_VALUES.POST_CREATED} points to teacher ${teacherId} for post ${postId}`);
+    // This method is deprecated - use specific methods instead
+    this.logger.warn(`awardPostPoints is deprecated. Use specific award methods instead.`);
     return {
-      awarded: true,
-      reason: 'Post creation rewarded',
+      awarded: false,
+      reason: 'Use specific award methods (awardQuestionPoints, awardDiscussionPoints, awardResourcePoints)',
     };
   }
 
@@ -354,7 +457,11 @@ export class TeacherProgressService {
    * Recalculate teacher progress based on all activities
    * This ensures the teacher's level is always accurate
    */
-  private async recalculateTeacherProgress(teacherId: string): Promise<void> {
+  /**
+   * Recalculate and persist the teacher's points and level.
+   * Public so QaService can call it after awarding Q&A points.
+   */
+  async recalculateTeacherProgress(teacherId: string): Promise<void> {
     // Get current teacher state
     const teacher = await this.prisma.teacher.findUnique({
       where: { id: teacherId },

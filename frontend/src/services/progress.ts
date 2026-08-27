@@ -31,8 +31,10 @@ export const progressService = {
   /**
    * Get the authenticated teacher's activity history
    */
-  getActivityHistory: async (): Promise<ActivityRecord[]> => {
-    const response = await api.get("/progress/activity");
+  getActivityHistory: async (limit?: number): Promise<ActivityRecord[]> => {
+    const response = await api.get("/progress/activity", {
+      params: limit ? { limit } : undefined,
+    });
     return response.data;
   },
 };
