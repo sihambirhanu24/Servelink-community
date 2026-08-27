@@ -6,7 +6,17 @@ export type NotificationType =
   | 'LEVEL_UPGRADE'
   | 'REPORT'
   | 'SYSTEM'
-  | 'REPLY';
+  | 'REPLY'
+  | 'ANSWER_SUBMITTED'
+  | 'BEST_ANSWER'
+  | 'ANSWER_HELPFUL'
+  | 'DISCUSSION_REPLY'
+  | 'CHAT_MESSAGE'
+  | 'SUSPENSION'
+  | 'APPEAL_SUBMITTED'
+  | 'APPEAL_APPROVED'
+  | 'APPEAL_REJECTED'
+  | 'ACCOUNT_RESTORED';
 
 export interface Notification {
   id: string;

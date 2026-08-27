@@ -6,6 +6,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { CreatePostDto } from '../dto/create-post.dto';
+import { CreatePostByTypeDto } from '../dto/create-post-by-type.dto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TeacherProgressService } from '../../progress/teacher-progress.service';
 import { CreateCommentDto } from '../dto/create-comment.dto';
@@ -70,6 +71,7 @@ export class CommunityService {
         teacherId,
         communityId: dto.communityId,
         categoryId: dto.categoryId,
+        postType: dto.postType || 'DISCUSSION',
       },
       include: { teacher: true, category: true, community: true },
     });
@@ -80,6 +82,152 @@ export class CommunityService {
       .catch((err) => {
         console.error(`Failed to award post points: ${err.message}`);
       });
+
+    return post;
+  }
+
+  /**
+   * Create a post by community type.
+   *
+   * The backend resolves the real community from:
+   *  1. The requested communityType (NETWORK, SCHOOL, WOREDA, etc.)
+   *  2. The authenticated teacher's geographic profile and level
+   *
+   * The frontend NEVER sends a communityId — it sends a communityType.
+   * Authorization is fully enforced here.
+   */
+  async createPostByType(teacherId: string, dto: CreatePostByTypeDto) {
+    const normalizedType = dto.communityType.toUpperCase();
+
+    // ── Authorization: does this teacher have access to this community type? ──
+    const teacher = await this.prisma.teacher.findUnique({
+      where: { id: teacherId },
+      select: {
+        level: true,
+        school: true,
+        woreda: true,
+        zone: true,
+        region: true,
+        privilegeExpiresAt: true,
+        verificationStatus: true,
+      },
+    });
+    if (!teacher) throw new NotFoundException('Teacher not found');
+
+    const requiredLevel =
+      CommunityService.TYPE_MIN_LEVEL[normalizedType] ?? 99;
+
+    if (!this.hasAccessToType(teacher.level, teacher.privilegeExpiresAt, requiredLevel)) {
+      throw new ForbiddenException(
+        `Your level does not have access to ${normalizedType} communities.`,
+      );
+    }
+
+    // ── Resolve the actual community from the DB ───────────────────────────────
+    // For NETWORK: match any community of type NETWORK (no geographic filter)
+    // For geographic types: match the community that corresponds to this teacher
+    let communityWhere: any = { type: normalizedType as any, isActive: true };
+
+    if (normalizedType === 'SCHOOL' && teacher.school) {
+      communityWhere = {
+        type: 'SCHOOL',
+        isActive: true,
+        OR: [
+          { school: { equals: teacher.school, mode: 'insensitive' } },
+          { name:   { equals: teacher.school, mode: 'insensitive' } },
+        ],
+      };
+    } else if (normalizedType === 'WOREDA' && teacher.woreda) {
+      communityWhere = {
+        type: 'WOREDA',
+        isActive: true,
+        woreda: { equals: teacher.woreda, mode: 'insensitive' },
+      };
+    } else if (normalizedType === 'ZONE' && teacher.zone) {
+      communityWhere = {
+        type: 'ZONE',
+        isActive: true,
+        zone: { equals: teacher.zone, mode: 'insensitive' },
+      };
+    } else if (normalizedType === 'REGION' && teacher.region) {
+      communityWhere = {
+        type: 'REGION',
+        isActive: true,
+        region: { equals: teacher.region, mode: 'insensitive' },
+      };
+    }
+
+    const community = await this.prisma.community.findFirst({
+      where: communityWhere,
+      orderBy: { createdAt: 'asc' },
+    });
+
+    if (!community) {
+      // For NETWORK: auto-create it on first use so teachers never see a 404.
+      // For geographic types: the admin must create communities — show a clear message.
+      if (normalizedType === 'NETWORK') {
+        return this.prisma.community.create({
+          data: {
+            name: 'Network Community',
+            type: 'NETWORK' as any,
+            subtype: 'COMMON' as any,
+            description: 'The global professional community for all verified ServeLink teachers.',
+            isActive: true,
+          },
+        });
+      }
+
+      throw new NotFoundException(
+        `No ${normalizedType} community found for your profile. Ask your admin to create one.`,
+      );
+    }
+
+    // ── Daily post limit ──────────────────────────────────────────────────────
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const todayCount = await this.prisma.communityPost.count({
+      where: { teacherId, createdAt: { gte: startOfDay } },
+    });
+    if (todayCount >= 3) {
+      throw new ForbiddenException('You have reached your daily limit of 3 posts.');
+    }
+
+    // ── Create the post ───────────────────────────────────────────────────────
+    // If deadline is provided, treat as QUESTION with blind answer period
+    const postType = dto.deadline ? 'QUESTION' : (dto.postType ?? 'DISCUSSION');
+    
+    const deadline = dto.deadline ? new Date(dto.deadline) : null;
+    
+    // Validate deadline is in the future
+    if (deadline && deadline <= new Date()) {
+      throw new BadRequestException('Deadline must be in the future');
+    }
+
+    const post = await this.prisma.communityPost.create({
+      data: {
+        title: dto.title,
+        description: dto.description ?? '',
+        teacherId,
+        communityId: community.id,   // resolved by backend — never from client
+        categoryId: dto.categoryId,
+        postType: postType as any,
+        deadline: deadline,
+        questionStatus: deadline ? 'OPEN' : undefined,
+      },
+      include: { teacher: true, category: true, community: true },
+    });
+
+    // Award points based on post type
+    if (postType === 'QUESTION') {
+      this.progressService.awardQuestionPoints(teacherId, post.id).catch((err) =>
+        console.error(`Failed to award question points: ${err.message}`),
+      );
+    } else if (postType === 'RESOURCE') {
+      this.progressService.awardResourcePoints(teacherId, post.id).catch((err) =>
+        console.error(`Failed to award resource points: ${err.message}`),
+      );
+    }
+    // DISCUSSION type posts get points through the DiscussionService
 
     return post;
   }
@@ -131,6 +279,7 @@ export class CommunityService {
         description: dto.description,
         communityId: dto.communityId,
         categoryId: dto.categoryId,
+        postType: dto.postType,
       },
     });
   }
@@ -247,6 +396,55 @@ export class CommunityService {
     return comment;
   }
 
+  async markBestAnswer(teacherId: string, commentId: string) {
+    const comment = await this.prisma.communityComment.findUnique({
+      where: { id: commentId },
+      include: { post: true, teacher: true }
+    });
+
+    if (!comment) throw new NotFoundException('Answer not found');
+    if (comment.post.teacherId !== teacherId) {
+      throw new ForbiddenException('Only the question author can mark the best answer');
+    }
+
+    // Unmark any existing best answer for this post
+    await this.prisma.communityComment.updateMany({
+      where: { postId: comment.post.id, isAccepted: true },
+      data: { isAccepted: false }
+    });
+
+    const updated = await this.prisma.communityComment.update({
+      where: { id: commentId },
+      data: { isAccepted: true }
+    });
+
+    await this.prisma.communityPost.update({
+      where: { id: comment.post.id },
+      data: { isResolved: true }
+    });
+
+    return updated;
+  }
+
+  async markHelpful(teacherId: string, commentId: string) {
+    const existing = await this.prisma.commentReaction.findUnique({
+      where: { commentId_teacherId: { commentId, teacherId } }
+    });
+
+    if (existing) {
+      // Toggle off
+      await this.prisma.commentReaction.delete({
+        where: { id: existing.id }
+      });
+      return { marked: false };
+    } else {
+      await this.prisma.commentReaction.create({
+        data: { commentId, teacherId, reaction: 'HELPFUL' }
+      });
+      return { marked: true };
+    }
+  }
+
   async bookmarkPost(teacherId: string, postId: string) {
     const [bookmark, post] = await Promise.all([
       this.prisma.communityBookmark.create({ data: { teacherId, postId } }),
@@ -317,6 +515,7 @@ export class CommunityService {
       search?: string;
       communityId?: string;
       categoryId?: string;
+      postType?: string;
       page: number;
       limit: number;
     },
@@ -349,6 +548,7 @@ export class CommunityService {
           ],
         }),
         ...(filters.categoryId && { categoryId: filters.categoryId }),
+        ...(filters.postType && { postType: filters.postType as any }),
       },
       include: {
         teacher: true,
@@ -385,30 +585,30 @@ export class CommunityService {
   }
 
   async reportPost(teacherId: string, postId: string, dto: ReportPostDto) {
-    // Verify post exists
+    // Verify post exists — include teacher so we have the post owner's ID
     const post = await this.prisma.communityPost.findUnique({
       where: { id: postId },
+      select: { id: true, title: true, teacherId: true },
     });
     if (!post) {
       throw new NotFoundException('Post not found');
     }
 
+    // Prevent self-reporting
+    if (post.teacherId === teacherId) {
+      throw new BadRequestException('You cannot report your own post');
+    }
+
     // Check for duplicate report
     const existingReport = await this.prisma.communityReport.findUnique({
-      where: {
-        teacherId_postId: {
-          teacherId,
-          postId,
-        },
-      },
+      where: { teacherId_postId: { teacherId, postId } },
     });
-    
     if (existingReport) {
       throw new ConflictException('You have already reported this post');
     }
 
-    // Create new report
-    return this.prisma.communityReport.create({
+    // Create the report
+    const report = await this.prisma.communityReport.create({
       data: {
         teacherId,
         postId,
@@ -416,8 +616,63 @@ export class CommunityService {
         description: dto.description,
         status: 'PENDING',
       },
-      include: { teacher: true, post: true },
     });
+
+    // Get admin users
+    const admins = await this.prisma.admin.findMany({
+      select: { id: true },
+    });
+
+    // Notify admins about the report
+    if (admins.length > 0) {
+      const reporter = await this.prisma.teacher.findUnique({
+        where: { id: teacherId },
+        select: { firstName: true, lastName: true },
+      });
+
+      const reporterName = reporter ? `${reporter.firstName} ${reporter.lastName}` : 'A teacher';
+
+      await Promise.all(
+        admins.map((admin) =>
+          this.notificationService.create({
+            receiverId: admin.id,
+            senderId: teacherId,
+            senderName: reporterName,
+            title: 'New Post Report',
+            message: `${reporterName} reported a post: "${post.title.substring(0, 50)}..." for ${dto.reason}`,
+            type: NotificationEvent.REPORT,
+            referenceId: report.id,
+          })
+        )
+      );
+    }
+
+    // ── Notify the REPORTER (confirmation — do NOT mention who owns the post) ──
+    this.notificationService
+      .create({
+        receiverId: teacherId,
+        title: 'Report Submitted',
+        message:
+          'Your report has been submitted and will be reviewed by an administrator.',
+        type: NotificationEvent.REPORT,
+        referenceId: report.id,
+      })
+      .catch(() => {});
+
+    // ── Notify the POST OWNER (privacy: do NOT reveal reporter identity) ───────
+    this.notificationService
+      .create({
+        receiverId: post.teacherId,
+        title: 'Post Reported',
+        message:
+          'Your post has been reported and is currently under review by an administrator.',
+        type: NotificationEvent.REPORT,
+        referenceId: postId,
+        // senderId / senderName intentionally omitted — reporter must stay anonymous
+      })
+      .catch(() => {});
+
+    return { success: true, reportId: report.id };
   }
 
   async uploadAttachment(file: Express.Multer.File, postId: string) {
@@ -573,7 +828,9 @@ export class CommunityService {
     LEVEL_5: 5,
   };
 
+  // NETWORK = 0 means ALL verified teachers can access it (no level gate).
   private static readonly TYPE_MIN_LEVEL: Record<string, number> = {
+    NETWORK: 0,
     SCHOOL: 1,
     WOREDA: 2,
     ZONE: 3,
@@ -582,22 +839,18 @@ export class CommunityService {
   };
 
   /**
-   * Check if teacher has access to a community type based on level or active privilege
-   * This integrates the 24-hour privilege system
+   * Check if teacher has access to a community type based on level.
+   * requiredLevel = 0 means open to all verified teachers (NETWORK).
    */
   private hasAccessToType(
     teacherLevel: string,
     privilegeExpiresAt: Date | null,
     requiredLevel: number,
   ): boolean {
+    // NETWORK (requiredLevel = 0) is always accessible to verified teachers
+    if (requiredLevel === 0) return true;
     const teacherLevelNum = CommunityService.LEVEL_ORDER[teacherLevel] ?? 1;
-    
-    // Check if teacher has permanent access (level >= required)
-    if (teacherLevelNum >= requiredLevel) {
-      return true;
-    }
-
-    return false;
+    return teacherLevelNum >= requiredLevel;
   }
 
   async getCommunitiesByType(teacherId: string, type: string) {
@@ -625,6 +878,7 @@ export class CommunityService {
     }
 
     const matchFieldByType: Record<string, string | undefined> = {
+      NETWORK: undefined,  // no geographic restriction — matches all NETWORK communities
       SCHOOL: teacher.school,
       WOREDA: teacher.woreda,
       ZONE: teacher.zone,
@@ -696,9 +950,65 @@ export class CommunityService {
     }
 
     if (!community) {
-      throw new NotFoundException(
-        `No ${type} community exists yet. Ask your admin to create one.`,
-      );
+      if (normalizedType === 'NETWORK') {
+        // Auto-create the global Network Community on first use
+        const existing = await this.prisma.community.findFirst({
+          where: { type: 'NETWORK' as any },
+          include: {
+            communityMembers: {
+              include: {
+                teacher: {
+                  select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    profileImage: true,
+                    level: true,
+                    school: true,
+                    subject: true,
+                  },
+                },
+              },
+            },
+            _count: { select: { communityMembers: true, posts: true } },
+          },
+        });
+        if (existing) {
+          community = existing;
+        } else {
+          community = await this.prisma.community.create({
+            data: {
+              name: 'Network Community',
+              type: 'NETWORK' as any,
+              subtype: 'COMMON' as any,
+              description: 'The global professional community for all verified ServeLink teachers.',
+              isActive: true,
+            },
+            include: {
+              communityMembers: {
+                include: {
+                  teacher: {
+                    select: {
+                      id: true,
+                      firstName: true,
+                      lastName: true,
+                      profileImage: true,
+                      level: true,
+                      school: true,
+                      subject: true,
+                    },
+                  },
+                },
+              },
+              _count: { select: { communityMembers: true, posts: true } },
+            },
+          });
+        }
+      } else {
+        throw new NotFoundException(
+          `No ${type} community exists yet. Ask your admin to create one.`,
+        );
+      }
     }
 
     return { teacherLevel: teacher.level, community };
@@ -744,6 +1054,7 @@ export class CommunityService {
     //    posts from the community that actually belongs to this teacher. ────
     let communityWhere: any = { type: normalizedType as any };
 
+    // NETWORK has no geographic restriction — all posts across all NETWORK communities
     if (normalizedType === 'SCHOOL' && teacher.school) {
       communityWhere = {
         type: 'SCHOOL',
@@ -1053,6 +1364,8 @@ export class CommunityService {
       !!a && !!b && a.trim().toLowerCase() === b.trim().toLowerCase();
 
     switch (community.type) {
+      case 'NETWORK':
+        return true; // NETWORK is open to all verified teachers
       case 'SCHOOL':
         return ci(community.school, teacher.school) || ci(community.woreda, teacher.woreda);
       case 'WOREDA':
@@ -1066,5 +1379,145 @@ export class CommunityService {
       default:
         return false;
     }
+  }
+
+  // ─── Community Guidelines ────────────────────────────────────────────────────
+
+  async getGuidelines() {
+    return this.prisma.communityGuideline.findMany({
+      where: { isActive: true },
+      orderBy: { order: 'asc' },
+    });
+  }
+
+  async createGuideline(data: { title: string; description: string; icon?: string; order?: number }) {
+    return this.prisma.communityGuideline.create({ data });
+  }
+
+  async seedDefaultGuidelines() {
+    const count = await this.prisma.communityGuideline.count();
+    if (count > 0) return { message: 'Guidelines already seeded' };
+
+    const defaults = [
+      { title: 'Be Respectful', description: 'Treat every teacher with courtesy and professionalism. Disagreements are fine; disrespect is not.', icon: '🤝', order: 1 },
+      { title: 'Share Educational Value', description: 'Posts, questions and resources must contribute meaningfully to the teaching profession.', icon: '📚', order: 2 },
+      { title: 'No Misinformation', description: 'Only share verified, accurate information. Cite your sources when possible.', icon: '✅', order: 3 },
+      { title: 'Keep It Professional', description: 'This is a professional educator community. Personal attacks and off-topic content are not allowed.', icon: '🏫', order: 4 },
+      { title: 'Protect Privacy', description: 'Do not share personal details of students, colleagues, or other teachers without consent.', icon: '🔒', order: 5 },
+      { title: 'Contribute Positively', description: 'Upvote helpful answers, mark best answers, and support your fellow educators.', icon: '⭐', order: 6 },
+    ];
+
+    await this.prisma.communityGuideline.createMany({ data: defaults });
+    return { message: 'Guidelines seeded', count: defaults.length };
+  }
+
+  // ─── Network Community overview ──────────────────────────────────────────────
+  // Returns real aggregated stats + recent content cards for the Overview tab.
+
+  async getNetworkOverview() {
+    const [
+      memberCount,
+      questionCount,
+      discussionCount,
+      resourceCount,
+      recentQuestions,
+      recentDiscussions,
+      recentResources,
+    ] = await Promise.all([
+      // Count distinct verified teachers (proxy for network community members)
+      this.prisma.teacher.count({
+        where: { verificationStatus: 'APPROVED' },
+      }),
+      this.prisma.communityPost.count({ where: { postType: 'QUESTION' } }),
+      this.prisma.communityPost.count({ where: { postType: 'DISCUSSION' } }),
+      this.prisma.communityPost.count({ where: { postType: 'RESOURCE' } }),
+      // Recent questions — lightweight select
+      this.prisma.communityPost.findMany({
+        where: { postType: 'QUESTION' },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+        include: {
+          teacher: {
+            select: { id: true, firstName: true, lastName: true, profileImage: true, level: true },
+          },
+          _count: { select: { comments: true, communityLikes: true } },
+          community: { select: { id: true, name: true, type: true } },
+        },
+      }),
+      // Recent discussions
+      this.prisma.communityPost.findMany({
+        where: { postType: 'DISCUSSION' },
+        orderBy: { createdAt: 'desc' },
+        take: 4,
+        include: {
+          teacher: {
+            select: { id: true, firstName: true, lastName: true, profileImage: true, level: true },
+          },
+          _count: { select: { comments: true, communityLikes: true } },
+          community: { select: { id: true, name: true, type: true } },
+        },
+      }),
+      // Recent resources
+      this.prisma.communityPost.findMany({
+        where: { postType: 'RESOURCE' },
+        orderBy: { createdAt: 'desc' },
+        take: 4,
+        include: {
+          teacher: {
+            select: { id: true, firstName: true, lastName: true, profileImage: true, level: true },
+          },
+          _count: { select: { comments: true, communityLikes: true } },
+          attachments: { select: { id: true, url: true, type: true, fileName: true, fileSize: true } },
+          community: { select: { id: true, name: true, type: true } },
+        },
+      }),
+    ]);
+
+    return {
+      stats: {
+        members: memberCount,
+        questions: questionCount,
+        discussions: discussionCount,
+        resources: resourceCount,
+      },
+      recentQuestions,
+      recentDiscussions,
+      recentResources,
+    };
+  }
+
+  // ─── Get comments (answers) for a post ──────────────────────────────────────
+
+  async getPostComments(postId: string, teacherId?: string) {
+    const comments = await this.prisma.communityComment.findMany({
+      where: { postId, parentId: null }, // top-level only
+      orderBy: [
+        { isAccepted: 'desc' }, // best answer first
+        { createdAt: 'asc' },
+      ],
+      include: {
+        teacher: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            profileImage: true,
+            level: true,
+            verified: true,
+          },
+        },
+        reactions: {
+          select: { teacherId: true, reaction: true },
+        },
+      },
+    });
+
+    return comments.map((c) => ({
+      ...c,
+      helpfulCount: c.reactions.filter((r) => r.reaction === 'HELPFUL').length,
+      markedHelpful: teacherId
+        ? c.reactions.some((r) => r.teacherId === teacherId && r.reaction === 'HELPFUL')
+        : false,
+    }));
   }
 }

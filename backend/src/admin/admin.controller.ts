@@ -1,5 +1,5 @@
 import {
-  Body, Controller, Get, Param, Patch, Post, Query, UseGuards, Res, Request,
+  Controller, Get, Post, Patch, Delete, Body, Param, Query, Req, Request, Res, UseGuards, ParseIntPipe
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import type { Response } from 'express';
@@ -74,6 +74,16 @@ export class AdminController {
     return this.adminService.updateReportStatus(id, status);
   }
 
+  @Patch('reports/:id/resolve')
+  resolveReportById(@Param('id') id: string, @Request() req: any) {
+    return this.adminService.resolveReportById(id, req.user.sub);
+  }
+
+  @Patch('reports/:id/dismiss')
+  dismissReport(@Param('id') id: string, @Request() req: any) {
+    return this.adminService.dismissReport(id, req.user.sub);
+  }
+
   @Post('reports/:id/warn')
   warnUserFromReport(@Param('id') id: string) {
     return this.adminService.warnUserFromReport(id);
@@ -108,6 +118,75 @@ export class AdminController {
   @Get('communities/stats')
   getCommunityStats() {
     return this.adminService.getCommunityStats();
+  }
+
+  // ─── Post Moderation Endpoints ─────────────────────────────────────────
+
+  @Get('posts/stats')
+  getPostStats() {
+    return this.adminService.getPostStats();
+  }
+
+  @Get('posts')
+  getPosts(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('search') search?: string,
+    @Query('communityId') communityId?: string,
+    @Query('communityType') communityType?: string,
+    @Query('teacherLevel') teacherLevel?: string,
+    @Query('moderationStatus') moderationStatus?: string,
+    @Query('postType') postType?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Query('categoryId') categoryId?: string,
+    @Query('reportStatus') reportStatus?: string,
+  ) {
+    return this.adminService.getPosts({
+      page: page ? parseInt(page) : undefined,
+      pageSize: pageSize ? parseInt(pageSize) : undefined,
+      search,
+      communityId,
+      communityType,
+      teacherLevel,
+      moderationStatus,
+      postType,
+      dateFrom,
+      dateTo,
+      categoryId,
+      reportStatus,
+    });
+  }
+
+  @Get('posts/:id')
+  getPostById(@Param('id') id: string) {
+    return this.adminService.getPostById(id);
+  }
+
+  @Patch('posts/:id/moderate')
+  moderatePost(
+    @Param('id') id: string,
+    @Body() body: { action: 'REMOVE' | 'HIDDEN' | 'RESTORE'; reason?: string },
+    @Req() req: any,
+  ) {
+    const adminId = req.user.adminId || req.user.sub;
+    return this.adminService.moderatePost(id, adminId, body.action, body.reason);
+  }
+
+  @Get('posts/:id/moderation-history')
+  getPostModerationHistory(@Param('id') id: string) {
+    return this.adminService.getPostModerationHistory(id);
+  }
+
+  @Patch('posts/:postId/reports/:reportId/resolve')
+  resolvePostReport(
+    @Param('postId') postId: string,
+    @Param('reportId') reportId: string,
+    @Body() body: { action: 'RESOLVE' | 'DISMISS' },
+    @Req() req: any,
+  ) {
+    const adminId = req.user.adminId || req.user.sub;
+    return this.adminService.resolvePostReport(postId, reportId, adminId, body.action);
   }
 
   @Get('communities/:id')

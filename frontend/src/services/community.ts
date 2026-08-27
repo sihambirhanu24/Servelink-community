@@ -4,6 +4,7 @@ export const getPosts = async (options?: {
   search?: string;
   communityId?: string;
   categoryId?: string;
+  postType?: string;
   page?: number;
   limit?: number;
 }) => {
@@ -12,6 +13,7 @@ export const getPosts = async (options?: {
       search: options?.search ?? undefined,
       communityId: options?.communityId ?? undefined,
       categoryId: options?.categoryId ?? undefined,
+      postType: options?.postType ?? undefined,
       page: options?.page ?? 1,
       limit: options?.limit ?? 20,
     },
@@ -302,3 +304,29 @@ export const reportPost = async (
   const { data } = await api.post(`/community/posts/${postId}/report`, body);
   return data;
 };
+
+// ─── Context-aware post creation ─────────────────────────────────────────────
+// The frontend sends communityType (NETWORK / SCHOOL / WOREDA / ZONE / REGION /
+// NATIONAL) instead of an arbitrary communityId.  The backend resolves and
+// validates the real community from the authenticated teacher's profile.
+
+export type CommunityTypeKey =
+  | 'NETWORK'
+  | 'SCHOOL'
+  | 'WOREDA'
+  | 'ZONE'
+  | 'REGION'
+  | 'NATIONAL';
+
+export interface CreatePostByTypePayload {
+  communityType: CommunityTypeKey;
+  title: string;
+  description?: string;
+  categoryId: string;
+  postType?: 'QUESTION' | 'DISCUSSION' | 'RESOURCE';
+}
+
+export async function createPostByType(payload: CreatePostByTypePayload) {
+  const { data } = await api.post('/community/create-by-type', payload);
+  return data;
+}

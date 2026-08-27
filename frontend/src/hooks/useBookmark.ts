@@ -24,6 +24,13 @@ export function useBookmark() {
       queryClient.invalidateQueries({
         queryKey: ["posts"],
       });
+      // Invalidate progress queries for bookmark points
+      queryClient.invalidateQueries({
+        queryKey: ["progress"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["activityHistory"],
+      });
     },
   });
 }

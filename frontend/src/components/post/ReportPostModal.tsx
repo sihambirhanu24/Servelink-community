@@ -16,6 +16,8 @@ import {
 import { useMutation } from "@tanstack/react-query";
 import { reportPost } from "@/services/community";
 
+type ReportReason = 'SPAM' | 'ABUSE' | 'HARASSMENT' | 'MISINFORMATION' | 'OTHER';
+
 interface ReportPostModalProps {
   postId: string;
   postTitle: string;
@@ -24,14 +26,14 @@ interface ReportPostModalProps {
   onSuccess?: () => void;
 }
 
-interface ReportReason {
-  value: string;
+interface ReportReasonOption {
+  value: ReportReason;
   label: string;
   description: string;
   icon: React.ReactNode;
 }
 
-const REPORT_REASONS: ReportReason[] = [
+const REPORT_REASONS: ReportReasonOption[] = [
   {
     value: "ABUSE",
     label: "Abuse",
@@ -71,7 +73,7 @@ export function ReportPostModal({
   onClose,
   onSuccess,
 }: ReportPostModalProps) {
-  const [selectedReason, setSelectedReason] = useState<string | null>(null);
+  const [selectedReason, setSelectedReason] = useState<ReportReason | null>(null);
   const [description, setDescription] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -118,7 +120,7 @@ export function ReportPostModal({
   const reportMutation = useMutation({
     mutationFn: () =>
       reportPost(postId, {
-        reason: selectedReason as any,
+        reason: selectedReason!,
         description: description.trim() || undefined,
       }),
     onSuccess: () => {

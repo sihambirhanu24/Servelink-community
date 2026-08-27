@@ -11,6 +11,12 @@ export function getNotificationRoute(type: NotificationType, referenceId?: strin
       return referenceId ? `/community/${referenceId}` : '/community';
     case 'LEVEL_UPGRADE':
       return '/profile';
+    case 'SUSPENSION':
+    case 'APPEAL_SUBMITTED':
+    case 'APPEAL_APPROVED':
+    case 'APPEAL_REJECTED':
+    case 'ACCOUNT_RESTORED':
+      return '/suspended';
     case 'REPORT':
     case 'SYSTEM':
     default:
@@ -102,5 +108,65 @@ export const NOTIFICATION_TYPE_CONFIG: Record<NotificationType, NotificationType
     label: 'Reply',
     bgColor: 'bg-indigo-50',
     textColor: 'text-indigo-600',
+  },
+  ANSWER_SUBMITTED: {
+    emoji: '📝',
+    label: 'Answer',
+    bgColor: 'bg-purple-50',
+    textColor: 'text-purple-600',
+  },
+  BEST_ANSWER: {
+    emoji: '🏆',
+    label: 'Best Answer',
+    bgColor: 'bg-yellow-50',
+    textColor: 'text-yellow-600',
+  },
+  ANSWER_HELPFUL: {
+    emoji: '👍',
+    label: 'Helpful',
+    bgColor: 'bg-green-50',
+    textColor: 'text-green-600',
+  },
+  DISCUSSION_REPLY: {
+    emoji: '💭',
+    label: 'Discussion',
+    bgColor: 'bg-cyan-50',
+    textColor: 'text-cyan-600',
+  },
+  CHAT_MESSAGE: {
+    emoji: '💬',
+    label: 'Message',
+    bgColor: 'bg-indigo-50',
+    textColor: 'text-indigo-600',
+  },
+  SUSPENSION: {
+    emoji: '⚠️',
+    label: 'Suspension',
+    bgColor: 'bg-red-50',
+    textColor: 'text-red-600',
+  },
+  APPEAL_SUBMITTED: {
+    emoji: '📋',
+    label: 'Appeal',
+    bgColor: 'bg-yellow-50',
+    textColor: 'text-yellow-600',
+  },
+  APPEAL_APPROVED: {
+    emoji: '✅',
+    label: 'Appeal Approved',
+    bgColor: 'bg-green-50',
+    textColor: 'text-green-600',
+  },
+  APPEAL_REJECTED: {
+    emoji: '❌',
+    label: 'Appeal Rejected',
+    bgColor: 'bg-red-50',
+    textColor: 'text-red-600',
+  },
+  ACCOUNT_RESTORED: {
+    emoji: '🔓',
+    label: 'Account Restored',
+    bgColor: 'bg-green-50',
+    textColor: 'text-green-600',
   },
 };

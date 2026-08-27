@@ -26,6 +26,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ProfileService } from './profile.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { UpdateNotificationPreferenceDto } from './dto/update-notification-preference.dto';
 
 @ApiTags('Profile')
 @ApiBearerAuth()
@@ -143,4 +144,19 @@ getMyProfile(@CurrentUser() user: any) {
   myBookmarks(@CurrentUser() user: any) {
     return this.profileService.myBookmarks(user.sub);
   }
-}
+
+  @UseGuards(JwtAuthGuard)
+  @Get('settings/notifications')
+  getNotificationPreferences(@CurrentUser() user: any) {
+    return this.profileService.getNotificationPreferences(user.sub);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('settings/notifications')
+  updateNotificationPreferences(
+    @CurrentUser() user: any,
+    @Body() dto: UpdateNotificationPreferenceDto,
+  ) {
+    return this.profileService.updateNotificationPreferences(user.sub, dto);
+  }
+}

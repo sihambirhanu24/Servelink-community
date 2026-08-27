@@ -1005,13 +1005,44 @@ export default function VerificationSetupPage() {
                     <Button
                       onClick={handleSubmit}
                       disabled={!allComplete || isSubmitting}
-                      className="w-full"
+                      className={`w-full transition-all duration-300 ${
+                        !allComplete && !isSubmitting
+                          ? "bg-slate-300 text-slate-500 cursor-not-allowed hover:bg-slate-300 opacity-60"
+                          : allComplete && !isSubmitting
+                          ? "bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white shadow-lg shadow-emerald-500/30 hover:shadow-xl hover:shadow-emerald-500/40 transform hover:scale-[1.02]"
+                          : ""
+                      }`}
                     >
-                      {isSubmitting
-                        ? "Submitting..."
-                        : isRejected
-                          ? "Update & Resubmit Verification"
-                          : "Submit for Verification"}
+                      {isSubmitting ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          </svg>
+                          Submitting...
+                        </span>
+                      ) : !allComplete ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                          </svg>
+                          Complete All Fields to Submit
+                        </span>
+                      ) : isRejected ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          Update & Resubmit Verification
+                        </span>
+                      ) : (
+                        <span className="flex items-center justify-center gap-2">
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          Submit for Verification
+                        </span>
+                      )}
                     </Button>
                   </div>
                 </div>

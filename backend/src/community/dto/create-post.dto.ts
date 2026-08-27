@@ -1,5 +1,6 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { IsNotEmpty, IsOptional, IsString } from "class-validator";
+import { IsEnum, IsNotEmpty, IsOptional, IsString, IsBoolean } from "class-validator";
+import { PostType } from "@prisma/client";
 
 export class CreatePostDto {
 
@@ -31,4 +32,13 @@ export class CreatePostDto {
   @IsString()
   @IsNotEmpty()
   categoryId: string;
+
+  @ApiProperty({
+    example: "DISCUSSION",
+    required: false,
+    enum: PostType
+  })
+  @IsEnum(PostType)
+  @IsOptional()
+  postType?: PostType;
 }

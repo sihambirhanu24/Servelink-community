@@ -14,6 +14,7 @@ import { PostAuthor } from "./PostAuthor";
 import { PostActions } from "./PostActions";
 import { PostAttachment } from "./PostAttachment";
 import { PostTags } from "./PostTags";
+import { markBestAnswer, markHelpful } from "@/services/comment.service";
 
 interface Attachment {
   id: string;
@@ -58,6 +59,8 @@ interface Post {
   bookmarked?: boolean;
   bookmarks?: number;
   tags?: Array<{ name: string }>;
+  postType?: "QUESTION" | "DISCUSSION" | "RESOURCE" | "ANNOUNCEMENT";
+  isResolved?: boolean;
 }
 
 interface PostCardProps {
@@ -183,6 +186,27 @@ export default function PostCard({ post, onDelete, onToast, feedMode = false }: 
     );
   }
 
+  async function handleMarkBestAnswer(commentId: string) {
+    try {
+      await markBestAnswer(commentId);
+      queryClient.invalidateQueries({ queryKey: ["post-comments", post.id] });
+      invalidateAll();
+      onToast?.("Marked as best answer");
+    } catch (error) {
+      onToast?.("Could not mark best answer");
+    }
+  }
+
+  async function handleMarkHelpful(commentId: string) {
+    try {
+      await markHelpful(commentId);
+      queryClient.invalidateQueries({ queryKey: ["post-comments", post.id] });
+      onToast?.("Helpful status updated");
+    } catch (error) {
+      onToast?.("Could not update helpful status");
+    }
+  }
+
   const formatRelativeTime = (value?: string) => {
     if (!value) return "Just now";
     const parsed = new Date(value);
@@ -259,6 +283,23 @@ export default function PostCard({ post, onDelete, onToast, feedMode = false }: 
           )}
         </div>
 
+        {/* Post Type Badge */}
+        {post.postType && (
+          <div className="mt-2">
+            <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold
+              ${post.postType === "QUESTION" ? (post.isResolved ? "bg-green-100 text-green-700" : "bg-purple-100 text-purple-700") : ""}
+              ${post.postType === "DISCUSSION" ? "bg-blue-100 text-blue-700" : ""}
+              ${post.postType === "RESOURCE" ? "bg-orange-100 text-orange-700" : ""}
+              ${post.postType === "ANNOUNCEMENT" ? "bg-yellow-100 text-yellow-700" : ""}
+            `}>
+              {post.postType === "QUESTION" && (post.isResolved ? "✓ Resolved Question" : "? Question")}
+              {post.postType === "DISCUSSION" && "💬 Discussion"}
+              {post.postType === "RESOURCE" && "📚 Resource"}
+              {post.postType === "ANNOUNCEMENT" && "📢 Announcement"}
+            </span>
+          </div>
+        )}
+
         {/* Post Content */}
         <div className="mt-4">
           <h2 className="text-lg font-bold text-[#043658] leading-tight">{post.title}</h2>
@@ -314,8 +355,8 @@ export default function PostCard({ post, onDelete, onToast, feedMode = false }: 
             </div>
           ) : (
             <div className="space-y-3">
-              {comments.map((comment: { id: string; content: string; createdAt?: string; teacher?: { firstName?: string; lastName?: string; verified?: boolean; level?: string } }) => (
-                <div key={comment.id} className="rounded-xl border border-slate-100 bg-white p-4">
+              {comments.map((comment: { id: string; content: string; createdAt?: string; teacher?: { firstName?: string; lastName?: string; verified?: boolean; level?: string }; isAccepted?: boolean; _count?: { reactions?: number } }) => (
+                <div key={comment.id} className={`rounded-xl border ${comment.isAccepted ? "border-green-200 bg-green-50/30" : "border-slate-100 bg-white"} p-4`}>
                   <div className="flex items-start gap-3">
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#043658] text-sm font-semibold text-white">
                       {comment.teacher?.firstName?.charAt(0) ?? "T"}
@@ -329,8 +370,31 @@ export default function PostCard({ post, onDelete, onToast, feedMode = false }: 
                         <span className="text-xs text-slate-400">
                           {comment.teacher?.level ?? "Teacher"} • {formatRelativeTime(comment.createdAt)}
                         </span>
+                        {comment.isAccepted && (
+                          <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold text-green-700">
+                            ✓ Best Answer
+                          </span>
+                        )}
                       </div>
                       <p className="mt-1.5 text-sm leading-relaxed text-slate-700">{comment.content}</p>
+                      
+                      {/* Comment Actions */}
+                      <div className="mt-3 flex items-center gap-4">
+                        {(post.postType === "QUESTION" && isOwner && !comment.isAccepted) && (
+                          <button
+                            onClick={() => handleProtectedAction(() => handleMarkBestAnswer(comment.id))}
+                            className="text-xs font-medium text-[#043658] hover:underline"
+                          >
+                            Mark Best Answer
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleProtectedAction(() => handleMarkHelpful(comment.id))}
+                          className="text-xs font-medium text-slate-500 hover:text-[#043658]"
+                        >
+                          👍 Helpful ({comment._count?.reactions ?? 0})
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>

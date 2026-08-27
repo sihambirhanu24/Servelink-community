@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/axios";
+import { useAuth } from "@/context/AuthContext";
 
 export interface VerificationDocument {
   id: string;
@@ -21,6 +22,7 @@ export interface VerificationStatus {
 
 export function useVerification() {
   const queryClient = useQueryClient();
+  const { token, isInitializing } = useAuth();
 
   const {
     data: status,
@@ -33,6 +35,7 @@ export function useVerification() {
       const response = await api.get("/verification/status");
       return response.data;
     },
+    enabled: !isInitializing && !!token,
     retry: 1,
   });
 

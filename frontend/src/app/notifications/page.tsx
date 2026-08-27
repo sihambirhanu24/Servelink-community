@@ -23,14 +23,24 @@ import { getDateGroup, getNotificationRoute, getRelativeTime } from '@/lib/notif
 import type { Notification, NotificationFilterType, NotificationType } from '@/types/notification';
 
 const TYPE_CONFIG: Record<NotificationType, { icon: React.ElementType; bg: string; color: string; label: string }> = {
-  LIKE:           { icon: Heart,           bg: 'bg-rose-50',     color: 'text-rose-500',    label: 'Like'      },
-  COMMENT:        { icon: MessageCircle,   bg: 'bg-blue-50',     color: 'text-blue-500',    label: 'Comment'   },
-  REPLY:          { icon: CornerDownRight, bg: 'bg-indigo-50',   color: 'text-indigo-500',  label: 'Reply'     },
-  BOOKMARK:       { icon: Bookmark,        bg: 'bg-amber-50',    color: 'text-amber-500',   label: 'Bookmark'  },
-  COMMUNITY_JOIN: { icon: Users,           bg: 'bg-emerald-50',  color: 'text-emerald-600', label: 'Community' },
-  LEVEL_UPGRADE:  { icon: Award,           bg: 'bg-[#FFC107]/15',color: 'text-[#043658]',  label: 'Level Up'  },
-  REPORT:         { icon: Flag,            bg: 'bg-orange-50',   color: 'text-orange-500',  label: 'Report'    },
-  SYSTEM:         { icon: Bell,            bg: 'bg-slate-100',   color: 'text-slate-500',   label: 'System'    },
+  LIKE:              { icon: Heart,            bg: 'bg-rose-50',     color: 'text-rose-500',    label: 'Like'           },
+  COMMENT:           { icon: MessageCircle,    bg: 'bg-blue-50',     color: 'text-blue-500',    label: 'Comment'        },
+  REPLY:             { icon: CornerDownRight, bg: 'bg-indigo-50',   color: 'text-indigo-500',  label: 'Reply'          },
+  BOOKMARK:          { icon: Bookmark,         bg: 'bg-amber-50',    color: 'text-amber-500',   label: 'Bookmark'       },
+  COMMUNITY_JOIN:    { icon: Users,            bg: 'bg-emerald-50',  color: 'text-emerald-600', label: 'Community'      },
+  LEVEL_UPGRADE:     { icon: Award,            bg: 'bg-[#FFC107]/15',color: 'text-[#043658]',  label: 'Level Up'       },
+  REPORT:            { icon: Flag,             bg: 'bg-orange-50',   color: 'text-orange-500',  label: 'Report'         },
+  SYSTEM:            { icon: Bell,             bg: 'bg-slate-100',   color: 'text-slate-500',   label: 'System'         },
+  ANSWER_SUBMITTED:  { icon: MessageCircle,    bg: 'bg-blue-50',     color: 'text-blue-500',    label: 'Answer'         },
+  BEST_ANSWER:       { icon: Award,            bg: 'bg-amber-50',    color: 'text-amber-500',   label: 'Best Answer'    },
+  ANSWER_HELPFUL:    { icon: Heart,            bg: 'bg-rose-50',     color: 'text-rose-500',    label: 'Helpful'        },
+  DISCUSSION_REPLY:  { icon: CornerDownRight, bg: 'bg-indigo-50',   color: 'text-indigo-500',  label: 'Reply'          },
+  CHAT_MESSAGE:      { icon: MessageCircle,    bg: 'bg-blue-50',     color: 'text-blue-500',    label: 'Message'        },
+  SUSPENSION:        { icon: AlertCircle,      bg: 'bg-red-50',      color: 'text-red-500',     label: 'Suspension'     },
+  APPEAL_SUBMITTED:  { icon: Flag,             bg: 'bg-orange-50',   color: 'text-orange-500',  label: 'Appeal'         },
+  APPEAL_APPROVED:   { icon: CheckCheck,       bg: 'bg-green-50',    color: 'text-green-500',   label: 'Approved'       },
+  APPEAL_REJECTED:   { icon: X,                bg: 'bg-red-50',      color: 'text-red-500',     label: 'Rejected'       },
+  ACCOUNT_RESTORED:   { icon: Award,            bg: 'bg-green-50',    color: 'text-green-500',   label: 'Restored'       },
 };
 
 const FILTER_TABS: { label: string; value: NotificationFilterType; unreadOnly?: boolean }[] = [

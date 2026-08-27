@@ -2,6 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/axios';
+import { useAuth } from '@/context/AuthContext';
 
 export interface AccessibleCommunity {
   id: string;
@@ -27,9 +28,12 @@ async function fetchAccessibleCommunities(): Promise<AccessibleCommunitiesRespon
 }
 
 export function useAccessibleCommunities() {
+  const { token, isInitializing } = useAuth();
+
   return useQuery<AccessibleCommunitiesResponse>({
     queryKey: ['accessible-communities'],
     queryFn: fetchAccessibleCommunities,
+    enabled: !isInitializing && !!token,
     staleTime: 60_000,
     retry: 1,
   });

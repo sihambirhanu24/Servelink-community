@@ -11,6 +11,12 @@ export function useCreatePost() {
       queryClient.invalidateQueries({
         queryKey: ["posts"],
       });
+      queryClient.invalidateQueries({
+        queryKey: ["progress"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["activityHistory"],
+      });
     },
   });
 }

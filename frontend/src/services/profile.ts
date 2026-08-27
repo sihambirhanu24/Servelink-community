@@ -25,6 +25,20 @@ export interface UpdateProfilePayload {
   schoolLocation?: string;
 }
 
+export interface NotificationPreferencePayload {
+  soundEnabled?: boolean;
+  soundType?: string;
+  browserNotifications?: boolean;
+  messages?: boolean;
+  communityActivity?: boolean;
+  questions?: boolean;
+  discussions?: boolean;
+  resources?: boolean;
+  levelProgress?: boolean;
+  announcements?: boolean;
+}
+
+
 export const getProfile = async () => {
   const { data } = await api.get("/profile/me");
   return data;
@@ -69,3 +83,13 @@ export const getMyBookmarks = async () => {
   const { data } = await api.get("/profile/bookmarks");
   return data;
 };
+
+export const getNotificationPreferences = async () => {
+  const { data } = await api.get("/profile/settings/notifications");
+  return data;
+};
+
+export const updateNotificationPreferences = async (body: NotificationPreferencePayload) => {
+  const { data } = await api.patch("/profile/settings/notifications", body);
+  return data;
+};

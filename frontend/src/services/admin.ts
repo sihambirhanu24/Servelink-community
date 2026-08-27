@@ -130,3 +130,13 @@ export async function removeReportContent(reportId: string) {
   const { data } = await adminApi.post(`/admin/reports/${reportId}/remove-content`);
   return data;
 }
+
+export async function resolveReport(reportId: string) {
+  const { data } = await adminApi.patch(`/admin/reports/${reportId}/resolve`);
+  return data;
+}
+
+export async function dismissReport(reportId: string) {
+  const { data } = await adminApi.patch(`/admin/reports/${reportId}/dismiss`);
+  return data;
+}

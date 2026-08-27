@@ -2,8 +2,7 @@
 
 import { use, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, RefreshCw } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { AlertCircle, RefreshCw, Plus } from 'lucide-react';
 
 import { DashboardSidebar } from '@/components/layout/Sidebar';
 import Topbar from '@/components/layout/Topbar';
@@ -14,10 +13,12 @@ import {
 } from '@/hooks/useCommunityType';
 import { CommunityTypeHeader, CommunityTypeHeaderSkeleton } from '@/components/community/CommunityTypeHeader';
 import { CommunityTypeRail } from '@/components/community/CommunityTypeRail';
-
 import { CommunityMembersTab } from '@/components/community/CommunityMembersTab';
 import { CommunityAboutTab } from '@/components/community/CommunityAboutTab';
+import { CreatePostModal } from '@/components/community/CreatePostModal';
 import PostCard from '@/components/post/PostCard';
+import type { CommunityTypeKey } from '@/services/community';
+import { useVerification } from '@/hooks/useVerification';
 
 type Tab = 'posts' | 'members' | 'about';
 
@@ -60,8 +61,14 @@ export default function CommunityTypePage({ params }: PageProps) {
   const { type } = use(params);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('posts');
+  const [createModalOpen, setCreateModalOpen] = useState(false);
   const queryClient = useQueryClient();
-  const router = useRouter();
+
+  const { status } = useVerification();
+  const isVerified = status?.verificationStatus === 'APPROVED';
+
+  // Normalise type to uppercase for the backend key
+  const communityTypeKey = type.toUpperCase() as CommunityTypeKey;
 
   const {
     data: communityData,
@@ -131,11 +138,31 @@ export default function CommunityTypePage({ params }: PageProps) {
         <div className="mx-auto max-w-6xl px-4 py-5 sm:px-6">
 
           {/* Header */}
-          <div className="mb-4">
-            {communityLoading || !community
-              ? <CommunityTypeHeaderSkeleton />
-              : <CommunityTypeHeader community={community} type={type} />
-            }
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              {communityLoading || !community
+                ? <CommunityTypeHeaderSkeleton />
+                : <CommunityTypeHeader community={community} type={type} />
+              }
+            </div>
+            {/* Create Post button — top-right of the community page */}
+            {!communityLoading && (
+              <button
+                onClick={() => {
+                  if (!isVerified) {
+                    if (typeof window !== 'undefined') {
+                      window.dispatchEvent(new CustomEvent('show-verification-modal'));
+                    }
+                    return;
+                  }
+                  setCreateModalOpen(true);
+                }}
+                className="flex shrink-0 items-center gap-2 rounded-xl bg-[#043658] px-4 py-2.5 text-sm font-semibold text-white shadow hover:bg-[#032742] transition-colors"
+              >
+                <Plus className="h-4 w-4" />
+                Create Post
+              </button>
+            )}
           </div>
 
           {/* Two-column grid */}
@@ -201,7 +228,15 @@ export default function CommunityTypePage({ params }: PageProps) {
                         </p>
                       </div>
                       <button
-                        onClick={() => router.push('/posts')}
+                        onClick={() => {
+                          if (!isVerified) {
+                            if (typeof window !== 'undefined') {
+                              window.dispatchEvent(new CustomEvent('show-verification-modal'));
+                            }
+                            return;
+                          }
+                          setCreateModalOpen(true);
+                        }}
                         className="mt-1 rounded-lg bg-[#043658] px-4 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[#043658]/30"
                       >
                         Create Post
@@ -265,6 +300,13 @@ export default function CommunityTypePage({ params }: PageProps) {
 
         </div>
       </main>
+
+      {/* Context-aware create post modal */}
+      <CreatePostModal
+        isOpen={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        communityType={communityTypeKey}
+      />
     </div>
   );
 }

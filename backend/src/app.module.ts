@@ -19,6 +19,8 @@ import { ProgressModule } from './progress/progress.module';
 import { VerificationModule } from './verification/verification.module';
 import { LocationChangeModule } from './location-change/location-change.module';
 import { AnnouncementModule } from './announcement/announcement.module';
+import { DiscussionModule } from './discussion/discussion.module';
+import { SuspensionModule } from './suspension/suspension.module';
 
 import { MailModule } from "./mail/mail.module";
 import { ConfigModule } from '@nestjs/config'
@@ -61,6 +63,8 @@ import { join } from "path";
   VerificationModule,
   LocationChangeModule,
   AnnouncementModule,
+  DiscussionModule,
+  SuspensionModule,
 
   MailModule,
 ],

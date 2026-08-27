@@ -2,7 +2,7 @@
 
 import { Filter } from "lucide-react";
 
-type Tab = "all" | "following" | "my-communities" | "saved";
+type Tab = "overview" | "questions" | "discussions" | "resources" | "members";
 
 interface CommunityFiltersProps {
   tab: Tab;
@@ -41,10 +41,11 @@ export function CommunityFilters({
         {/* Tabs */}
         <div className="flex items-center gap-1 overflow-x-auto pb-1 lg:pb-0">
           {[
-            { key: "all" as Tab, label: "All Posts" },
-            { key: "following" as Tab, label: "Following" },
-            { key: "my-communities" as Tab, label: "My Communities" },
-            { key: "saved" as Tab, label: "Saved" },
+            { key: "overview" as Tab, label: "Overview" },
+            { key: "questions" as Tab, label: "Questions" },
+            { key: "discussions" as Tab, label: "Discussions" },
+            { key: "resources" as Tab, label: "Resources" },
+            { key: "members" as Tab, label: "Members" },
           ].map((t) => (
             <button
               key={t.key}

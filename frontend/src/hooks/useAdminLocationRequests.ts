@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import api from '@/lib/axios';
+import { adminApi as api } from '@/lib/axios';
 
 export function useAdminLocationRequests(status?: string) {
   return useQuery({

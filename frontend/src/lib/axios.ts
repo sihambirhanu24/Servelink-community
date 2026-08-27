@@ -44,7 +44,9 @@ api.interceptors.response.use(
       setAccessToken(null);
       localStorage.removeItem("token");
       localStorage.removeItem("teacher");
-      
+      if (typeof document !== "undefined") {
+        document.cookie = "token=; path=/; max-age=0; SameSite=Lax";
+      }
       // Notify AuthContext to update its state
       if (onTokenInvalidated) {
         onTokenInvalidated();
@@ -56,6 +58,20 @@ api.interceptors.response.use(
       if (code === 'VERIFICATION_PENDING' || code === 'VERIFICATION_REJECTED' || code === 'VERIFICATION_REQUIRED') {
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('show-verification-modal'));
+        }
+      } else if (code === 'ACCOUNT_SUSPENDED') {
+        if (typeof window !== 'undefined') {
+          // Store suspension details for display
+          const suspensionDetails = {
+            suspensionReason: error.response.data.suspensionReason,
+            suspensionStart: error.response.data.suspensionStart,
+            suspensionUntil: error.response.data.suspensionUntil,
+          };
+          localStorage.setItem('suspension_details', JSON.stringify(suspensionDetails));
+          // Dispatch event to show suspension modal or redirect
+          window.dispatchEvent(new CustomEvent('account-suspended', { detail: suspensionDetails }));
+          // Redirect to suspended page
+          window.location.href = '/suspended';
         }
       }
     }

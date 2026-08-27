@@ -24,6 +24,13 @@ export function useLike() {
       queryClient.invalidateQueries({
         queryKey: ["posts"],
       });
+      // Invalidate progress queries for like points
+      queryClient.invalidateQueries({
+        queryKey: ["progress"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["activityHistory"],
+      });
     },
   });
 }

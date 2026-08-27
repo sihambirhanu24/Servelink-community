@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import api from "@/lib/axios";
+import { adminApi as api } from "@/lib/axios";
 
 export interface PendingTeacher {
   id: string;

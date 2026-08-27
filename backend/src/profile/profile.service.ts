@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { UpdateNotificationPreferenceDto } from './dto/update-notification-preference.dto';
 import { PrismaService } from '../prisma/prisma.service';
 @Injectable()
 export class ProfileService {
@@ -217,5 +218,31 @@ async myBookmarks(
     },
   });
 }
+  async getNotificationPreferences(teacherId: string) {
+    let prefs = await this.prisma.notificationPreference.findUnique({
+      where: { teacherId },
+    });
+    if (!prefs) {
+      prefs = await this.prisma.notificationPreference.create({
+        data: { teacherId },
+      });
+    }
+    return prefs;
+  }
+
+  async updateNotificationPreferences(
+    teacherId: string,
+    dto: UpdateNotificationPreferenceDto,
+  ) {
+    return this.prisma.notificationPreference.upsert({
+      where: { teacherId },
+      update: dto,
+      create: {
+        teacherId,
+        ...dto,
+      },
+    });
+  }
 
 }
+

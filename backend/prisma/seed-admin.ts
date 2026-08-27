@@ -7,11 +7,14 @@
  */
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import * as dotenv from 'dotenv';
+
+dotenv.config();
 
 const prisma = new PrismaClient();
 
 const ADMIN_EMAIL    = 'admin@servelink.et';
-const ADMIN_PASSWORD = 'Admin@ServeLink2025';
+const ADMIN_PASSWORD = 'Admin123';
 const ADMIN_NAME     = 'ServeLink Admin';
 
 async function main() {

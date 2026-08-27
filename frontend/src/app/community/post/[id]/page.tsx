@@ -28,6 +28,7 @@ import {
   deletePost,
 } from "@/services/community";
 import { getPostComments, createComment } from "@/services/comment.service";
+import { markBestAnswer, markHelpful } from "@/services/community-network";
 import { getTeacherPosts } from "@/services/teachers";
 import { toast } from "sonner";
 import { useConfirm } from "@/hooks/useConfirm";
@@ -134,6 +135,28 @@ export default function PostDetailPage() {
     },
     onError: () => {
       toast.error("Failed to delete post");
+    },
+  });
+
+  const bestAnswerMutation = useMutation({
+    mutationFn: (commentId: string) => markBestAnswer(commentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["post-comments", postId] });
+      queryClient.invalidateQueries({ queryKey: ["post", postId] });
+      toast.success("Best answer marked!");
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message ?? "Failed to mark best answer");
+    },
+  });
+
+  const helpfulMutation = useMutation({
+    mutationFn: (commentId: string) => markHelpful(commentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["post-comments", postId] });
+    },
+    onError: () => {
+      toast.error("Failed to mark helpful");
     },
   });
 
@@ -455,12 +478,23 @@ export default function PostDetailPage() {
                 ) : (
                   <div className="space-y-6">
                     {comments.map((comment: any) => (
-                      <div key={comment.id} className="flex gap-4">
+                      <div key={comment.id} className={`flex gap-4 relative`}>
+                        {comment.isAccepted && (
+                          <div className="absolute -top-2 -left-2 -right-2 h-[calc(100%+16px)] rounded-2xl border-2 border-green-400 pointer-events-none" />
+                        )}
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-sm font-bold text-[#043658]">
                           {comment.teacher?.firstName?.charAt(0) || "T"}
                         </div>
                         <div className="flex-1">
-                          <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-4">
+                          <div className={`rounded-2xl border p-4 ${comment.isAccepted ? "border-green-300 bg-green-50/50" : "border-slate-100 bg-slate-50/50"}`}>
+                            {comment.isAccepted && (
+                              <div className="flex items-center gap-1.5 mb-2 text-xs font-bold text-green-700">
+                                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                Best Answer
+                              </div>
+                            )}
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center gap-2">
                                 <span className="text-sm font-bold text-[#043658]">
@@ -475,16 +509,31 @@ export default function PostDetailPage() {
                               <span className="text-[11px] font-medium text-slate-400">{formatDate(comment.createdAt)}</span>
                             </div>
                             <p className="text-[14px] text-slate-700 leading-relaxed mb-3">{comment.content}</p>
-                            <div className="flex items-center gap-4 text-xs font-semibold text-slate-500">
-                              <button className="flex items-center gap-1.5 hover:text-[#043658] transition-colors">
-                                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <div className="flex flex-wrap items-center gap-3 text-xs font-semibold text-slate-500">
+                              <button
+                                onClick={() => helpfulMutation.mutate(comment.id)}
+                                disabled={helpfulMutation.isPending}
+                                className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 transition-colors ${
+                                  comment.markedHelpful ? "bg-blue-100 text-blue-700" : "hover:bg-slate-100 hover:text-[#043658]"
+                                }`}
+                              >
+                                <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
                                 </svg>
-                                Like
+                                Helpful {comment.helpfulCount > 0 && `(${comment.helpfulCount})`}
                               </button>
-                              <button className="flex items-center gap-1.5 hover:text-[#043658] transition-colors">
-                                Reply
-                              </button>
+                              {isOwner && post.postType === "QUESTION" && !comment.isAccepted && (
+                                <button
+                                  onClick={() => bestAnswerMutation.mutate(comment.id)}
+                                  disabled={bestAnswerMutation.isPending}
+                                  className="flex items-center gap-1.5 rounded-lg border border-green-300 px-2.5 py-1 text-green-700 hover:bg-green-50 transition-colors"
+                                >
+                                  <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                  Mark Best Answer
+                                </button>
+                              )}
                             </div>
                           </div>
                         </div>

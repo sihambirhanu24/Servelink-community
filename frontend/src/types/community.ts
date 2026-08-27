@@ -64,6 +64,9 @@ export interface Post {
 
   category: Category;
 
+  postType?: "QUESTION" | "DISCUSSION" | "RESOURCE" | "ANNOUNCEMENT";
+  isResolved?: boolean;
+
   attachments: Attachment[];
 
   comments: Comment[];

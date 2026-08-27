@@ -16,3 +16,13 @@ export const createComment = async (payload: {
 
   return data;
 };
+
+export const markBestAnswer = async (commentId: string) => {
+  const { data } = await api.post(`/community/network/questions/answers/${commentId}/best-answer`);
+  return data;
+};
+
+export const markHelpful = async (commentId: string) => {
+  const { data } = await api.post(`/community/network/answers/${commentId}/helpful`);
+  return data;
+};

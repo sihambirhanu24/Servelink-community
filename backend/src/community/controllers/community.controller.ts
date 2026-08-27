@@ -16,13 +16,16 @@ import {
 
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { VerifiedTeacherGuard } from '../../verification/guards/verified-teacher.guard';
+import { SuspensionGuard } from '../../suspension/guards/suspension.guard';
 import { CommunityService } from '../services/community.service';
 import { CreatePostDto } from '../dto/create-post.dto';
+import { CreatePostByTypeDto } from '../dto/create-post-by-type.dto';
 import { CurrentUser } from 'src/auth/decorators/current-user.decorator';
 import { CreateCommentDto } from '../dto/create-comment.dto';
 import { ReportPostDto } from '../dto/report-post.dto';
 import { FileInterceptor } from '@nestjs/platform-express/multer/interceptors/file.interceptor';
 import { multerConfig } from '../../upload/config/multer.config';
+import { ChatService } from '../../chat/chat.service';
 import {
   ApiTags,
   ApiOperation,
@@ -35,6 +38,7 @@ import {
 export class CommunityController {
   constructor(
     private readonly communityService: CommunityService,
+    private readonly chatService: ChatService,
   ) {}
 
 
@@ -76,7 +80,7 @@ deleteCategory(@Param('id') id: string) {
 }
 
  @Post("posts")
-@UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
+@UseGuards(JwtAuthGuard, VerifiedTeacherGuard, SuspensionGuard)
 createPost(
   @CurrentUser() user,
   @Body() dto: CreatePostDto,
@@ -91,11 +95,31 @@ createPost(
     dto,
   );
 }
+
+/**
+ * Create post by community type — the backend resolves the actual community.
+ * The frontend sends communityType (NETWORK / SCHOOL / WOREDA / ZONE / REGION / NATIONAL)
+ * instead of an arbitrary communityId.
+ * Authorization is fully enforced server-side.
+ *
+ * NOTE: path is intentionally NOT under /posts/* to avoid any route-matching
+ * ambiguity with existing POST /posts and POST /posts/:id/* routes.
+ */
+@ApiBearerAuth()
+@ApiOperation({ summary: 'Create post from community type context (context-aware)' })
+@Post('create-by-type')
+@UseGuards(JwtAuthGuard, VerifiedTeacherGuard, SuspensionGuard)
+createPostByType(
+  @CurrentUser() user: any,
+  @Body() dto: CreatePostByTypeDto,
+) {
+  return this.communityService.createPostByType(user.sub, dto);
+}
 @ApiBearerAuth()
 @ApiOperation({
   summary: 'Like a post',
 })
-@UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
+@UseGuards(JwtAuthGuard, VerifiedTeacherGuard, SuspensionGuard)
 @Post('posts/:id/like')
 likePost(
   @Param('id') postId: string,
@@ -131,7 +155,7 @@ unlikePost(
   summary: 'Add comment to a post',
 })
 @Post('posts/:postId/comments')
-@UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
+@UseGuards(JwtAuthGuard, VerifiedTeacherGuard, SuspensionGuard)
 createComment(
   @Param('postId') postId: string,
   @Body() dto: CreateCommentDto,
@@ -142,6 +166,68 @@ createComment(
     postId,
     dto,
   );
+}
+
+@ApiBearerAuth()
+@ApiOperation({
+  summary: 'Mark an answer as best answer',
+})
+@Post('network/questions/answers/:commentId/best-answer')
+@UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
+markBestAnswer(
+  @Param('commentId') commentId: string,
+  @Req() req,
+) {
+  return this.communityService.markBestAnswer(
+    req.user.sub,
+    commentId,
+  );
+}
+
+@ApiBearerAuth()
+@ApiOperation({
+  summary: 'Mark an answer as helpful',
+})
+@Post('network/answers/:commentId/helpful')
+@UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
+markHelpful(
+  @Param('commentId') commentId: string,
+  @Req() req,
+) {
+  return this.communityService.markHelpful(
+    req.user.sub,
+    commentId,
+  );
+}
+
+@ApiOperation({ summary: 'Get Network Community overview stats + recent content' })
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
+@Get('network/overview')
+getNetworkOverview() {
+  return this.communityService.getNetworkOverview();
+}
+
+@ApiOperation({ summary: 'Get community guidelines' })
+@Get('guidelines')
+getGuidelines() {
+  return this.communityService.getGuidelines();
+}
+
+@ApiOperation({ summary: 'Seed default guidelines (admin use)' })
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
+@Post('guidelines/seed')
+seedGuidelines() {
+  return this.communityService.seedDefaultGuidelines();
+}
+
+@ApiOperation({ summary: 'Create a guideline (admin use)' })
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
+@Post('guidelines')
+createGuideline(@Body() body: { title: string; description: string; icon?: string; order?: number }) {
+  return this.communityService.createGuideline(body);
 }
 
  @ApiOperation({
@@ -159,13 +245,21 @@ createComment(
     return this.communityService.getPostById(id, req.user?.sub);
   }
 
+@ApiOperation({ summary: 'Get comments / answers for a post' })
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
+@Get('posts/:id/comments')
+getPostComments(@Param('id') postId: string, @Req() req) {
+  return this.communityService.getPostComments(postId, req.user?.sub);
+}
+
 
 @ApiBearerAuth()
 @ApiOperation({
   summary: 'Update a post',
 })
 @Patch('posts/:id')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, SuspensionGuard)
 updatePost(
   @Param('id') id: string,
   @Body() dto: CreatePostDto,
@@ -199,7 +293,7 @@ deletePost(
   summary: 'Bookmark a post',
 })
 @Post('posts/:postId/bookmark')
-@UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
+@UseGuards(JwtAuthGuard, VerifiedTeacherGuard, SuspensionGuard)
 bookmarkPost(
   @Param('postId') postId: string,
   @Req() req,
@@ -235,6 +329,7 @@ getPosts(
   @Query("categoryId") categoryId?: string,
   @Query("page") page = "1",
   @Query("limit") limit = "10",
+  @Query("postType") postType?: string,
 ) {
   return this.communityService.getPosts(
     req.user.sub,
@@ -242,6 +337,7 @@ getPosts(
       search,
       communityId,
       categoryId,
+      postType,
       page: Number(page),
       limit: Number(limit),
     },
@@ -370,6 +466,18 @@ getMembersByType(
   return this.communityService.getMembersByType(user.sub, type);
 }
 
+/** GET /community/discussions/:postId/messages — load discussion chat history */
+@ApiOperation({ summary: 'Get chat messages for a discussion' })
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
+@Get('discussions/:postId/messages')
+getDiscussionMessages(
+  @Param('postId') postId: string,
+  @Query('cursor') cursor?: string,
+  @Query('limit') limit?: string,
+) {
+  return this.chatService.getDiscussionMessages(postId, limit ? parseInt(limit) : 50, cursor);
+}
 
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)

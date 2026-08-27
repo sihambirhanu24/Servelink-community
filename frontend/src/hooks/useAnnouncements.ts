@@ -14,6 +14,7 @@ import {
   type CreateAnnouncementPayload,
   type UpdateAnnouncementPayload,
 } from '@/services/announcements';
+import { useAuth } from '@/context/AuthContext';
 
 // ─── Admin hooks ──────────────────────────────────────────────────────────────
 
@@ -105,9 +106,12 @@ export function useUnpublishAnnouncement() {
 // ─── Teacher hooks ────────────────────────────────────────────────────────────
 
 export function useTeacherAnnouncements(params?: { page?: number; limit?: number }) {
+  const { token, isInitializing } = useAuth();
+
   return useQuery({
     queryKey: ['announcements', params],
     queryFn: () => getAnnouncements(params),
+    enabled: !isInitializing && !!token,
     staleTime: 60_000,
   });
 }

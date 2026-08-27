@@ -1,4 +1,4 @@
-import { api } from "@/lib/axios";
+import { adminApi as api } from "@/lib/axios";
 
 // ============ TEACHERS ============
 export const getTeachers = async (query?: any) => {

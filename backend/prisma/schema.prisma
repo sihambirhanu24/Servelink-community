@@ -8,85 +8,101 @@ datasource db {
 }
 
 model Teacher {
-  id                    String                        @id @default(cuid())
-  firstName             String
-  lastName              String
-  email                 String                        @unique
-  password              String
-  profileImage          String?
-  bannerUrl             String?
-  subject               String?
+  id                                String                         @id @default(cuid())
+  firstName                         String
+  lastName                          String
+  email                             String                         @unique
+  password                          String
+  profileImage                      String?
+  bannerUrl                         String?
+  subject                           String?
   /// Personal information for verification
-  gender                String?
-  dateOfBirth           DateTime?
-  bio                   String?
-  phone                 String?
+  gender                            String?
+  dateOfBirth                       DateTime?
+  bio                               String?
+  phone                             String?
   /// Professional information for verification
-  profession            String?
-  specialization        String?
-  skills                String?
-  gradeLevel            String?
-  yearsOfExperience     Int?
-  teacherIdNumber       String?
+  profession                        String?
+  specialization                    String?
+  skills                            String?
+  gradeLevel                        String?
+  yearsOfExperience                 Int?
+  teacherIdNumber                   String?
   /// School information for verification
-  schoolType            String?
-  city                  String?
-  schoolLocation        String?
-  verified              Boolean                       @default(false)
-  level                 TeacherLevelType              @default(LEVEL_1)
-  status                TeacherStatus                 @default(ACTIVE)
-  school                String
-  woreda                String
-  zone                  String
-  region                String
+  schoolType                        String?
+  city                              String?
+  schoolLocation                    String?
+  verified                          Boolean                        @default(false)
+  level                             TeacherLevelType               @default(LEVEL_1)
+  status                            TeacherStatus                  @default(ACTIVE)
+  school                            String
+  woreda                            String
+  zone                              String
+  region                            String
   /// Professional department (e.g. "Mathematics", "English", "Physics").
   /// Required for LEVEL_2–5 teachers; optional/unused for LEVEL_1.
-  department            String?
+  department                        String?
   /// Total progression points earned by the teacher
-  points                Int                           @default(0)
+  points                            Int                            @default(0)
   /// Start time of the current 24-hour privilege (null if no active privilege)
-  privilegeStartAt      DateTime?
+  privilegeStartAt                  DateTime?
   /// Expiration time of the current 24-hour privilege (null if no active privilege)
-  privilegeExpiresAt    DateTime?
+  privilegeExpiresAt                DateTime?
   /// Teacher verification status for admin approval
-  verificationStatus    TeacherVerificationStatus     @default(PENDING)
+  verificationStatus                TeacherVerificationStatus      @default(PENDING)
   /// Reason provided by admin if verification was rejected
-  rejectionReason       String?
+  rejectionReason                   String?
   /// When the teacher was approved by admin
-  approvedAt            DateTime?
+  approvedAt                        DateTime?
   /// Admin ID who approved this teacher
-  approvedBy            String?
-  createdAt             DateTime                      @default(now())
-  updatedAt             DateTime                      @updatedAt
-  communityBookmarks    CommunityBookmark[]
-  comments              CommunityComment[]
-  communityLikes        CommunityLike[]
-  communityMembers      CommunityMember[]
-  posts                 CommunityPost[]
-  communityReports      CommunityReport[]
-  notifications         Notification[]
-  chatMessages          ChatMessage[]
-  chatReactions         ChatReaction[]
-  chatMessageReads      ChatMessageRead[]
-  pinnedMessages        PinnedMessage[]
-  chatUnreadCounts      ChatUnreadCount[]
-  activities            TeacherActivity[]
-  verificationDocuments TeacherVerificationDocument[]
-  locationChangeRequests TeacherLocationChangeRequest[]
-  locationHistory       TeacherLocationHistory[]
-  followers             TeacherFollow[]                @relation("TeacherFollows")
-  following             TeacherFollow[]                @relation("TeacherFollowing")
-  announcementReads     AnnouncementRead[]
+  approvedBy                        String?
+  /// Suspension fields
+  suspensionReason                  String?
+  suspensionStart                   DateTime?
+  suspensionUntil                   DateTime?
+  suspendedBy                       String?
+  suspensionCount                   Int                            @default(0)
+  createdAt                         DateTime                       @default(now())
+  updatedAt                         DateTime                       @updatedAt
+  communityBookmarks                CommunityBookmark[]
+  comments                          CommunityComment[]
+  communityLikes                    CommunityLike[]
+  communityMembers                  CommunityMember[]
+  posts                             CommunityPost[]
+  communityReports                  CommunityReport[]
+  notifications                     Notification[]
+  chatMessages                      ChatMessage[]
+  chatReactions                     ChatReaction[]
+  chatMessageReads                  ChatMessageRead[]
+  pinnedMessages                    PinnedMessage[]
+  chatUnreadCounts                  ChatUnreadCount[]
+  activities                        TeacherActivity[]
+  verificationDocuments             TeacherVerificationDocument[]
+  locationChangeRequests            TeacherLocationChangeRequest[]
+  locationHistory                   TeacherLocationHistory[]
+  followers                         TeacherFollow[]                @relation("TeacherFollows")
+  following                         TeacherFollow[]                @relation("TeacherFollowing")
+  announcementReads                 AnnouncementRead[]
+  commentReactions                  CommentReaction[]
+  discussions                       Discussion[]
+  discussionBookmarks               DiscussionBookmark[]
+  discussionReports                 DiscussionReport[]
+  discussionReadStates              DiscussionReadState[]
+  directConversationsAsParticipant1 ChatRoom[]                     @relation("DirectConversationParticipant1")
+  directConversationsAsParticipant2 ChatRoom[]                     @relation("DirectConversationParticipant2")
+  suspensionHistory                 SuspensionHistory[]
+  appeals                           SuspensionAppeal[]
+  notificationPreference            NotificationPreference?
 }
 
 model TeacherFollow {
-  id         String   @id @default(cuid())
-  followerId String
+  id          String   @id @default(cuid())
+  followerId  String
   followingId String
-  createdAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
 
-  follower   Teacher @relation("TeacherFollows", fields: [followerId], references: [id], onDelete: Cascade)
-  following  Teacher @relation("TeacherFollowing", fields: [followingId], references: [id], onDelete: Cascade)
+  follower  Teacher @relation("TeacherFollows", fields: [followerId], references: [id], onDelete: Cascade)
+  following Teacher @relation("TeacherFollowing", fields: [followingId], references: [id], onDelete: Cascade)
 
   @@unique([followerId, followingId])
   @@index([followerId])
@@ -147,10 +163,11 @@ model CommunityMember {
 }
 
 model Category {
-  id        String          @id @default(cuid())
-  name      String          @unique
-  createdAt DateTime        @default(now())
-  posts     CommunityPost[]
+  id          String          @id @default(cuid())
+  name        String          @unique
+  createdAt   DateTime        @default(now())
+  posts       CommunityPost[]
+  discussions Discussion[]
 }
 
 model Tag {
@@ -160,24 +177,50 @@ model Tag {
 }
 
 model CommunityPost {
-  id                 String              @id @default(cuid())
+  id                 String               @id @default(cuid())
+  postType           PostType             @default(DISCUSSION)
   title              String
   description        String
+  isResolved         Boolean              @default(false)
+  /// Q&A: deadline (server-authoritative; null for non-questions)
+  deadline           DateTime?
+  /// Q&A: OPEN → CLOSED (deadline passed) → SOLVED (best answer picked)
+  questionStatus     QuestionStatus       @default(OPEN)
+  /// Q&A: id of the accepted CommunityComment (best answer)
+  bestAnswerId       String?
+  /// Q&A: when question became SOLVED
+  solvedAt           DateTime?
   teacherId          String
   communityId        String
   categoryId         String
-  views              Int                 @default(0)
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
+  views              Int                  @default(0)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  /// Moderation status for admin content management
+  moderationStatus   PostModerationStatus @default(ACTIVE)
+  /// Admin ID who moderated this post
+  moderatedById      String?
+  /// Reason for moderation action
+  moderationReason   String?
+  /// When moderation action was taken
+  moderatedAt        DateTime?
   attachments        Attachment[]
   communityBookmarks CommunityBookmark[]
   comments           CommunityComment[]
   communityLikes     CommunityLike[]
-  category           Category            @relation(fields: [categoryId], references: [id])
-  community          Community           @relation(fields: [communityId], references: [id])
-  teacher            Teacher             @relation(fields: [teacherId], references: [id])
+  category           Category             @relation(fields: [categoryId], references: [id])
+  community          Community            @relation(fields: [communityId], references: [id])
+  teacher            Teacher              @relation(fields: [teacherId], references: [id])
   communityReports   CommunityReport[]
   tags               PostTag[]
+  moderationHistory  ModerationHistory[]
+
+  @@index([postType])
+  @@index([questionStatus])
+  @@index([deadline])
+  @@index([teacherId])
+  @@index([communityId])
+  @@index([moderationStatus])
 }
 
 model Attachment {
@@ -192,15 +235,32 @@ model Attachment {
 }
 
 model CommunityComment {
-  id        String        @id @default(cuid())
-  content   String
+  id         String            @id @default(cuid())
+  content    String
+  teacherId  String
+  postId     String
+  parentId   String?
+  isAccepted Boolean           @default(false)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  post       CommunityPost     @relation(fields: [postId], references: [id])
+  teacher    Teacher           @relation(fields: [teacherId], references: [id])
+  reactions  CommentReaction[]
+}
+
+model CommentReaction {
+  id        String   @id @default(cuid())
+  commentId String
   teacherId String
-  postId    String
-  parentId  String?
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
-  post      CommunityPost @relation(fields: [postId], references: [id])
-  teacher   Teacher       @relation(fields: [teacherId], references: [id])
+  reaction  String   @default("HELPFUL") // HELPFUL, etc.
+  createdAt DateTime @default(now())
+
+  comment CommunityComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  teacher Teacher          @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, teacherId])
+  @@index([commentId])
+  @@index([teacherId])
 }
 
 model CommunityLike {
@@ -226,18 +286,41 @@ model CommunityBookmark {
 }
 
 model CommunityReport {
-  id          String        @id @default(cuid())
-  reason      ReportReason
-  description String?
-  teacherId   String
-  postId      String
-  status      ReportStatus  @default(PENDING)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  post        CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
-  teacher     Teacher       @relation(fields: [teacherId], references: [id])
+  id           String        @id @default(cuid())
+  reason       ReportReason
+  description  String?
+  teacherId    String
+  postId       String
+  status       ReportStatus  @default(PENDING)
+  /// Admin ID who reviewed this report (internal only — never exposed to post owner)
+  reviewedById String?
+  /// When the report was reviewed
+  reviewedAt   DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  post         CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  teacher      Teacher       @relation(fields: [teacherId], references: [id])
 
   @@unique([teacherId, postId])
+  @@index([status])
+  @@index([teacherId])
+  @@index([postId])
+}
+
+model ModerationHistory {
+  id        String           @id @default(cuid())
+  postId    String
+  teacherId String
+  adminId   String
+  action    ModerationAction
+  reason    String?
+  createdAt DateTime         @default(now())
+  post      CommunityPost    @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+  @@index([teacherId])
+  @@index([adminId])
+  @@index([createdAt])
 }
 
 model PostTag {
@@ -250,29 +333,29 @@ model PostTag {
 }
 
 model TeacherActivity {
-  id          String               @id @default(cuid())
+  id          String              @id @default(cuid())
   teacherId   String
-  teacher     Teacher              @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  teacher     Teacher             @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   type        TeacherActivityType
   points      Int
   referenceId String?
-  createdAt   DateTime             @default(now())
+  createdAt   DateTime            @default(now())
 
+  @@unique([teacherId, type, referenceId])
   @@index([teacherId])
   @@index([teacherId, type, createdAt])
-  @@unique([teacherId, type, referenceId])
 }
 
 model TeacherVerificationDocument {
-  id           String                     @id @default(cuid())
-  teacherId    String
-  teacher      Teacher                    @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  fileName     String
-  filePath     String
-  fileType     VerificationDocumentType
-  mimeType     String
-  fileSize     Int
-  uploadedAt   DateTime                   @default(now())
+  id         String                   @id @default(cuid())
+  teacherId  String
+  teacher    Teacher                  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  fileName   String
+  filePath   String
+  fileType   VerificationDocumentType
+  mimeType   String
+  fileSize   Int
+  uploadedAt DateTime                 @default(now())
 
   @@index([teacherId])
 }
@@ -301,9 +384,17 @@ enum LocationChangeStatus {
 
 enum TeacherActivityType {
   POST_CREATED
+  QUESTION_CREATED
+  DISCUSSION_CREATED
+  RESOURCE_CREATED
   LIKE_RECEIVED
   BOOKMARK_RECEIVED
+  DISCUSSION_BOOKMARK_RECEIVED
   VIOLATION_CONFIRMED
+  ANSWER_SUBMITTED
+  ANSWER_HELPFUL
+  BEST_ANSWER_SELECTED
+  QUESTION_RESOLVED
 }
 
 enum TeacherLevelType {
@@ -317,14 +408,29 @@ enum TeacherLevelType {
 enum TeacherStatus {
   ACTIVE
   SUSPENDED
+  PERMANENTLY_SUSPENDED
 }
 
 enum CommunityType {
+  NETWORK
   SCHOOL
   WOREDA
   ZONE
   REGION
   NATIONAL
+}
+
+enum PostType {
+  QUESTION
+  DISCUSSION
+  RESOURCE
+  ANNOUNCEMENT
+}
+
+enum QuestionStatus {
+  OPEN // answers hidden from non-askers; deadline not yet passed
+  CLOSED // deadline passed; all answers now visible
+  SOLVED // best answer selected by asker
 }
 
 enum CommunitySubtype {
@@ -337,7 +443,7 @@ enum ReportReason {
   ABUSE
   HARASSMENT
   MISINFORMATION
-  FAKE_INFORMATION  // Deprecated: use MISINFORMATION instead
+  FAKE_INFORMATION // Deprecated: use MISINFORMATION instead
   OTHER
 }
 
@@ -346,6 +452,23 @@ enum ReportStatus {
   REVIEWED
   RESOLVED
   DISMISSED
+}
+
+enum PostModerationStatus {
+  ACTIVE
+  REPORTED
+  UNDER_REVIEW
+  REMOVED
+  HIDDEN
+}
+
+enum ModerationAction {
+  POST_REMOVED
+  POST_RESTORED
+  POST_HIDDEN
+  REPORT_RESOLVED
+  REPORT_DISMISSED
+  TEACHER_WARNED
 }
 
 enum AttachmentType {
@@ -386,39 +509,73 @@ enum NotificationType {
   SYSTEM
   REPLY
   CHAT_MESSAGE
+  ANSWER_SUBMITTED
+  BEST_ANSWER
+  ANSWER_HELPFUL
+  SUSPENSION
+  APPEAL_SUBMITTED
+  APPEAL_APPROVED
+  APPEAL_REJECTED
+  ACCOUNT_RESTORED
+}
+
+enum SuspensionType {
+  WARNING
+  TEMPORARY
+  PERMANENT
+}
+
+enum AppealStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 model ChatRoom {
-  id                String          @id @default(cuid())
-  communityId       String          @unique
-  community         Community       @relation(fields: [communityId], references: [id], onDelete: Cascade)
-  messages          ChatMessage[]
-  pinnedMessages    PinnedMessage[]
-  unreadCounts      ChatUnreadCount[]
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
+  id               String            @id @default(cuid())
+  communityId      String?           @unique
+  community        Community?        @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  /// Optional link to a CommunityPost (DISCUSSION) — each discussion gets its own chat room
+  discussionPostId String?           @unique
+  /// Direct message conversation between two teachers
+  isDirect         Boolean           @default(false)
+  /// First participant in direct message (sorted by ID to ensure uniqueness)
+  participant1Id   String?
+  participant1     Teacher?          @relation("DirectConversationParticipant1", fields: [participant1Id], references: [id], onDelete: Cascade)
+  /// Second participant in direct message
+  participant2Id   String?
+  participant2     Teacher?          @relation("DirectConversationParticipant2", fields: [participant2Id], references: [id], onDelete: Cascade)
+  messages         ChatMessage[]
+  pinnedMessages   PinnedMessage[]
+  unreadCounts     ChatUnreadCount[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
 
+  @@unique([participant1Id, participant2Id])
   @@index([communityId])
+  @@index([discussionPostId])
+  @@index([participant1Id])
+  @@index([participant2Id])
 }
 
 model ChatMessage {
-  id                String              @id @default(cuid())
-  chatRoomId        String
-  chatRoom          ChatRoom            @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
-  senderId          String
-  sender            Teacher             @relation(fields: [senderId], references: [id], onDelete: Cascade)
-  content           String
-  replyToId         String?
-  replyTo           ChatMessage?        @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
-  replies           ChatMessage[]       @relation("MessageReplies")
-  editedAt          DateTime?
-  deletedAt         DateTime?
-  attachments       ChatAttachment[]
-  reactions         ChatReaction[]
-  readBy            ChatMessageRead[]
-  pinnedMessage     PinnedMessage?
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
+  id            String            @id @default(cuid())
+  chatRoomId    String
+  chatRoom      ChatRoom          @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  senderId      String
+  sender        Teacher           @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  content       String
+  replyToId     String?
+  replyTo       ChatMessage?      @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies       ChatMessage[]     @relation("MessageReplies")
+  editedAt      DateTime?
+  deletedAt     DateTime?
+  attachments   ChatAttachment[]
+  reactions     ChatReaction[]
+  readBy        ChatMessageRead[]
+  pinnedMessage PinnedMessage?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
 
   @@index([chatRoomId])
   @@index([senderId])
@@ -427,26 +584,26 @@ model ChatMessage {
 }
 
 model ChatAttachment {
-  id          String    @id @default(cuid())
-  messageId   String
-  message     ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  url         String
-  fileName    String
-  fileSize    Int
-  type        AttachmentType
-  createdAt   DateTime  @default(now())
+  id        String         @id @default(cuid())
+  messageId String
+  message   ChatMessage    @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  url       String
+  fileName  String
+  fileSize  Int
+  type      AttachmentType
+  createdAt DateTime       @default(now())
 
   @@index([messageId])
 }
 
 model ChatReaction {
-  id        String    @id @default(cuid())
+  id        String      @id @default(cuid())
   messageId String
   message   ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
   teacherId String
-  teacher   Teacher   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  reaction  String    // emoji like "👍", "❤️", "😂", etc.
-  createdAt DateTime  @default(now())
+  teacher   Teacher     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  reaction  String // emoji like "👍", "❤️", "😂", etc.
+  createdAt DateTime    @default(now())
 
   @@unique([messageId, teacherId, reaction])
   @@index([messageId])
@@ -454,12 +611,12 @@ model ChatReaction {
 }
 
 model ChatMessageRead {
-  id        String    @id @default(cuid())
+  id        String      @id @default(cuid())
   messageId String
   message   ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
   teacherId String
-  teacher   Teacher   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  readAt    DateTime  @default(now())
+  teacher   Teacher     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  readAt    DateTime    @default(now())
 
   @@unique([messageId, teacherId])
   @@index([messageId])
@@ -467,27 +624,27 @@ model ChatMessageRead {
 }
 
 model PinnedMessage {
-  id        String    @id @default(cuid())
-  chatRoomId String
-  chatRoom  ChatRoom  @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
-  messageId String    @unique
-  message   ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  pinnedBy  String
-  pinnedByTeacher Teacher @relation(fields: [pinnedBy], references: [id], onDelete: Cascade)
-  createdAt DateTime  @default(now())
+  id              String      @id @default(cuid())
+  chatRoomId      String
+  chatRoom        ChatRoom    @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  messageId       String      @unique
+  message         ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  pinnedBy        String
+  pinnedByTeacher Teacher     @relation(fields: [pinnedBy], references: [id], onDelete: Cascade)
+  createdAt       DateTime    @default(now())
 
   @@index([chatRoomId])
   @@index([messageId])
 }
 
 model ChatUnreadCount {
-  id        String    @id @default(cuid())
+  id         String   @id @default(cuid())
   chatRoomId String
-  chatRoom  ChatRoom  @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
-  teacherId String
-  teacher   Teacher   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  count     Int       @default(0)
-  updatedAt DateTime  @updatedAt
+  chatRoom   ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  teacherId  String
+  teacher    Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  count      Int      @default(0)
+  updatedAt  DateTime @updatedAt
 
   @@unique([chatRoomId, teacherId])
   @@index([chatRoomId])
@@ -495,67 +652,67 @@ model ChatUnreadCount {
 }
 
 model TeacherLocationChangeRequest {
-  id                 String               @id @default(cuid())
-  teacherId          String
-  currentSchool      String?
-  requestedSchool    String?
-  currentWoreda      String?
-  requestedWoreda    String?
-  currentZone        String?
-  requestedZone      String?
-  currentRegion      String?
-  requestedRegion    String?
-  currentSubject     String?
-  requestedSubject   String?
-  reason             String               @db.Text
-  status             LocationChangeStatus @default(PENDING)
-  
-  fileName           String?
-  filePath           String?
-  mimeType           String?
-  fileSize           Int?
+  id               String               @id @default(cuid())
+  teacherId        String
+  currentSchool    String?
+  requestedSchool  String?
+  currentWoreda    String?
+  requestedWoreda  String?
+  currentZone      String?
+  requestedZone    String?
+  currentRegion    String?
+  requestedRegion  String?
+  currentSubject   String?
+  requestedSubject String?
+  reason           String               @db.Text
+  status           LocationChangeStatus @default(PENDING)
 
-  adminId            String?
-  adminComment       String?              @db.Text
-  
-  createdAt          DateTime             @default(now())
-  updatedAt          DateTime             @updatedAt
-  reviewedAt         DateTime?
-  
-  teacher            Teacher              @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  
+  fileName String?
+  filePath String?
+  mimeType String?
+  fileSize Int?
+
+  adminId      String?
+  adminComment String? @db.Text
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  reviewedAt DateTime?
+
+  teacher Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
   @@index([teacherId])
   @@index([status])
 }
 
 model TeacherLocationHistory {
-  id                 String               @id @default(cuid())
-  teacherId          String
-  school             String?
-  woreda             String?
-  zone               String?
-  region             String?
-  subject            String?
-  startedAt          DateTime
-  endedAt            DateTime             @default(now())
-  changeRequestId    String?
-  
-  teacher            Teacher              @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  
+  id              String   @id @default(cuid())
+  teacherId       String
+  school          String?
+  woreda          String?
+  zone            String?
+  region          String?
+  subject         String?
+  startedAt       DateTime
+  endedAt         DateTime @default(now())
+  changeRequestId String?
+
+  teacher Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
   @@index([teacherId])
 }
 
 // ─── Announcements ────────────────────────────────────────────────────────────
 
 model Announcement {
-  id             String              @id @default(cuid())
+  id             String             @id @default(cuid())
   title          String
-  content        String              @db.Text
-  type           AnnouncementType    @default(GENERAL)
-  status         AnnouncementStatus  @default(DRAFT)
-  targetAudience AnnouncementTarget  @default(ALL_TEACHERS)
+  content        String             @db.Text
+  type           AnnouncementType   @default(GENERAL)
+  status         AnnouncementStatus @default(DRAFT)
+  targetAudience AnnouncementTarget @default(ALL_TEACHERS)
   communityId    String?
-  community      Community?          @relation(fields: [communityId], references: [id], onDelete: SetNull)
+  community      Community?         @relation(fields: [communityId], references: [id], onDelete: SetNull)
   /// Admin ID who created this announcement
   createdById    String
   /// Snapshot of the admin's name at creation time
@@ -564,8 +721,8 @@ model Announcement {
   attachmentName String?
   attachmentSize Int?
   publishedAt    DateTime?
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
   reads          AnnouncementRead[]
 
   @@index([status])
@@ -607,4 +764,153 @@ enum AnnouncementTarget {
   ZONE
   REGION
   NATIONAL
+}
+
+// ─── Community Guidelines ─────────────────────────────────────────────────────
+
+model CommunityGuideline {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  icon        String? // emoji or icon name, e.g. "🤝"
+  order       Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([order])
+}
+
+// ─── Network Community Discussions ────────────────────────────────────────────
+
+model Discussion {
+  id           String                @id @default(cuid())
+  title        String
+  description  String                @db.Text
+  authorId     String
+  author       Teacher               @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  categoryId   String?
+  category     Category?             @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  /// Tags for discovery (e.g., #ClassroomManagement, #TeachingStrategies)
+  tags         String[]              @default([])
+  views        Int                   @default(0)
+  replyCount   Int                   @default(0)
+  isActive     Boolean               @default(true)
+  isPinned     Boolean               @default(false)
+  lastActiveAt DateTime              @default(now())
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  bookmarks    DiscussionBookmark[]
+  reports      DiscussionReport[]
+  readStates   DiscussionReadState[]
+
+  @@index([authorId])
+  @@index([categoryId])
+  @@index([isActive])
+  @@index([isPinned])
+  @@index([lastActiveAt])
+  @@index([createdAt])
+}
+
+model DiscussionBookmark {
+  id           String     @id @default(cuid())
+  discussionId String
+  discussion   Discussion @relation(fields: [discussionId], references: [id], onDelete: Cascade)
+  teacherId    String
+  teacher      Teacher    @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@unique([discussionId, teacherId])
+  @@index([discussionId])
+  @@index([teacherId])
+}
+
+model DiscussionReport {
+  id           String       @id @default(cuid())
+  discussionId String
+  discussion   Discussion   @relation(fields: [discussionId], references: [id], onDelete: Cascade)
+  teacherId    String
+  teacher      Teacher      @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  reason       ReportReason
+  description  String?      @db.Text
+  status       ReportStatus @default(PENDING)
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@unique([discussionId, teacherId])
+  @@index([discussionId])
+  @@index([teacherId])
+  @@index([status])
+}
+
+model DiscussionReadState {
+  id           String     @id @default(cuid())
+  discussionId String
+  discussion   Discussion @relation(fields: [discussionId], references: [id], onDelete: Cascade)
+  teacherId    String
+  teacher      Teacher    @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  lastReadAt   DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([discussionId, teacherId])
+  @@index([discussionId])
+  @@index([teacherId])
+}
+
+model SuspensionHistory {
+  id             String         @id @default(cuid())
+  teacherId      String
+  teacher        Teacher        @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  suspensionType SuspensionType
+  reason         String
+  suspendedBy    String
+  suspendedAt    DateTime       @default(now())
+  suspendedUntil DateTime?
+  restoredAt     DateTime?
+  restoredBy     String?
+  reportId       String?
+  createdAt      DateTime       @default(now())
+
+  @@index([teacherId])
+  @@index([suspendedAt])
+}
+
+model SuspensionAppeal {
+  id            String       @id @default(cuid())
+  teacherId     String
+  teacher       Teacher      @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  subject       String
+  explanation   String
+  attachmentUrl String?
+  status        AppealStatus @default(PENDING)
+  reviewedBy    String?
+  reviewedAt    DateTime?
+  adminResponse String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([teacherId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model NotificationPreference {
+  id                   String   @id @default(cuid())
+  teacherId            String   @unique
+  teacher              Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  soundEnabled         Boolean  @default(true)
+  soundType            String   @default("ServeLink")
+  browserNotifications Boolean  @default(false)
+  messages             Boolean  @default(true)
+  communityActivity    Boolean  @default(true)
+  questions            Boolean  @default(true)
+  discussions          Boolean  @default(true)
+  resources            Boolean  @default(true)
+  levelProgress        Boolean  @default(true)
+  announcements        Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 }
