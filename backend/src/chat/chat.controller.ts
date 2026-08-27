@@ -12,11 +12,14 @@ import {
   DefaultValuePipe,
 } from '@nestjs/common';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { SuspensionGuard } from '../suspension/guards/suspension.guard';
 import { CurrentUser } from 'src/auth/decorators/current-user.decorator';
 import { ChatService } from './chat.service';
 import { ChatMessageResponseDto } from './dto/chat-message-response.dto';
 import { AddReactionDto } from './dto/add-reaction.dto';
 import { EditMessageDto } from './dto/edit-message.dto';
+import { SendMessageDto } from './dto/send-message.dto';
+import { CreateDirectConversationDto } from './dto/create-direct-conversation.dto';
 
 /**
  * GET /api/chat/groups
@@ -116,6 +119,7 @@ export class ChatController {
 
   /** POST /api/community/:communityId/chat/:messageId/react */
   @Post(':messageId/react')
+  @UseGuards(SuspensionGuard)
   async addReaction(
     @Param('communityId') communityId: string,
     @Param('messageId') messageId: string,
@@ -128,6 +132,7 @@ export class ChatController {
 
   /** DELETE /api/community/:communityId/chat/:messageId/react/:reaction */
   @Delete(':messageId/react/:reaction')
+  @UseGuards(SuspensionGuard)
   async removeReaction(
     @Param('communityId') communityId: string,
     @Param('messageId') messageId: string,
@@ -140,6 +145,7 @@ export class ChatController {
 
   /** PUT /api/community/:communityId/chat/:messageId */
   @Put(':messageId')
+  @UseGuards(SuspensionGuard)
   async editMessage(
     @Param('communityId') communityId: string,
     @Param('messageId') messageId: string,
@@ -152,6 +158,7 @@ export class ChatController {
 
   /** DELETE /api/community/:communityId/chat/:messageId */
   @Delete(':messageId')
+  @UseGuards(SuspensionGuard)
   async deleteMessage(
     @Param('communityId') communityId: string,
     @Param('messageId') messageId: string,
@@ -163,6 +170,7 @@ export class ChatController {
 
   /** POST /api/community/:communityId/chat/mark-read/bulk */
   @Post('mark-read/bulk')
+  @UseGuards(SuspensionGuard)
   async markMessagesAsRead(
     @Param('communityId') communityId: string,
     @CurrentUser() user: any,
@@ -174,6 +182,7 @@ export class ChatController {
 
   /** POST /api/community/:communityId/chat/:messageId/pin */
   @Post(':messageId/pin')
+  @UseGuards(SuspensionGuard)
   async pinMessage(
     @Param('communityId') communityId: string,
     @Param('messageId') messageId: string,
@@ -185,6 +194,7 @@ export class ChatController {
 
   /** DELETE /api/community/:communityId/chat/:messageId/pin */
   @Delete(':messageId/pin')
+  @UseGuards(SuspensionGuard)
   async unpinMessage(
     @Param('communityId') communityId: string,
     @Param('messageId') messageId: string,
@@ -192,5 +202,79 @@ export class ChatController {
   ) {
     const teacherId = user.sub ?? user.id;
     return this.chatService.unpinMessage(messageId, communityId, teacherId);
+  }
+}
+
+/**
+ * Direct Messaging (1-to-1) Controller
+ * Handles private conversations between two teachers
+ */
+@Controller('direct-messages')
+@UseGuards(JwtAuthGuard)
+export class DirectMessagesController {
+  constructor(private readonly chatService: ChatService) {}
+
+  /**
+   * POST /api/direct-messages/conversations
+   * Find or create a direct conversation with another teacher
+   */
+  @Post('conversations')
+  @UseGuards(SuspensionGuard)
+  async createDirectConversation(
+    @CurrentUser() user: any,
+    @Body() dto: CreateDirectConversationDto,
+  ) {
+    const teacherId = user.sub ?? user.id;
+    const result = await this.chatService.findOrCreateDirectConversation(
+      teacherId,
+      dto.targetTeacherId,
+    );
+    return result;
+  }
+
+  /**
+   * GET /api/direct-messages/conversations
+   * Get all direct conversations for the authenticated teacher
+   */
+  @Get('conversations')
+  async getDirectConversations(@CurrentUser() user: any) {
+    const teacherId = user.sub ?? user.id;
+    const conversations = await this.chatService.getDirectConversations(teacherId);
+    return { conversations };
+  }
+
+  /**
+   * GET /api/direct-messages/conversations/:chatRoomId/messages
+   * Get messages for a direct conversation with pagination
+   */
+  @Get('conversations/:chatRoomId/messages')
+  async getDirectConversationMessages(
+    @Param('chatRoomId') chatRoomId: string,
+    @CurrentUser() user: any,
+    @Query('cursor') cursor?: string,
+    @Query('limit', new DefaultValuePipe(50), ParseIntPipe) limit?: number,
+  ) {
+    const teacherId = user.sub ?? user.id;
+    return this.chatService.getDirectConversationMessages(
+      chatRoomId,
+      teacherId,
+      cursor,
+      limit,
+    );
+  }
+
+  /**
+   * POST /api/direct-messages/conversations/:chatRoomId/messages
+   * Send a message in a direct conversation
+   */
+  @Post('conversations/:chatRoomId/messages')
+  @UseGuards(SuspensionGuard)
+  async sendDirectMessage(
+    @Param('chatRoomId') chatRoomId: string,
+    @CurrentUser() user: any,
+    @Body() dto: SendMessageDto,
+  ) {
+    const teacherId = user.sub ?? user.id;
+    return this.chatService.sendDirectMessage(chatRoomId, teacherId, dto);
   }
 }

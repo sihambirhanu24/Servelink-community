@@ -3,6 +3,9 @@ import {
   ForbiddenException,
   NotFoundException,
   BadRequestException,
+  ConflictException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { ChatMessageResponseDto } from './dto/chat-message-response.dto';
@@ -10,6 +13,9 @@ import { SendMessageDto } from './dto/send-message.dto';
 import { EditMessageDto } from './dto/edit-message.dto';
 import { AddReactionDto } from './dto/add-reaction.dto';
 import { CommunityType, CommunitySubtype } from '@prisma/client';
+import { NotificationService } from '../notification/notification.service';
+import { NotificationEvent } from '../notification/notification.types';
+import { ChatAttachmentService } from './chat-attachment.service';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -60,7 +66,12 @@ function ci(a: string | null | undefined, b: string | null | undefined): boolean
 export class ChatService {
   private readonly userMessageTimestamps = new Map<string, number[]>();
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(forwardRef(() => NotificationService))
+    private readonly notificationService: NotificationService,
+    private readonly attachmentService: ChatAttachmentService,
+  ) {}
 
   // ───────────────────────────────────────────────────────────────────────────
   // COMMUNITY UPSERT  (idempotent, race-condition safe)
@@ -448,9 +459,156 @@ export class ChatService {
   // ───────────────────────────────────────────────────────────────────────────
 
   async getOrCreateChatRoom(communityId: string) {
-    const existing = await this.prisma.chatRoom.findUnique({ where: { communityId } });
+    const existing = await this.prisma.chatRoom.findFirst({ where: { communityId } });
     if (existing) return existing;
-    return this.prisma.chatRoom.create({ data: { communityId } });
+    return this.prisma.chatRoom.create({ data: { communityId } } as any);
+  }
+
+  /** Get or create a ChatRoom that belongs to a specific Discussion (CommunityPost). */
+  async getOrCreateDiscussionChatRoom(discussionPostId: string): Promise<{ id: string; discussionPostId?: string | null }> {
+    // Use findFirst + cast until Prisma client reflects the schema change
+    const existing = await (this.prisma.chatRoom as any).findFirst({ where: { discussionPostId } });
+    if (existing) return existing;
+    try {
+      return await (this.prisma.chatRoom as any).create({ data: { discussionPostId } });
+    } catch (e: any) {
+      if (e.code === 'P2002') {
+        const retry = await (this.prisma.chatRoom as any).findFirst({ where: { discussionPostId } });
+        if (!retry) throw e;
+        return retry;
+      }
+      throw e;
+    }
+  }
+
+  /** Get recent messages for a discussion chat room by discussionPostId */
+  async getDiscussionMessages(discussionPostId: string, limit = 50, cursor?: string): Promise<{ messages: any[]; hasMore: boolean }> {
+    const room = await (this.prisma.chatRoom as any).findFirst({ where: { discussionPostId } });
+    if (!room) return { messages: [], hasMore: false };
+
+    const rows = await this.prisma.chatMessage.findMany({
+      where: { chatRoomId: room.id, deletedAt: null },
+      include: {
+        sender: { select: { id: true, firstName: true, lastName: true, level: true, profileImage: true, verified: true, subject: true } },
+        reactions: true,
+        pinnedMessage: true,
+        replyTo: {
+          include: {
+            sender: { select: { id: true, firstName: true, lastName: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit + 1,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    });
+
+    const hasMore = rows.length > limit;
+    const messages = rows.slice(0, limit).reverse().map((m) => this.formatDiscussionMessage(m, m.sender));
+    return { messages, hasMore };
+  }
+
+  formatDiscussionMessage(message: any, sender: any): ChatMessageResponseDto & { replyTo?: { id: string; content: string; senderName: string } | null; senderVerified?: boolean; senderSubject?: string | null } {
+    const base = this.formatMessage(message, sender);
+    return {
+      ...base,
+      senderVerified: sender.verified ?? false,
+      senderSubject: sender.subject ?? null,
+      replyTo: message.replyTo
+        ? {
+            id: message.replyTo.id,
+            content: message.replyTo.content.slice(0, 80),
+            senderName: `${message.replyTo.sender.firstName} ${message.replyTo.sender.lastName}`,
+          }
+        : null,
+    };
+  }
+
+  /** Save a discussion message — NO geographic/level check; only requires the discussion to exist */
+  async saveDiscussionMessage(discussionPostId: string, senderId: string, content: string, replyToId?: string): Promise<ChatMessageResponseDto & { replyTo?: any; discussionPostId: string }> {
+    const sender = await this.prisma.teacher.findUnique({
+      where: { id: senderId },
+      select: { id: true, firstName: true, lastName: true, level: true, profileImage: true, verified: true, subject: true },
+    });
+    if (!sender) throw new NotFoundException('Sender not found');
+
+    if (!this.checkRateLimit(senderId)) {
+      throw new BadRequestException('Message rate limit exceeded. Please wait a moment.');
+    }
+
+    // Auto-create chat room for this discussion
+    const room = await this.getOrCreateDiscussionChatRoom(discussionPostId);
+
+    const createData: any = { chatRoomId: room.id, senderId, content: content.trim() };
+    if (replyToId) createData.replyToId = replyToId;
+
+    const message = await this.prisma.chatMessage.create({
+      data: createData,
+      include: {
+        reactions: true,
+        pinnedMessage: true,
+        replyTo: {
+          include: { sender: { select: { id: true, firstName: true, lastName: true } } },
+        },
+      },
+    });
+
+    return { ...this.formatDiscussionMessage(message, sender), discussionPostId };
+  }
+
+  /** Edit a discussion message — only the sender may edit */
+  async editDiscussionMessage(messageId: string, teacherId: string, content: string) {
+    const message = await this.prisma.chatMessage.findUnique({ where: { id: messageId } });
+    if (!message) throw new NotFoundException('Message not found');
+    if (message.deletedAt) throw new BadRequestException('Cannot edit a deleted message');
+    if (message.senderId !== teacherId) throw new ForbiddenException('You can only edit your own messages');
+
+    const updated = await this.prisma.chatMessage.update({
+      where: { id: messageId },
+      data: { content, editedAt: new Date() },
+      include: {
+        sender: { select: { id: true, firstName: true, lastName: true, level: true, profileImage: true, verified: true, subject: true } },
+        reactions: true,
+        pinnedMessage: true,
+        replyTo: { include: { sender: { select: { id: true, firstName: true, lastName: true } } } },
+      },
+    });
+    return this.formatDiscussionMessage(updated, updated.sender);
+  }
+
+  /** Soft-delete a discussion message */
+  async deleteDiscussionMessage(messageId: string, teacherId: string): Promise<{ discussionPostId?: string }> {
+    const message = await this.prisma.chatMessage.findUnique({ 
+      where: { id: messageId },
+      include: { chatRoom: true },
+    });
+    if (!message) throw new NotFoundException('Message not found');
+    if (message.senderId !== teacherId) throw new ForbiddenException('You can only delete your own messages');
+    
+    await this.prisma.chatMessage.update({ where: { id: messageId }, data: { deletedAt: new Date() } });
+
+    return { discussionPostId: message.chatRoom?.discussionPostId || undefined };
+  }
+
+  /** Toggle a 👍 helpful reaction on a discussion message */
+  async toggleDiscussionHelpful(messageId: string, teacherId: string): Promise<{ marked: boolean; count: number }> {
+    const message = await this.prisma.chatMessage.findUnique({ where: { id: messageId } });
+    if (!message) throw new NotFoundException('Message not found');
+    if (message.senderId === teacherId) throw new ForbiddenException('You cannot react to your own message');
+
+    const reaction = '👍';
+    const existing = await this.prisma.chatReaction.findUnique({
+      where: { messageId_teacherId_reaction: { messageId, teacherId, reaction } },
+    });
+
+    if (existing) {
+      await this.prisma.chatReaction.delete({ where: { id: existing.id } });
+    } else {
+      await this.prisma.chatReaction.create({ data: { messageId, teacherId, reaction } });
+    }
+
+    const count = await this.prisma.chatReaction.count({ where: { messageId, reaction } });
+    return { marked: !existing, count };
   }
 
   async getCommunityWithChatRoom(communityId: string) {
@@ -626,7 +784,7 @@ export class ChatService {
 
   async pinMessage(messageId: string, communityId: string, teacherId: string) {
     await this.verifyAndGetCommunity(communityId, teacherId);
-    const chatRoom = await this.prisma.chatRoom.findUnique({ where: { communityId } });
+    const chatRoom = await this.prisma.chatRoom.findFirst({ where: { communityId } });
     if (!chatRoom) throw new NotFoundException('Chat room not found');
     const msg = await this.prisma.chatMessage.findFirst({ where: { id: messageId, chatRoomId: chatRoom.id } });
     if (!msg) throw new NotFoundException('Message not found');
@@ -644,7 +802,7 @@ export class ChatService {
 
   async getPinnedMessages(communityId: string, teacherId: string) {
     await this.verifyAndGetCommunity(communityId, teacherId);
-    const chatRoom = await this.prisma.chatRoom.findUnique({ where: { communityId } });
+    const chatRoom = await this.prisma.chatRoom.findFirst({ where: { communityId } });
     if (!chatRoom) return [];
     const rows = await this.prisma.chatMessage.findMany({
       where: { chatRoomId: chatRoom.id, pinnedMessage: { isNot: null } },
@@ -694,7 +852,7 @@ export class ChatService {
         }),
       ),
     );
-    const chatRoom = await this.prisma.chatRoom.findUnique({ where: { communityId } });
+    const chatRoom = await this.prisma.chatRoom.findFirst({ where: { communityId } });
     if (chatRoom) {
       const unreadCount = await this.prisma.chatMessage.count({
         where: { chatRoomId: chatRoom.id, readBy: { none: { teacherId } }, deletedAt: null },
@@ -709,7 +867,7 @@ export class ChatService {
 
   async getUnreadCount(communityId: string, teacherId: string): Promise<number> {
     await this.verifyAndGetCommunity(communityId, teacherId);
-    const chatRoom = await this.prisma.chatRoom.findUnique({ where: { communityId } });
+    const chatRoom = await this.prisma.chatRoom.findFirst({ where: { communityId } });
     if (!chatRoom) return 0;
     const record = await this.prisma.chatUnreadCount.findUnique({
       where: { chatRoomId_teacherId: { chatRoomId: chatRoom.id, teacherId } },
@@ -793,5 +951,418 @@ export class ChatService {
       createdAt:          message.createdAt,
       updatedAt:          message.updatedAt,
     };
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // DIRECT MESSAGING (1-to-1)
+  // ───────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Find or create a direct conversation between two teachers.
+   * Ensures no duplicate conversations exist between the same two users.
+   */
+  async findOrCreateDirectConversation(
+    currentTeacherId: string,
+    targetTeacherId: string,
+  ): Promise<{ chatRoomId: string; isNew: boolean }> {
+    // Prevent self-messaging
+    if (currentTeacherId === targetTeacherId) {
+      throw new BadRequestException('You cannot start a conversation with yourself');
+    }
+
+    // Verify target teacher exists
+    const targetTeacher = await this.prisma.teacher.findUnique({
+      where: { id: targetTeacherId },
+      select: { id: true, firstName: true, lastName: true },
+    });
+    if (!targetTeacher) {
+      throw new NotFoundException('Teacher not found');
+    }
+
+    // Sort IDs to ensure consistent participant ordering
+    const [participant1Id, participant2Id] = [currentTeacherId, targetTeacherId].sort();
+
+    // Check if conversation already exists
+    let chatRoom = await this.prisma.chatRoom.findUnique({
+      where: {
+        participant1Id_participant2Id: {
+          participant1Id,
+          participant2Id,
+        },
+      },
+    });
+
+    if (chatRoom) {
+      return { chatRoomId: chatRoom.id, isNew: false };
+    }
+
+    // Create new direct conversation
+    try {
+      chatRoom = await this.prisma.chatRoom.create({
+        data: {
+          isDirect: true,
+          participant1Id,
+          participant2Id,
+        },
+      });
+      return { chatRoomId: chatRoom.id, isNew: true };
+    } catch (e: any) {
+      // Handle race condition - if concurrent creation occurred, fetch existing
+      if (e.code === 'P2002') {
+        chatRoom = await this.prisma.chatRoom.findUnique({
+          where: {
+            participant1Id_participant2Id: {
+              participant1Id,
+              participant2Id,
+            },
+          },
+        });
+        if (chatRoom) {
+          return { chatRoomId: chatRoom.id, isNew: false };
+        }
+      }
+      throw e;
+    }
+  }
+
+  /**
+   * Get all direct conversations for a teacher.
+   */
+  async getDirectConversations(teacherId: string) {
+    const conversations = await this.prisma.chatRoom.findMany({
+      where: {
+        isDirect: true,
+        OR: [
+          { participant1Id: teacherId },
+          { participant2Id: teacherId },
+        ],
+      },
+      include: {
+        participant1: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            profileImage: true,
+            level: true,
+            verified: true,
+          },
+        },
+        participant2: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            profileImage: true,
+            level: true,
+            verified: true,
+          },
+        },
+        messages: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          include: {
+            sender: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+        },
+        unreadCounts: {
+          where: { teacherId },
+          select: { count: true },
+        },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    return conversations.map((conv) => {
+      const otherParticipant = conv.participant1Id === teacherId
+        ? conv.participant2
+        : conv.participant1;
+
+      const lastMessage = conv.messages[0];
+      const unreadCount = conv.unreadCounts[0]?.count ?? 0;
+
+      return {
+        id: conv.id,
+        otherParticipant,
+        lastMessage: lastMessage ? {
+          id: lastMessage.id,
+          content: lastMessage.content,
+          senderId: lastMessage.senderId,
+          senderName: `${lastMessage.sender.firstName} ${lastMessage.sender.lastName}`,
+          createdAt: lastMessage.createdAt,
+        } : null,
+        unreadCount,
+        updatedAt: conv.updatedAt,
+      };
+    });
+  }
+
+  /**
+   * Verify that a teacher is a participant in a direct conversation.
+   */
+  async verifyDirectConversationAccess(
+    chatRoomId: string,
+    teacherId: string,
+  ): Promise<void> {
+    const chatRoom = await this.prisma.chatRoom.findUnique({
+      where: { id: chatRoomId },
+      select: { isDirect: true, participant1Id: true, participant2Id: true },
+    });
+
+    if (!chatRoom) {
+      throw new NotFoundException('Conversation not found');
+    }
+
+    if (!chatRoom.isDirect) {
+      throw new BadRequestException('This is not a direct conversation');
+    }
+
+    if (chatRoom.participant1Id !== teacherId && chatRoom.participant2Id !== teacherId) {
+      throw new ForbiddenException('You do not have access to this conversation');
+    }
+  }
+
+  /**
+   * Get messages for a direct conversation with pagination.
+   */
+  async getDirectConversationMessages(
+    chatRoomId: string,
+    teacherId: string,
+    cursor?: string,
+    limit: number = 50,
+  ) {
+    await this.verifyDirectConversationAccess(chatRoomId, teacherId);
+
+    // Get conversation participants
+    const chatRoom = await this.prisma.chatRoom.findUnique({
+      where: { id: chatRoomId },
+      select: {
+        participant1Id: true,
+        participant2Id: true,
+        participant1: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            profileImage: true,
+            level: true,
+            verified: true,
+            profession: true,
+            department: true,
+            school: true,
+          },
+        },
+        participant2: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            profileImage: true,
+            level: true,
+            verified: true,
+            profession: true,
+            department: true,
+            school: true,
+          },
+        },
+      },
+    });
+
+    const otherParticipant = chatRoom?.participant1Id === teacherId
+      ? chatRoom?.participant2
+      : chatRoom?.participant1;
+
+    const messages = await this.prisma.chatMessage.findMany({
+      where: {
+        chatRoomId,
+        deletedAt: null,
+      },
+      include: {
+        sender: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            profileImage: true,
+            level: true,
+          },
+        },
+        replyTo: {
+          include: {
+            sender: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+        },
+        attachments: true,
+        reactions: {
+          include: {
+            teacher: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+        },
+        readBy: {
+          where: { teacherId },
+          select: { readAt: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      ...(cursor && { cursor: { id: cursor }, skip: 1 }),
+    });
+
+    const messageIds = messages.map((m) => m.id);
+
+    if (messageIds.length > 0) {
+      await this.prisma.chatMessageRead.createMany({
+        data: messageIds.map((messageId) => ({ messageId, teacherId })),
+        skipDuplicates: true,
+      });
+
+      await this.prisma.chatUnreadCount.updateMany({
+        where: { chatRoomId, teacherId },
+        data: { count: 0 },
+      });
+    }
+
+    return {
+      messages: messages.map((m) => this.formatMessage(m, m.sender)),
+      hasMore: messages.length === limit,
+      nextCursor: messages.length > 0 ? messages[messages.length - 1].id : null,
+      otherParticipant: otherParticipant ? {
+        id: otherParticipant.id,
+        firstName: otherParticipant.firstName,
+        lastName: otherParticipant.lastName,
+        profileImage: otherParticipant.profileImage,
+        level: otherParticipant.level,
+        verified: otherParticipant.verified,
+        profession: otherParticipant.profession,
+        department: otherParticipant.department,
+        school: otherParticipant.school,
+      } : null,
+    };
+  }
+
+  /**
+   * Send a message in a direct conversation.
+   */
+  async sendDirectMessage(
+    chatRoomId: string,
+    senderId: string,
+    dto: SendMessageDto,
+  ) {
+    await this.verifyDirectConversationAccess(chatRoomId, senderId);
+
+    // Rate limiting check
+    await this.checkRateLimit(senderId);
+
+    const message = await this.prisma.chatMessage.create({
+      data: {
+        chatRoomId,
+        senderId,
+        content: dto.content.trim(),
+        replyToId: dto.replyToId,
+      },
+      include: {
+        sender: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            profileImage: true,
+            level: true,
+          },
+        },
+      },
+    });
+
+    // Create attachment records if attachment URLs are provided
+    if (dto.attachmentUrls && dto.attachmentUrls.length > 0) {
+      for (const url of dto.attachmentUrls) {
+        // Extract filename from URL
+        const fileName = url.split('/').pop() || 'unknown';
+        const type = this.attachmentService.getAttachmentType(fileName);
+        
+        await this.prisma.chatAttachment.create({
+          data: {
+            messageId: message.id,
+            url,
+            fileName,
+            fileSize: 0, // We don't have the file size from URL
+            type,
+          },
+        });
+      }
+    }
+
+    // Update conversation timestamp
+    await this.prisma.chatRoom.update({
+      where: { id: chatRoomId },
+      data: { updatedAt: new Date() },
+    });
+
+    // Increment unread count for the recipient
+    const chatRoom = await this.prisma.chatRoom.findUnique({
+      where: { id: chatRoomId },
+      select: { participant1Id: true, participant2Id: true },
+    });
+
+    if (chatRoom) {
+      const recipientId = chatRoom.participant1Id === senderId
+        ? chatRoom.participant2Id
+        : chatRoom.participant1Id;
+
+      if (!recipientId) {
+        return this.formatMessage(message, message.sender);
+      }
+
+      await this.prisma.chatUnreadCount.upsert({
+        where: {
+          chatRoomId_teacherId: {
+            chatRoomId,
+            teacherId: recipientId,
+          },
+        },
+        create: {
+          chatRoomId,
+          teacherId: recipientId,
+          count: 1,
+        },
+        update: {
+          count: { increment: 1 },
+        },
+      });
+
+      // Send notification to recipient
+      const senderName = `${message.sender.firstName} ${message.sender.lastName}`;
+      this.notificationService
+        .create({
+          receiverId: recipientId,
+          senderId: senderId,
+          senderName: senderName,
+          title: 'New message',
+          message: `${senderName} sent you a message`,
+          type: NotificationEvent.CHAT_MESSAGE,
+          referenceId: chatRoomId,
+        })
+        .catch(() => {});
+    }
+
+    return this.formatMessage(message, message.sender);
   }
 }

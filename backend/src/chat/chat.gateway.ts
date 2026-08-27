@@ -14,7 +14,6 @@ import { Logger } from '@nestjs/common';
 import { ChatService } from './chat.service';
 import { SendMessageDto } from './dto/send-message.dto';
 
-
 @WebSocketGateway({
   cors: {
     origin: process.env.FRONTEND_URL || 'http://localhost:3000',
@@ -469,5 +468,385 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('ping')
   handlePing(@ConnectedSocket() client: Socket) {
     client.emit('pong', { time: Date.now() });
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // DISCUSSION REAL-TIME  (rooms keyed discussion:{discussionPostId})
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * discussion:join  { discussionPostId: string }
+   * Joins the socket to room discussion:{discussionPostId} and returns
+   * the latest messages for that discussion's chat room.
+   */
+  @SubscribeMessage('discussion:join')
+  async handleDiscussionJoin(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { discussionPostId: string },
+  ) {
+    const teacherId = client.data.teacherId;
+    if (!teacherId) { client.emit('error', { code: 'UNAUTHORIZED', message: 'Not authenticated' }); return; }
+    const { discussionPostId } = data ?? {};
+    if (!discussionPostId) { client.emit('error', { code: 'BAD_REQUEST', message: 'discussionPostId required' }); return; }
+
+    try {
+      const room = `discussion:${discussionPostId}`;
+      client.join(room);
+      this.addPresence(discussionPostId, teacherId);
+
+      const { messages, hasMore } = await this.chatService.getDiscussionMessages(discussionPostId, 50);
+      client.emit('discussion:joined', {
+        discussionPostId,
+        messages,
+        hasMore,
+        onlineCount: this.getOnlineCount(discussionPostId),
+      });
+
+      this.server.to(room).emit('discussion:presence', {
+        discussionPostId,
+        onlineCount: this.getOnlineCount(discussionPostId),
+      });
+
+      this.logger.debug(`Teacher ${teacherId} joined discussion:${discussionPostId}`);
+    } catch (err) {
+      this.logger.warn(`discussion:join failed: ${err.message}`);
+      client.emit('error', { code: 'ERROR', message: err.message });
+    }
+  }
+
+  /** discussion:leave  { discussionPostId: string } */
+  @SubscribeMessage('discussion:leave')
+  handleDiscussionLeave(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { discussionPostId: string },
+  ) {
+    const teacherId = client.data.teacherId;
+    const { discussionPostId } = data ?? {};
+    if (!discussionPostId) return;
+
+    client.leave(`discussion:${discussionPostId}`);
+    if (teacherId) {
+      this.removePresence(discussionPostId, teacherId);
+      this.server.to(`discussion:${discussionPostId}`).emit('discussion:presence', {
+        discussionPostId,
+        onlineCount: this.getOnlineCount(discussionPostId),
+      });
+    }
+  }
+
+  /**
+   * discussion:message:send  { discussionPostId, content, replyToId? }
+   * Persists to PostgreSQL then broadcasts to the discussion room.
+   */
+  @SubscribeMessage('discussion:message:send')
+  async handleDiscussionSend(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { discussionPostId: string; content: string; replyToId?: string },
+  ) {
+    const teacherId = client.data.teacherId;
+    if (!teacherId) { client.emit('error', { code: 'UNAUTHORIZED', message: 'Not authenticated' }); return; }
+    const { discussionPostId, content, replyToId } = data ?? {};
+    if (!discussionPostId || !content?.trim()) {
+      client.emit('error', { code: 'BAD_REQUEST', message: 'discussionPostId and content required' });
+      return;
+    }
+
+    try {
+      const message = await this.chatService.saveDiscussionMessage(discussionPostId, teacherId, content, replyToId);
+      this.server.to(`discussion:${discussionPostId}`).emit('discussion:message:new', message);
+      this.logger.debug(`Discussion message saved: teacher=${teacherId} discussion=${discussionPostId}`);
+      
+      // Update discussion reply count and notify (async, don't block the response)
+      this.updateDiscussionMetrics(discussionPostId, teacherId, message).catch(err => {
+        this.logger.error(`Failed to update discussion metrics: ${err.message}`);
+      });
+    } catch (err) {
+      this.logger.error(`discussion:message:send error: ${err.message}`);
+      client.emit('error', { code: 'ERROR', message: err.message });
+    }
+  }
+
+  private async updateDiscussionMetrics(discussionPostId: string, teacherId: string, message: any) {
+    try {
+      // Dynamic import to avoid circular dependency
+      const { PrismaClient } = await import('@prisma/client');
+      const prisma = new PrismaClient();
+      
+      // Increment reply count and update lastActiveAt
+      await prisma.discussion.update({
+        where: { id: discussionPostId },
+        data: {
+          replyCount: { increment: 1 },
+          lastActiveAt: new Date(),
+        },
+      });
+
+      // Get discussion owner for notification
+      const discussion = await prisma.discussion.findUnique({
+        where: { id: discussionPostId },
+        select: { authorId: true, title: true },
+      });
+
+      if (discussion && discussion.authorId !== teacherId) {
+        // Send notification to discussion owner
+        await prisma.notification.create({
+          data: {
+            receiverId: discussion.authorId,
+            senderId: teacherId,
+            senderName: `${message.senderName}`,
+            title: 'New reply to your discussion',
+            message: `${message.senderName} replied to your discussion: "${discussion.title.substring(0, 50)}..."`,
+            type: 'REPLY',
+            referenceId: discussionPostId,
+          },
+        });
+      }
+
+      await prisma.$disconnect();
+    } catch (err) {
+      this.logger.error(`updateDiscussionMetrics error: ${err.message}`);
+    }
+  }
+
+  /** discussion:message:edit  { messageId, content } */
+  @SubscribeMessage('discussion:message:edit')
+  async handleDiscussionEdit(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { messageId: string; discussionPostId: string; content: string },
+  ) {
+    const teacherId = client.data.teacherId;
+    if (!teacherId) return;
+    try {
+      const updated = await this.chatService.editDiscussionMessage(data.messageId, teacherId, data.content);
+      this.server.to(`discussion:${data.discussionPostId}`).emit('discussion:message:updated', updated);
+    } catch (err) {
+      client.emit('error', { code: 'ERROR', message: err.message });
+    }
+  }
+
+  /** discussion:message:delete  { messageId, discussionPostId } */
+  @SubscribeMessage('discussion:message:delete')
+  async handleDiscussionDelete(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { messageId: string; discussionPostId: string },
+  ) {
+    const teacherId = client.data.teacherId;
+    if (!teacherId) return;
+    try {
+      const result = await this.chatService.deleteDiscussionMessage(data.messageId, teacherId);
+      this.server.to(`discussion:${data.discussionPostId}`).emit('discussion:message:deleted', { messageId: data.messageId });
+      
+      // Decrement reply count
+      if (result.discussionPostId) {
+        this.decrementDiscussionReplyCount(result.discussionPostId).catch(err => {
+          this.logger.error(`Failed to decrement reply count: ${err.message}`);
+        });
+      }
+    } catch (err) {
+      client.emit('error', { code: 'ERROR', message: err.message });
+    }
+  }
+
+  private async decrementDiscussionReplyCount(discussionPostId: string) {
+    try {
+      const { PrismaClient } = await import('@prisma/client');
+      const prisma = new PrismaClient();
+      await prisma.discussion.update({
+        where: { id: discussionPostId },
+        data: { replyCount: { decrement: 1 } },
+      });
+      await prisma.$disconnect();
+    } catch (err) {
+      this.logger.error(`decrementDiscussionReplyCount error: ${err.message}`);
+    }
+  }
+
+  /** discussion:message:helpful  { messageId, discussionPostId } — toggles 👍 */
+  @SubscribeMessage('discussion:message:helpful')
+  async handleDiscussionHelpful(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { messageId: string; discussionPostId: string },
+  ) {
+    const teacherId = client.data.teacherId;
+    if (!teacherId) return;
+    try {
+      const result = await this.chatService.toggleDiscussionHelpful(data.messageId, teacherId);
+      this.server.to(`discussion:${data.discussionPostId}`).emit('discussion:message:reaction', {
+        messageId: data.messageId,
+        reaction: '👍',
+        marked: result.marked,
+        count: result.count,
+        teacherId,
+      });
+    } catch (err) {
+      client.emit('error', { code: 'ERROR', message: err.message });
+    }
+  }
+
+  /** discussion:typing:start / stop */
+  @SubscribeMessage('discussion:typing:start')
+  handleDiscussionTypingStart(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { discussionPostId: string; senderName: string },
+  ) {
+    const teacherId = client.data.teacherId;
+    if (!teacherId || !data?.discussionPostId) return;
+    client.to(`discussion:${data.discussionPostId}`).emit('discussion:typing:started', {
+      teacherId,
+      senderName: data.senderName,
+    });
+  }
+
+  @SubscribeMessage('discussion:typing:stop')
+  handleDiscussionTypingStop(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { discussionPostId: string },
+  ) {
+    const teacherId = client.data.teacherId;
+    if (!teacherId || !data?.discussionPostId) return;
+    client.to(`discussion:${data.discussionPostId}`).emit('discussion:typing:stopped', { teacherId });
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // DIRECT MESSAGING (1-to-1)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * direct:join  { chatRoomId: string }
+   * Joins a direct conversation room and returns recent messages.
+   */
+  @SubscribeMessage('direct:join')
+  async handleDirectJoin(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { chatRoomId: string },
+  ) {
+    const teacherId = client.data.teacherId;
+    if (!teacherId) {
+      client.emit('error', { code: 'UNAUTHORIZED', message: 'Not authenticated' });
+      return;
+    }
+
+    const { chatRoomId } = data ?? {};
+    if (!chatRoomId) {
+      client.emit('error', { code: 'BAD_REQUEST', message: 'chatRoomId required' });
+      return;
+    }
+
+    try {
+      // Verify the teacher is a participant in this direct conversation
+      await this.chatService.verifyDirectConversationAccess(chatRoomId, teacherId);
+
+      const room = `direct:${chatRoomId}`;
+      client.join(room);
+      this.addPresence(chatRoomId, teacherId);
+
+      const { messages, hasMore } = await this.chatService.getDirectConversationMessages(
+        chatRoomId,
+        teacherId,
+        undefined,
+        50,
+      );
+
+      client.emit('direct:joined', {
+        chatRoomId,
+        messages,
+        hasMore,
+        onlineCount: this.getOnlineCount(chatRoomId),
+      });
+
+      this.server.to(room).emit('direct:presence', {
+        chatRoomId,
+        onlineCount: this.getOnlineCount(chatRoomId),
+      });
+
+      this.logger.debug(`Teacher ${teacherId} joined direct:${chatRoomId}`);
+    } catch (err) {
+      this.logger.warn(`direct:join failed: ${err.message}`);
+      client.emit('error', { code: err.status === 403 ? 'FORBIDDEN' : 'ERROR', message: err.message });
+    }
+  }
+
+  /**
+   * direct:leave  { chatRoomId: string }
+   */
+  @SubscribeMessage('direct:leave')
+  handleDirectLeave(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { chatRoomId: string },
+  ) {
+    const teacherId = client.data.teacherId;
+    const { chatRoomId } = data ?? {};
+    if (!chatRoomId) return;
+
+    client.leave(`direct:${chatRoomId}`);
+    if (teacherId) {
+      this.removePresence(chatRoomId, teacherId);
+      this.server.to(`direct:${chatRoomId}`).emit('direct:presence', {
+        chatRoomId,
+        onlineCount: this.getOnlineCount(chatRoomId),
+      });
+    }
+  }
+
+  /**
+   * direct:message:send  { chatRoomId, content, replyToId? }
+   * Persists to PostgreSQL then broadcasts to the direct conversation room.
+   */
+  @SubscribeMessage('direct:message:send')
+  async handleDirectSend(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { chatRoomId: string; content: string; replyToId?: string },
+  ) {
+    const teacherId = client.data.teacherId;
+    if (!teacherId) {
+      client.emit('error', { code: 'UNAUTHORIZED', message: 'Not authenticated' });
+      return;
+    }
+
+    const { chatRoomId, content, replyToId } = data ?? {};
+    if (!chatRoomId || !content?.trim()) {
+      client.emit('error', { code: 'BAD_REQUEST', message: 'chatRoomId and content are required' });
+      return;
+    }
+
+    try {
+      // Verify the teacher is a participant
+      await this.chatService.verifyDirectConversationAccess(chatRoomId, teacherId);
+
+      // Persist to PostgreSQL
+      const dto: SendMessageDto = { content: content.trim(), replyToId };
+      const message = await this.chatService.sendDirectMessage(chatRoomId, teacherId, dto);
+
+      // Broadcast to the direct conversation room
+      this.server.to(`direct:${chatRoomId}`).emit('direct:message:new', message);
+
+      this.logger.debug(`Direct message saved: teacher=${teacherId} chatRoom=${chatRoomId}`);
+    } catch (err) {
+      this.logger.error(`direct:message:send error: ${err.message}`);
+      client.emit('error', { code: err.status === 403 ? 'FORBIDDEN' : 'ERROR', message: err.message });
+    }
+  }
+
+  /**
+   * direct:typing:start / stop
+   */
+  @SubscribeMessage('direct:typing:start')
+  handleDirectTypingStart(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { chatRoomId: string },
+  ) {
+    const teacherId = client.data.teacherId;
+    if (!teacherId || !data?.chatRoomId) return;
+    client.to(`direct:${data.chatRoomId}`).emit('direct:typing:started', { teacherId });
+  }
+
+  @SubscribeMessage('direct:typing:stop')
+  handleDirectTypingStop(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { chatRoomId: string },
+  ) {
+    const teacherId = client.data.teacherId;
+    if (!teacherId || !data?.chatRoomId) return;
+    client.to(`direct:${data.chatRoomId}`).emit('direct:typing:stopped', { teacherId });
   }
 }

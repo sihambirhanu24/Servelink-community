@@ -7,6 +7,7 @@ import { Menu, Transition } from "@headlessui/react";
 import { MessageSquare, Users, Loader2, ChevronRight } from "lucide-react";
 import api from "@/lib/axios";
 import { useVerification } from "@/hooks/useVerification";
+import { useAuth } from "@/context/AuthContext";
 
 interface ChatGroup {
   id: string;
@@ -39,8 +40,10 @@ async function getChatGroups(): Promise<ChatGroup[]> {
 
 export function ChatRoomsDropdown() {
   const router = useRouter();
+  const { token, isInitializing } = useAuth();
   const { status } = useVerification();
   const isVerified = status?.verificationStatus === 'APPROVED';
+  const authReady = !isInitializing && !!token;
 
   const handleProtectedAction = (e?: React.MouseEvent) => {
     if (!isVerified) {
@@ -58,15 +61,11 @@ export function ChatRoomsDropdown() {
   
   const { data: chatGroups = [], isLoading } = useQuery({
     queryKey: ["chat-groups"],
-    queryFn: async () => {
-      const groups = await getChatGroups();
-      console.log("📢 Chat Groups from API:", groups);
-      groups.forEach((g, i) => {
-        console.log(`  [${i}] type=${g.type}, subtype=${g.subtype}, dept=${g.department}, name=${g.name}`);
-      });
-      return groups;
-    },
-    refetchInterval: 30000, // Refresh every 30 seconds
+    queryFn: getChatGroups,
+    // Only fire when authenticated; only poll when verified (saves 401s for
+    // unverified users sitting on the Topbar for 30 seconds at a time).
+    enabled: authReady,
+    refetchInterval: isVerified ? 30_000 : false,
   });
 
   const totalUnread = chatGroups.reduce((sum, group) => sum + group.unreadCount, 0);
@@ -106,25 +105,14 @@ export function ChatRoomsDropdown() {
   };
 
   const getRoomDisplayName = (group: ChatGroup) => {
-    console.log(`🏷️ getRoomDisplayName: type=${group.type}, subtype=${group.subtype}, dept=${group.department}`);
-    
-    // LEVEL_1 (School): Just show "School Chat"
     if (group.type === "SCHOOL") {
       return "School Chat";
     }
-    
-    // DEPARTMENT chat: Show department name + "Teachers"
     if (group.subtype === "DEPARTMENT" && group.department) {
-      const displayName = `${group.department} Teachers`;
-      console.log(`  ✅ Returning department name: ${displayName}`);
-      return displayName;
+      return `${group.department} Teachers`;
     }
-    
-    // COMMON chat: Show type + "Common"
     const typeLabel = getCommunityTypeLabel(group.type);
-    const displayName = `${typeLabel} Common`;
-    console.log(`  ✅ Returning common name: ${displayName}`);
-    return displayName;
+    return `${typeLabel} Common`;
   };
 
   const getRoomDescription = (group: ChatGroup) => {
