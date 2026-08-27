@@ -19,6 +19,7 @@ import {
   Clock,
   MapPin,
   Megaphone,
+  AlertTriangle,
 } from "lucide-react";
 
 const ADMIN_NAV_ITEMS = [
@@ -31,6 +32,7 @@ const ADMIN_NAV_ITEMS = [
   { label: "Categories",      href: "/admin/categories",       icon: Tag             },
   { label: "Posts",           href: "/admin/posts",            icon: MessageSquare   },
   { label: "Reports",         href: "/admin/reports",          icon: Flag            },
+  { label: "Suspension Appeals", href: "/admin/appeals",       icon: AlertTriangle   },
   { label: "Analytics",       href: "/admin/analytics",        icon: BarChart3       },
   { label: "Settings",        href: "/admin/settings",         icon: Settings        },
 ];

@@ -54,8 +54,8 @@ export default function AdminTopbar({ onMenuClick }: AdminTopbarProps) {
         z-40
         h-16
         border-b
-        border-white/10
-        bg-[#043658]
+        border-slate-700
+        bg-gradient-to-b from-slate-900 to-slate-800
         shadow-sm
       "
     >

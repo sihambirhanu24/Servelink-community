@@ -1,85 +1,51 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Search, Filter, ChevronLeft, ChevronRight, Plus, MoreVertical, Users, MessageCircle, X } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { Search, Filter, ChevronLeft, ChevronRight, Plus, MoreVertical, Users, MessageCircle, X, AlertTriangle, TrendingUp, Network, ChevronDown, ChevronRight as ChevronRightIcon } from 'lucide-react';
 import AdminLayout from '@/components/admin/layout';
 import { createCommunity } from '@/services/admin';
 import { toast } from 'sonner';
+import { adminApi } from '@/lib/axios';
+
+type ViewMode = 'list' | 'hierarchy';
 
 interface Community {
   id: string;
   name: string;
-  type: 'NATIONAL' | 'REGION' | 'ZONE' | 'WOREDA' | 'SCHOOL';
-  members: number;
-  posts: number;
-  status: 'ACTIVE' | 'INACTIVE';
-  createdAt: string;
+  type: 'NETWORK' | 'NATIONAL' | 'REGION' | 'ZONE' | 'WOREDA' | 'SCHOOL';
+  subtype: 'COMMON' | 'DEPARTMENT';
+  department?: string;
+  school?: string;
+  woreda?: string;
+  zone?: string;
+  region?: string;
   description?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  _count?: {
+    communityMembers: number;
+    posts: number;
+  };
 }
 
-// Mock data for demonstration
-const MOCK_COMMUNITIES: Community[] = [
-  {
-    id: '1',
-    name: 'Addis Ketema Woreda 1',
-    type: 'WOREDA',
-    members: 452,
-    posts: 1204,
-    status: 'ACTIVE',
-    createdAt: '2025-07-01',
-    description: 'Educational community for Addis Ketema Woreda',
-  },
-  {
-    id: '2',
-    name: 'Addis Ababa Region',
-    type: 'REGION',
-    members: 8234,
-    posts: 15420,
-    status: 'ACTIVE',
-    createdAt: '2025-06-15',
-    description: 'Regional community for Addis Ababa',
-  },
-  {
-    id: '3',
-    name: 'Menelik II Secondary',
-    type: 'SCHOOL',
-    members: 84,
-    posts: 312,
-    status: 'ACTIVE',
-    createdAt: '2025-08-01',
-    description: 'School community for Menelik II Secondary',
-  },
-  {
-    id: '4',
-    name: 'Yekabit 12 Prep',
-    type: 'SCHOOL',
-    members: 112,
-    posts: 458,
-    status: 'ACTIVE',
-    createdAt: '2025-08-05',
-    description: 'School community for Yekabit 12 Prep',
-  },
-  {
-    id: '5',
-    name: 'Karad Zone',
-    type: 'ZONE',
-    members: 3421,
-    posts: 8932,
-    status: 'ACTIVE',
-    createdAt: '2025-07-20',
-    description: 'Zonal community for Karad',
-  },
-  {
-    id: '6',
-    name: 'National Teachers Hub',
-    type: 'NATIONAL',
-    members: 15234,
-    posts: 42156,
-    status: 'ACTIVE',
-    createdAt: '2025-05-01',
-    description: 'National community for all teachers',
-  },
-];
+interface CommunityStats {
+  total: number;
+  active: number;
+  inactive: number;
+  byType: {
+    NETWORK: number;
+    NATIONAL: number;
+    REGION: number;
+    ZONE: number;
+    WOREDA: number;
+    SCHOOL: number;
+  };
+  totalMembers: number;
+  totalPosts: number;
+  pendingReports: number;
+}
 
 const ITEMS_PER_PAGE = 10;
 
@@ -90,36 +56,64 @@ export default function AdminCommunitiesPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
   const [newCommunity, setNewCommunity] = useState({
     name: '',
     description: '',
     type: 'WOREDA',
-    subtype: '',
+    subtype: 'COMMON',
+    department: '',
+    school: '',
+    woreda: '',
+    zone: '',
+    region: '',
     isActive: true,
   });
 
-  // Filter communities
-  const filteredCommunities = useMemo(() => {
-    return MOCK_COMMUNITIES.filter((community) => {
-      const matchesSearch =
-        community.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        community.description?.toLowerCase().includes(searchQuery.toLowerCase());
+  // Fetch communities from API
+  const { data: communitiesData, isLoading: isLoadingCommunities, refetch: refetchCommunities } = useQuery({
+    queryKey: ['admin-communities', selectedType, selectedStatus, searchQuery, currentPage],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (searchQuery) params.append('search', searchQuery);
+      if (selectedType !== 'all') params.append('type', selectedType);
+      if (selectedStatus !== 'all') params.append('isActive', selectedStatus);
+      params.append('page', currentPage.toString());
+      params.append('pageSize', ITEMS_PER_PAGE.toString());
+      
+      const response = await adminApi.get(`/admin/communities?${params.toString()}`);
+      return response.data;
+    },
+  });
 
-      const matchesType = selectedType === 'all' || community.type === selectedType;
-      const matchesStatus = selectedStatus === 'all' || community.status === selectedStatus;
+  // Fetch community stats from API
+  const { data: statsData, isLoading: isLoadingStats } = useQuery({
+    queryKey: ['admin-community-stats'],
+    queryFn: async () => {
+      const response = await adminApi.get('/admin/communities/stats');
+      return response.data;
+    },
+  });
 
-      return matchesSearch && matchesType && matchesStatus;
-    });
-  }, [searchQuery, selectedType, selectedStatus]);
+  const communities = communitiesData?.data || [];
+  const totalCommunities = communitiesData?.meta?.total || 0;
+  const stats = statsData || {
+    total: 0,
+    active: 0,
+    inactive: 0,
+    byType: { NETWORK: 0, NATIONAL: 0, REGION: 0, ZONE: 0, WOREDA: 0, SCHOOL: 0 },
+    totalMembers: 0,
+    totalPosts: 0,
+    pendingReports: 0,
+  };
 
   // Pagination
-  const totalPages = Math.ceil(filteredCommunities.length / ITEMS_PER_PAGE);
-  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const endIndex = startIndex + ITEMS_PER_PAGE;
-  const paginatedCommunities = filteredCommunities.slice(startIndex, endIndex);
+  const totalPages = Math.ceil(totalCommunities / ITEMS_PER_PAGE);
 
   const getTypeColor = (type: string) => {
     const colors: Record<string, string> = {
+      NETWORK: 'bg-indigo-100 text-indigo-700',
       NATIONAL: 'bg-blue-100 text-blue-700',
       REGION: 'bg-purple-100 text-purple-700',
       ZONE: 'bg-amber-100 text-amber-700',
@@ -131,6 +125,7 @@ export default function AdminCommunitiesPage() {
 
   const getTypeIcon = (type: string) => {
     const icons: Record<string, React.ReactNode> = {
+      NETWORK: '🌐',
       NATIONAL: '🌍',
       REGION: '🗂️',
       ZONE: '📍',
@@ -138,6 +133,16 @@ export default function AdminCommunitiesPage() {
       SCHOOL: '🏫',
     };
     return icons[type] || '📌';
+  };
+
+  const getCommunityLocation = (community: Community) => {
+    const parts: string[] = [];
+    if (community.school) parts.push(community.school);
+    if (community.woreda) parts.push(community.woreda);
+    if (community.zone) parts.push(community.zone);
+    if (community.region) parts.push(community.region);
+    if (community.department) parts.push(`(${community.department})`);
+    return parts.join(', ') || 'No location specified';
   };
 
   const getStatusIcon = (status: string) => {
@@ -154,35 +159,141 @@ export default function AdminCommunitiesPage() {
             <h1 className="text-3xl font-bold text-[#043658]">Community Management</h1>
             <p className="mt-1 text-sm text-[#6B7C93]">Overview and administration of all ServeLink network tiers.</p>
           </div>
-          <button 
-            onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-2 rounded-lg bg-[#043658] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#05456F] transition-colors">
-            <Plus className="h-4 w-4" />
-            New Community
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setViewMode(viewMode === 'list' ? 'hierarchy' : 'list')}
+              className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors ${
+                viewMode === 'hierarchy'
+                  ? 'bg-[#043658] text-white'
+                  : 'border border-[#D9E2EC] bg-white text-[#043658] hover:bg-[#F8FAFC]'
+              }`}
+            >
+              <Network className="h-4 w-4" />
+              {viewMode === 'hierarchy' ? 'List View' : 'Hierarchy View'}
+            </button>
+            <button 
+              onClick={() => setShowCreateModal(true)}
+              className="flex items-center gap-2 rounded-lg bg-[#043658] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#05456F] transition-colors">
+              <Plus className="h-4 w-4" />
+              New Community
+            </button>
+          </div>
         </div>
 
         {/* Stats Cards */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
           <div className="rounded-lg border border-[#D9E2EC] bg-white p-4">
+            <div className="text-xs font-semibold uppercase tracking-wide text-[#6B7C93] mb-1">Network</div>
+            <p className="text-2xl font-bold text-[#043658]">{isLoadingStats ? '-' : stats.byType.NETWORK}</p>
+          </div>
+          <div className="rounded-lg border border-[#D9E2EC] bg-white p-4">
             <div className="text-xs font-semibold uppercase tracking-wide text-[#6B7C93] mb-1">National</div>
-            <p className="text-2xl font-bold text-[#043658]">1</p>
+            <p className="text-2xl font-bold text-[#043658]">{isLoadingStats ? '-' : stats.byType.NATIONAL}</p>
           </div>
           <div className="rounded-lg border border-[#D9E2EC] bg-white p-4">
             <div className="text-xs font-semibold uppercase tracking-wide text-[#6B7C93] mb-1">Region</div>
-            <p className="text-2xl font-bold text-[#043658]">2</p>
+            <p className="text-2xl font-bold text-[#043658]">{isLoadingStats ? '-' : stats.byType.REGION}</p>
           </div>
           <div className="rounded-lg border border-[#D9E2EC] bg-white p-4">
             <div className="text-xs font-semibold uppercase tracking-wide text-[#6B7C93] mb-1">Zone</div>
-            <p className="text-2xl font-bold text-[#043658]">8</p>
+            <p className="text-2xl font-bold text-[#043658]">{isLoadingStats ? '-' : stats.byType.ZONE}</p>
           </div>
           <div className="rounded-lg border border-[#D9E2EC] bg-white p-4">
             <div className="text-xs font-semibold uppercase tracking-wide text-[#6B7C93] mb-1">Woreda</div>
-            <p className="text-2xl font-bold text-[#043658]">25</p>
+            <p className="text-2xl font-bold text-[#043658]">{isLoadingStats ? '-' : stats.byType.WOREDA}</p>
           </div>
+        </div>
+
+        {/* Additional Stats Row */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="rounded-lg border border-[#D9E2EC] bg-white p-4">
             <div className="text-xs font-semibold uppercase tracking-wide text-[#6B7C93] mb-1">School</div>
-            <p className="text-2xl font-bold text-[#043658]">120</p>
+            <p className="text-2xl font-bold text-[#043658]">{isLoadingStats ? '-' : stats.byType.SCHOOL}</p>
+          </div>
+          <div className="rounded-lg border border-[#D9E2EC] bg-white p-4">
+            <div className="text-xs font-semibold uppercase tracking-wide text-[#6B7C93] mb-1">Total Members</div>
+            <p className="text-2xl font-bold text-[#043658]">{isLoadingStats ? '-' : stats.totalMembers.toLocaleString()}</p>
+          </div>
+          <div className="rounded-lg border border-[#D9E2EC] bg-white p-4">
+            <div className="text-xs font-semibold uppercase tracking-wide text-[#6B7C93] mb-1">Total Posts</div>
+            <p className="text-2xl font-bold text-[#043658]">{isLoadingStats ? '-' : stats.totalPosts.toLocaleString()}</p>
+          </div>
+          <div className="rounded-lg border border-[#D9E2EC] bg-white p-4">
+            <div className="text-xs font-semibold uppercase tracking-wide text-[#6B7C93] mb-1">Pending Reports</div>
+            <p className="text-2xl font-bold text-[#043658]">{isLoadingStats ? '-' : stats.pendingReports}</p>
+          </div>
+        </div>
+
+        {/* Hierarchy View */}
+        {viewMode === 'hierarchy' && (
+          <div className="rounded-xl border border-[#D9E2EC] bg-white p-6 shadow-sm">
+            <h2 className="text-lg font-bold text-[#043658] mb-4">Network Hierarchy</h2>
+            <div className="space-y-2">
+              {[
+                { type: 'NETWORK', label: 'Network', icon: '🌐', color: 'bg-indigo-100 text-indigo-700' },
+                { type: 'NATIONAL', label: 'National', icon: '🌍', color: 'bg-blue-100 text-blue-700' },
+                { type: 'REGION', label: 'Regional', icon: '🗂️', color: 'bg-purple-100 text-purple-700' },
+                { type: 'ZONE', label: 'Zone', icon: '📍', color: 'bg-amber-100 text-amber-700' },
+                { type: 'WOREDA', label: 'Woreda', icon: '🏘️', color: 'bg-green-100 text-green-700' },
+                { type: 'SCHOOL', label: 'School', icon: '🏫', color: 'bg-red-100 text-red-700' },
+              ].map((level) => (
+                <div key={level.type} className="flex items-center gap-3 p-3 rounded-lg hover:bg-[#F8FAFC] transition-colors">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg text-lg">
+                    {level.icon}
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-[#043658]">{level.label}</span>
+                      <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-bold ${level.color}`}>
+                        {stats.byType[level.type as keyof typeof stats.byType] || 0}
+                      </span>
+                    </div>
+                    <p className="text-xs text-[#6B7C93]">{level.type.toLowerCase()} communities</p>
+                  </div>
+                  <ChevronRightIcon className="h-4 w-4 text-[#6B7C93]" />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Community Health Summary */}
+        <div className="rounded-xl border border-[#D9E2EC] bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-bold text-[#043658] mb-4 flex items-center gap-2">
+            <TrendingUp className="h-5 w-5" />
+            Community Health & Moderation
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className={`rounded-lg p-4 ${stats.pendingReports > 10 ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'} border`}>
+              <div className="flex items-center gap-2 mb-2">
+                <AlertTriangle className={`h-4 w-4 ${stats.pendingReports > 10 ? 'text-red-600' : 'text-green-600'}`} />
+                <span className="text-sm font-semibold text-[#043658]">Pending Reports</span>
+              </div>
+              <p className="text-2xl font-bold text-[#043658]">{stats.pendingReports}</p>
+              <p className="text-xs text-[#6B7C93] mt-1">
+                {stats.pendingReports > 10 ? 'Requires attention' : 'Within normal range'}
+              </p>
+            </div>
+            <div className="rounded-lg border border-[#D9E2EC] bg-white p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Users className="h-4 w-4 text-[#043658]" />
+                <span className="text-sm font-semibold text-[#043658]">Active Communities</span>
+              </div>
+              <p className="text-2xl font-bold text-[#043658]">{stats.active}</p>
+              <p className="text-xs text-[#6B7C93] mt-1">
+                {stats.inactive} inactive
+              </p>
+            </div>
+            <div className="rounded-lg border border-[#D9E2EC] bg-white p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <MessageCircle className="h-4 w-4 text-[#043658]" />
+                <span className="text-sm font-semibold text-[#043658]">Avg Posts/Community</span>
+              </div>
+              <p className="text-2xl font-bold text-[#043658]">
+                {stats.total > 0 ? (stats.totalPosts / stats.total).toFixed(1) : '0'}
+              </p>
+              <p className="text-xs text-[#6B7C93] mt-1">Total: {stats.totalPosts.toLocaleString()}</p>
+            </div>
           </div>
         </div>
 
@@ -221,6 +332,7 @@ export default function AdminCommunitiesPage() {
                   className="w-full rounded-lg border border-[#D9E2EC] bg-white px-3 py-2.5 text-sm text-[#043658] outline-none hover:border-[#043658]/40"
                 >
                   <option value="all">All Types</option>
+                  <option value="NETWORK">Network</option>
                   <option value="NATIONAL">National</option>
                   <option value="REGION">Region</option>
                   <option value="ZONE">Zone</option>
@@ -254,12 +366,17 @@ export default function AdminCommunitiesPage() {
           {/* Table Header */}
           <div className="border-b border-[#E8EEF3] bg-[#F8FAFC] px-6 py-3">
             <p className="text-sm font-semibold text-[#043658]">
-              Showing {filteredCommunities.length === 0 ? 0 : startIndex + 1} to {Math.min(endIndex, filteredCommunities.length)} of {filteredCommunities.length} communities
+              Showing {communities.length === 0 ? 0 : (currentPage - 1) * ITEMS_PER_PAGE + 1} to {Math.min(currentPage * ITEMS_PER_PAGE, totalCommunities)} of {totalCommunities} communities
             </p>
           </div>
 
           {/* Table Body */}
-          {paginatedCommunities.length === 0 ? (
+          {isLoadingCommunities ? (
+            <div className="p-12 text-center">
+              <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[#043658] border-r-transparent"></div>
+              <p className="mt-4 text-sm font-semibold text-[#043658]">Loading communities...</p>
+            </div>
+          ) : communities.length === 0 ? (
             <div className="p-12 text-center">
               <Filter className="mx-auto h-12 w-12 text-[#D9E2EC] mb-4" />
               <p className="text-sm font-semibold text-[#043658]">No communities found</p>
@@ -279,7 +396,7 @@ export default function AdminCommunitiesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedCommunities.map((community) => (
+                  {communities.map((community: Community) => (
                     <tr key={community.id} className="border-b border-[#E8EEF3] hover:bg-[#F8FAFC] transition-colors">
                       {/* Community Name */}
                       <td className="px-6 py-4">
@@ -289,7 +406,7 @@ export default function AdminCommunitiesPage() {
                           </div>
                           <div>
                             <p className="text-sm font-semibold text-[#043658]">{community.name}</p>
-                            <p className="text-xs text-[#6B7C93]">{community.description}</p>
+                            <p className="text-xs text-[#6B7C93]">{community.description || getCommunityLocation(community)}</p>
                           </div>
                         </div>
                       </td>
@@ -305,7 +422,7 @@ export default function AdminCommunitiesPage() {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2 text-sm font-medium text-[#043658]">
                           <Users className="h-4 w-4 text-[#6B7C93]" />
-                          {community.members.toLocaleString()}
+                          {community._count?.communityMembers?.toLocaleString() || 0}
                         </div>
                       </td>
 
@@ -313,24 +430,27 @@ export default function AdminCommunitiesPage() {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2 text-sm font-medium text-[#043658]">
                           <MessageCircle className="h-4 w-4 text-[#6B7C93]" />
-                          {community.posts.toLocaleString()}
+                          {community._count?.posts?.toLocaleString() || 0}
                         </div>
                       </td>
 
                       {/* Status */}
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
-                          {getStatusIcon(community.status)}
-                          <span className={`text-sm font-medium ${community.status === 'ACTIVE' ? 'text-green-700' : 'text-red-700'}`}>
-                            {community.status}
+                          {getStatusIcon(community.isActive ? 'ACTIVE' : 'INACTIVE')}
+                          <span className={`text-sm font-medium ${community.isActive ? 'text-green-700' : 'text-red-700'}`}>
+                            {community.isActive ? 'Active' : 'Inactive'}
                           </span>
                         </div>
                       </td>
 
                       {/* Actions */}
                       <td className="px-6 py-4">
-                        <button className="rounded-lg p-2 text-[#6B7C93] hover:bg-[#F8FAFC] transition-colors">
-                          <MoreVertical className="h-4 w-4" />
+                        <button 
+                          onClick={() => window.location.href = `/admin/communities/${community.id}`}
+                          className="rounded-lg px-3 py-1.5 text-xs font-semibold text-[#043658] hover:bg-[#F8FAFC] transition-colors border border-[#D9E2EC]"
+                        >
+                          Manage
                         </button>
                       </td>
                     </tr>
@@ -398,7 +518,12 @@ export default function AdminCommunitiesPage() {
                     name: '',
                     description: '',
                     type: 'WOREDA',
-                    subtype: '',
+                    subtype: 'COMMON',
+                    department: '',
+                    school: '',
+                    woreda: '',
+                    zone: '',
+                    region: '',
                     isActive: true,
                   });
                 }}
@@ -499,10 +624,15 @@ export default function AdminCommunitiesPage() {
                         name: '',
                         description: '',
                         type: 'WOREDA',
-                        subtype: '',
+                        subtype: 'COMMON',
+                        department: '',
+                        school: '',
+                        woreda: '',
+                        zone: '',
+                        region: '',
                         isActive: true,
                       });
-                      window.location.reload();
+                      refetchCommunities();
                     } catch (error: any) {
                       console.error('Failed to create community:', error);
                       toast.error('Failed to Create Community', {
@@ -524,7 +654,12 @@ export default function AdminCommunitiesPage() {
                       name: '',
                       description: '',
                       type: 'WOREDA',
-                      subtype: '',
+                      subtype: 'COMMON',
+                      department: '',
+                      school: '',
+                      woreda: '',
+                      zone: '',
+                      region: '',
                       isActive: true,
                     });
                   }}

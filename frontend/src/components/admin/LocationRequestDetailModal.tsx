@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useApproveLocationRequest, useRejectLocationRequest } from '@/hooks/useAdminLocationRequests';
-import api from '@/lib/axios';
+import { adminApi as api } from '@/lib/axios';
 import { toast } from 'sonner';
 import { Loader2, X, MapPin, Download, CheckCircle, XCircle } from 'lucide-react';
 

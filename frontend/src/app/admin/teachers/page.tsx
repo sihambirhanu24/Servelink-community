@@ -1,10 +1,12 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Search, Filter, ChevronLeft, ChevronRight, Plus, CheckCircle2, AlertCircle, Ban } from 'lucide-react';
+import { Search, Filter, ChevronLeft, ChevronRight, Plus, CheckCircle2, AlertCircle, Ban, MoreVertical, Eye, Clock, FileText, UserCheck } from 'lucide-react';
 import AdminLayout from '@/components/admin/layout';
 import { useTeachers } from '@/hooks/useTeachers';
 import { suspendTeacher, activateTeacher } from '@/services/admin';
+import SuspendTeacherModal from '@/components/admin/SuspendTeacherModal';
+import SuspensionHistory from '@/components/admin/SuspensionHistory';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -16,6 +18,10 @@ export default function AdminTeachersPage() {
   const [selectedVerification, setSelectedVerification] = useState('approved'); // Show only approved teachers
   const [currentPage, setCurrentPage] = useState(1);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [suspendModalOpen, setSuspendModalOpen] = useState(false);
+  const [selectedTeacher, setSelectedTeacher] = useState<any>(null);
+  const [actionMenuOpen, setActionMenuOpen] = useState<string | null>(null);
+  const [historyModalOpen, setHistoryModalOpen] = useState(false);
 
   // Use real data from API
   const teachers = (teachersData?.data || []) as any[];
@@ -68,7 +74,23 @@ export default function AdminTeachersPage() {
 
   const getStatusIcon = (status: string) => {
     if (status === 'ACTIVE') return <span className="h-2 w-2 rounded-full bg-green-500" />;
-    return <span className="h-2 w-2 rounded-full bg-red-500" />;
+    if (status === 'SUSPENDED' || status === 'PERMANENTLY_SUSPENDED') return <span className="h-2 w-2 rounded-full bg-red-500" />;
+    return <span className="h-2 w-2 rounded-full bg-gray-500" />;
+  };
+
+  const getSuspensionInfo = (teacher: any) => {
+    if (teacher.status !== 'SUSPENDED' && teacher.status !== 'PERMANENTLY_SUSPENDED') return null;
+    
+    const isPermanent = teacher.status === 'PERMANENTLY_SUSPENDED';
+    const suspensionUntil = teacher.suspensionUntil ? new Date(teacher.suspensionUntil) : null;
+    const now = new Date();
+    const daysRemaining = suspensionUntil ? Math.ceil((suspensionUntil.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null;
+
+    return {
+      isPermanent,
+      daysRemaining: daysRemaining && daysRemaining > 0 ? daysRemaining : 0,
+      reason: teacher.suspensionReason,
+    };
   };
 
   const getVerificationBadge = (teacher: any) => {
@@ -206,6 +228,7 @@ export default function AdminTeachersPage() {
                 <option value="all">All Statuses</option>
                 <option value="ACTIVE">Active</option>
                 <option value="SUSPENDED">Suspended</option>
+                <option value="PERMANENTLY_SUSPENDED">Permanently Suspended</option>
               </select>
             </div>
 
@@ -292,11 +315,31 @@ export default function AdminTeachersPage() {
 
                       {/* Status */}
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          {getStatusIcon(teacher.status)}
-                          <span className={`text-sm font-medium ${teacher.status === 'ACTIVE' ? 'text-green-700' : 'text-red-700'}`}>
-                            {teacher.status}
-                          </span>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            {getStatusIcon(teacher.status)}
+                            <span className={`text-sm font-medium ${
+                              teacher.status === 'ACTIVE' ? 'text-green-700' : 
+                              teacher.status === 'SUSPENDED' ? 'text-orange-700' :
+                              teacher.status === 'PERMANENTLY_SUSPENDED' ? 'text-red-700' :
+                              'text-gray-700'
+                            }`}>
+                              {teacher.status === 'PERMANENTLY_SUSPENDED' ? 'Perm. Suspended' : teacher.status}
+                            </span>
+                          </div>
+                          {(() => {
+                            const suspensionInfo = getSuspensionInfo(teacher);
+                            if (!suspensionInfo) return null;
+                            return (
+                              <div className="text-xs text-gray-500">
+                                {suspensionInfo.isPermanent ? (
+                                  <span>Permanent</span>
+                                ) : (
+                                  <span>{suspensionInfo.daysRemaining} day{suspensionInfo.daysRemaining !== 1 ? 's' : ''} left</span>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </div>
                       </td>
 
@@ -305,22 +348,78 @@ export default function AdminTeachersPage() {
 
                       {/* Actions */}
                       <td className="px-6 py-4">
-                        <button
-                          onClick={() => handleToggleStatus(teacher.id, teacher.status)}
-                          disabled={actionLoading === teacher.id}
-                          className={`rounded-lg p-2 transition-colors disabled:opacity-50 ${
-                            teacher.status === 'ACTIVE'
-                              ? 'text-orange-600 hover:bg-orange-50'
-                              : 'text-green-600 hover:bg-green-50'
-                          }`}
-                          title={teacher.status === 'ACTIVE' ? 'Suspend teacher' : 'Activate teacher'}
-                        >
-                          {teacher.status === 'ACTIVE' ? (
-                            <Ban className="h-4 w-4" />
-                          ) : (
-                            <CheckCircle2 className="h-4 w-4" />
+                        <div className="relative">
+                          <button
+                            onClick={() => setActionMenuOpen(actionMenuOpen === teacher.id ? null : teacher.id)}
+                            className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 transition-colors"
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </button>
+
+                          {actionMenuOpen === teacher.id && (
+                            <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
+                              <button
+                                onClick={() => {
+                                  setActionMenuOpen(null);
+                                  setSelectedTeacher(teacher);
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                              >
+                                <Eye className="h-4 w-4" />
+                                View Teacher
+                              </button>
+                              
+                              {teacher.status === 'ACTIVE' ? (
+                                <button
+                                  onClick={() => {
+                                    setActionMenuOpen(null);
+                                    setSelectedTeacher(teacher);
+                                    setSuspendModalOpen(true);
+                                  }}
+                                  className="w-full text-left px-4 py-2 text-sm text-orange-600 hover:bg-orange-50 flex items-center gap-2"
+                                >
+                                  <Ban className="h-4 w-4" />
+                                  Suspend Teacher
+                                </button>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => {
+                                      setActionMenuOpen(null);
+                                      handleToggleStatus(teacher.id, teacher.status);
+                                    }}
+                                    disabled={actionLoading === teacher.id}
+                                    className="w-full text-left px-4 py-2 text-sm text-green-600 hover:bg-green-50 flex items-center gap-2 disabled:opacity-50"
+                                  >
+                                    <UserCheck className="h-4 w-4" />
+                                    Unsuspend
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setActionMenuOpen(null);
+                                      setHistoryModalOpen(true);
+                                    }}
+                                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                                  >
+                                    <Clock className="h-4 w-4" />
+                                    Suspension History
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setActionMenuOpen(null);
+                                      // Navigate to appeals
+                                      window.location.href = `/admin/appeals`;
+                                    }}
+                                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                                  >
+                                    <FileText className="h-4 w-4" />
+                                    View Appeals
+                                  </button>
+                                </>
+                              )}
+                            </div>
                           )}
-                        </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -373,6 +472,35 @@ export default function AdminTeachersPage() {
           )}
         </div>
       </div>
+
+      {/* Suspend Teacher Modal */}
+      {selectedTeacher && (
+        <SuspendTeacherModal
+          isOpen={suspendModalOpen}
+          onClose={() => {
+            setSuspendModalOpen(false);
+            setSelectedTeacher(null);
+          }}
+          teacherId={selectedTeacher.id}
+          teacherName={`${selectedTeacher.firstName} ${selectedTeacher.lastName}`}
+          onSuccess={() => {
+            refetch();
+          }}
+        />
+      )}
+
+      {/* Suspension History Modal */}
+      {selectedTeacher && (
+        <SuspensionHistory
+          teacherId={selectedTeacher.id}
+          teacherName={`${selectedTeacher.firstName} ${selectedTeacher.lastName}`}
+          isOpen={historyModalOpen}
+          onClose={() => {
+            setHistoryModalOpen(false);
+            setSelectedTeacher(null);
+          }}
+        />
+      )}
     </AdminLayout>
   );
 }
