@@ -10,6 +10,7 @@ import { TeacherPostGrid } from "@/components/profile/TeacherPostGrid";
 import { useTeacherProfile, useFollowTeacher } from "@/hooks/useTeacherProfile";
 import { useTeacherPosts } from "@/hooks/useTeacherPosts";
 import { useAuth } from "@/context/AuthContext";
+import { useCreateDirectConversation } from "@/hooks/useDirectMessages";
 import { AlertCircle, Loader } from "lucide-react";
 
 export default function TeacherProfilePage() {
@@ -25,6 +26,16 @@ export default function TeacherProfilePage() {
   const { data: profile, isLoading: profileLoading, error: profileError } = useTeacherProfile(teacherId);
   const { follow, unfollow, isFollowing } = useFollowTeacher(teacherId);
   const { data: postsData, isLoading: postsLoading } = useTeacherPosts(teacherId);
+  const createConversation = useCreateDirectConversation();
+
+  const handleMessage = async () => {
+    try {
+      const result = await createConversation.mutateAsync(teacherId);
+      router.push(`/messages/${result.chatRoomId}`);
+    } catch (error) {
+      console.error('Failed to create conversation:', error);
+    }
+  };
 
   if (profileLoading) {
     return (
@@ -146,6 +157,7 @@ export default function TeacherProfilePage() {
             profile={profile}
             onFollow={follow}
             onUnfollow={unfollow}
+            onMessage={handleMessage}
             isFollowing={profile.isFollowedByCurrentUser}
             isCurrentUser={isCurrentUser}
           />

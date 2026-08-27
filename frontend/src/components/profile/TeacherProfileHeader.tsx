@@ -8,6 +8,7 @@ interface TeacherProfileHeaderProps {
   profile: TeacherProfile;
   onFollow: () => void;
   onUnfollow: () => void;
+  onMessage?: () => void;
   isFollowing: boolean;
   isCurrentUser?: boolean;
 }
@@ -16,6 +17,7 @@ export function TeacherProfileHeader({
   profile, 
   onFollow, 
   onUnfollow, 
+  onMessage,
   isFollowing,
   isCurrentUser = false 
 }: TeacherProfileHeaderProps) {
@@ -107,6 +109,7 @@ export function TeacherProfileHeader({
             {!isCurrentUser && (
               <div className="flex items-center gap-2">
                 <button
+                  onClick={onMessage}
                   className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-[#043658] transition hover:bg-slate-50"
                 >
                   <MessageSquare className="h-4 w-4" />

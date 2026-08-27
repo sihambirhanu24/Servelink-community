@@ -2,11 +2,13 @@
 
 import Avatar from "../ui/Avatar";
 import Button from "../ui/Button";
-import { LogOut } from "lucide-react";
+import { LogOut, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { useSuspensionStatus } from "@/hooks/useSuspensionStatus";
 
 export default function SidebarFooter() {
   const { user, logout } = useAuth();
+  const { suspensionStatus } = useSuspensionStatus(user?.id);
 
   return (
     <div className="border-t border-gray-200 pt-6">
@@ -18,15 +20,22 @@ export default function SidebarFooter() {
           image={user?.profileImage}
         />
 
-        <div>
+        <div className="flex-1 min-w-0">
 
-          <h3 className="font-semibold text-[#043658]">
+          <h3 className="font-semibold text-[#043658] truncate">
             {user?.firstName} {user?.lastName}
           </h3>
 
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-500 truncate">
             {user?.level}
           </p>
+
+          {suspensionStatus?.isSuspended && (
+            <div className="flex items-center gap-1 mt-1 text-xs text-red-600">
+              <AlertTriangle className="h-3 w-3 shrink-0" />
+              <span className="truncate">Account Suspended</span>
+            </div>
+          )}
 
         </div>
 

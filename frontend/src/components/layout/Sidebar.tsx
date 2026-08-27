@@ -18,8 +18,10 @@ import {
   Globe2,
   Globe,
   Lock,
+  MessageCircle,
 } from "lucide-react";
 import { getCommunityAccess } from "@/services/community";
+import { getDirectConversations } from "@/services/direct-messages";
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -50,6 +52,14 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
     queryFn: getCommunityAccess,
     staleTime: 60_000,
   });
+
+  const { data: conversations } = useQuery({
+    queryKey: ["direct-conversations"],
+    queryFn: getDirectConversations,
+    staleTime: 30_000,
+  });
+
+  const totalUnread = conversations?.reduce((sum, conv) => sum + conv.unreadCount, 0) || 0;
 
   const unlockedTypes = new Set(accessData?.unlockedTypes || []);
   unlockedTypes.add("NETWORK");
@@ -162,6 +172,28 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
             </div>
           </div>
         </div>
+
+
+
+        <Link
+          href="/messages"
+          onClick={onClose}
+          className={`flex items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[#FFC107]/30 ${
+            pathname.startsWith("/messages")
+              ? "border-l-2 border-[#FFC107] bg-white/10 font-medium text-white"
+              : "border-l-2 border-transparent text-slate-300 hover:bg-white/5 hover:text-white"
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <MessageCircle className={`h-5 w-5 shrink-0 ${pathname.startsWith("/messages") ? "text-[#FFC107]" : "text-slate-400"}`} />
+            Messages
+          </div>
+          {totalUnread > 0 && (
+            <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#FFC107] px-1.5 text-xs font-semibold text-[#043658]">
+              {totalUnread > 99 ? '99+' : totalUnread}
+            </span>
+          )}
+        </Link>
 
         <Link
           href="/posts"

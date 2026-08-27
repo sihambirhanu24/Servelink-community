@@ -17,6 +17,7 @@ import { AnnouncementsWidget } from '@/components/dashboard/AnnouncementsWidget'
 import { ProgressWidget } from '@/components/progress/ProgressWidget';
 import { DashboardSidebar } from '@/components/layout/Sidebar';
 import Topbar from '@/components/layout/Topbar';
+import SuspensionBanner from '@/components/SuspensionBanner';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -78,6 +79,7 @@ export default function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-6xl">
+      <SuspensionBanner />
       <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
         {/* ── Left column ── */}
         <div className="space-y-4 sm:space-y-6 min-w-0">
