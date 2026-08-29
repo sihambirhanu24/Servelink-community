@@ -50,6 +50,7 @@ return this.prisma.communityPost.findMany({
         lastName: true,
         email: true,
         profileImage: true,
+        bannerUrl: true,
         level: true,
         subject: true,
         department: true,
@@ -90,6 +91,22 @@ return this.prisma.communityPost.findMany({
     return {
       success: true,
       profileImage: updated.profileImage,
+    };
+  }
+
+  async updateBannerPhoto(teacherId: string, filename: string) {
+    const bannerUrl = `uploads/banner/${filename}`;
+    const updated = await this.prisma.teacher.update({
+      where: { id: teacherId },
+      data: { bannerUrl },
+      select: {
+        id: true,
+        bannerUrl: true,
+      },
+    });
+    return {
+      success: true,
+      bannerUrl: updated.bannerUrl,
     };
   }
 

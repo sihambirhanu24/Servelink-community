@@ -17,6 +17,8 @@ import {
 import { DashboardSidebar } from "@/components/layout/Sidebar";
 import Topbar from "@/components/layout/Topbar";
 import { useUploadProfilePhoto } from "@/hooks/useUploadProfilePhoto";
+import { useUploadBannerPhoto } from "@/hooks/useUploadBannerPhoto";
+import { getMediaUrl } from "@/lib/media";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -81,6 +83,7 @@ export default function EditProfilePage() {
   const { mutateAsync: updateProfile, isPending } = useUpdateProfile();
   const { mutateAsync: uploadPhoto, isPending: isUploadingPhoto } =
     useUploadProfilePhoto();
+  const { mutateAsync: uploadBanner, isPending: isUploadingBanner } = useUploadBannerPhoto();
 
   // ── Form state ──────────────────────────────────────────────────────────────
   const [form, setForm] = useState({
@@ -128,7 +131,6 @@ export default function EditProfilePage() {
     setForm((prev) => ({ ...prev, [field]: value }));
   }
 
-  // ── Completion ──────────────────────────────────────────────────────────────
   const sections = {
     personal:     !!(form.firstName && form.lastName && form.bio && form.phone),
     professional: !!(form.profession && form.specialization && form.skills && form.gradeLevel),
@@ -152,6 +154,20 @@ export default function EditProfilePage() {
       toast.success("Photo updated!");
     } catch {
       toast.error("Failed to upload photo");
+    }
+    e.target.value = "";
+  }
+
+  // ── Banner upload ─────────────────────────────────────────────────────────
+  async function handleBanner(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) { toast.error("Max 10 MB"); return; }
+    try {
+      await uploadBanner(file);
+      toast.success("Cover photo updated!");
+    } catch {
+      toast.error("Failed to upload cover photo");
     }
     e.target.value = "";
   }
@@ -202,74 +218,60 @@ export default function EditProfilePage() {
       <div className="mt-16 lg:ml-64 h-[calc(100vh-4rem)] overflow-y-auto overflow-x-hidden">
         <form onSubmit={handleSubmit} className="flex min-h-full flex-col">
 
-          {/* ── Navy header ─────────────────────────────────────────────── */}
-          <div className="relative shrink-0 border-b-4 border-[#FFC107] bg-[#043658] px-4 py-8 sm:px-6 lg:px-8">
-            {/* Grid pattern */}
-            <div
-              className="pointer-events-none absolute inset-0 opacity-10"
+          {/* ── New Profile Header ─────────────────────────────────────────────── */}
+          <div className="relative shrink-0 flex flex-col w-full">
+            {/* Dark Navy Cover (approx 140px) */}
+            <div 
+              className="relative h-[140px] w-full bg-[#043658] border-t-[3px] border-[#FFC107] overflow-hidden group bg-cover bg-center"
               style={{
-                backgroundImage:
-                  "linear-gradient(#fff 1px,transparent 1px),linear-gradient(90deg,#fff 1px,transparent 1px)",
-                backgroundSize: "20px 20px",
+                backgroundImage: (profile as any)?.bannerUrl ? `url(${getMediaUrl((profile as any).bannerUrl)})` : undefined
               }}
-            />
+            >
+              {/* Subtle large circular decorative outlines */}
+              <div className="absolute top-[-50px] left-[15%] w-[300px] h-[300px] rounded-full border border-white/5 pointer-events-none"></div>
+              <div className="absolute top-[-150px] right-[-50px] w-[400px] h-[400px] rounded-full border border-white/5 pointer-events-none"></div>
+              {/* Small yellow decorative dots */}
+              <div className="absolute top-[40px] left-[45%] w-1.5 h-1.5 rounded-full bg-[#FFC107] opacity-80"></div>
+              <div className="absolute bottom-[30px] right-[25%] w-1.5 h-1.5 rounded-full bg-[#FFC107] opacity-60"></div>
+              
+              {/* Cover Photo Button */}
+              <label 
+                className={`absolute bottom-4 right-6 cursor-pointer p-2 rounded-full transition-colors z-10 
+                  ${isUploadingBanner ? 'text-slate-400 cursor-not-allowed' : 'text-slate-400 hover:text-[#FFC107] hover:bg-white/10'}`}
+                title="Change Cover Photo"
+              >
+                {isUploadingBanner ? <Loader2 className="h-5 w-5 animate-spin" /> : <Camera className="h-5 w-5" />}
+                <input type="file" className="hidden" accept="image/*" onChange={handleBanner} disabled={isUploadingBanner} />
+              </label>
+            </div>
 
-            <div className="relative z-10 mx-auto flex max-w-5xl flex-col items-center justify-between gap-6 sm:flex-row">
-              {/* Avatar + name */}
-              <div className="flex items-center gap-5">
+            {/* White Profile Body (approx 85px) */}
+            <div className="relative h-[85px] w-full bg-white border-b border-slate-200">
+              {/* The avatar container */}
+              <div className="absolute top-[-65px] left-[130px] z-10 flex items-center justify-center max-sm:left-[50%] max-sm:-translate-x-1/2">
                 <div className="relative">
-                  <div className="flex h-20 w-20 items-center justify-center rounded-2xl border-2 border-[#FFC107] bg-[#043658] text-2xl font-bold text-[#FFC107]">
-                    {name
-                      ? name.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()
-                      : "··"}
+                  {/* Avatar wrapper with white border and yellow arc */}
+                  <div className="relative flex h-[130px] w-[130px] items-center justify-center rounded-full border-[5px] border-white bg-[#043658] text-[40px] font-bold text-white shadow-sm overflow-visible">
+                    {/* Yellow Arc */}
+                    <svg className="absolute -top-[5px] -left-[5px] w-[130px] h-[130px] pointer-events-none" viewBox="0 0 130 130">
+                      <circle cx="65" cy="65" r="62.5" fill="none" stroke="#FFC107" strokeWidth="5" strokeDasharray="40 400" strokeDashoffset="-35" strokeLinecap="round" />
+                    </svg>
+
+                    {((profile as any)?.profileImage) ? (
+                      <img src={getMediaUrl((profile as any).profileImage)} alt="Profile" className="h-full w-full rounded-full object-cover" />
+                    ) : (
+                      name
+                        ? name.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()
+                        : "MM"
+                    )}
                   </div>
-                  <label className="absolute -bottom-2 -right-2 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full bg-[#FFC107] text-[#043658] shadow-lg hover:bg-yellow-300 transition-colors">
-                    <Camera className="h-3.5 w-3.5" />
+
+                  {/* Camera Button */}
+                  <label className="absolute bottom-1 right-1 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border-2 border-white bg-[#FFC107] text-[#043658] shadow-sm hover:bg-yellow-400 transition-colors">
+                    <Camera className="h-4 w-4" />
                     <input type="file" className="hidden" accept="image/*" onChange={handlePhoto} disabled={isUploadingPhoto} />
                   </label>
                 </div>
-
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-widest text-[#FFC107]">
-                    TEACHER PROFILE
-                  </p>
-                  <h1 className="mt-0.5 text-2xl font-bold text-white">
-                    {name || "Your Name"}
-                  </h1>
-                  <p className="text-sm text-white/60">
-                    {(profile as any)?.profession || "Teacher"}
-                    {(profile as any)?.department ? ` · ${(profile as any).department}` : ""}
-                  </p>
-                  <button
-                    type="button"
-                    className="mt-1 text-sm font-semibold text-[#FFC107] hover:underline"
-                  >
-                    Keep building
-                  </button>
-                </div>
-              </div>
-
-              {/* Progress ring */}
-              <div className="flex flex-col items-center">
-                <div className="relative h-16 w-16">
-                  <svg className="h-full w-full -rotate-90">
-                    <circle cx="32" cy="32" r="26" strokeWidth="5" fill="none" stroke="rgba(255,255,255,0.1)" />
-                    <circle
-                      cx="32" cy="32" r="26" strokeWidth="5" fill="none"
-                      stroke="#FFC107"
-                      strokeDasharray={`${2 * Math.PI * 26}`}
-                      strokeDashoffset={`${2 * Math.PI * 26 * (1 - pct / 100)}`}
-                      strokeLinecap="round"
-                      style={{ transition: "stroke-dashoffset 0.5s ease" }}
-                    />
-                  </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-sm font-bold text-white">{pct}%</span>
-                  </div>
-                </div>
-                <span className="mt-1 text-[10px] font-bold uppercase tracking-widest text-white/50">
-                  DONE
-                </span>
               </div>
             </div>
           </div>

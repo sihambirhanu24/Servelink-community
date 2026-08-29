@@ -58,6 +58,15 @@ export const uploadProfilePhoto = async (file: File) => {
   return data as { success: boolean; profileImage: string };
 };
 
+export const uploadBannerPhoto = async (file: File) => {
+  const formData = new FormData();
+  formData.append("banner", file);
+  const { data } = await api.patch("/profile/banner", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return data as { success: boolean; bannerUrl: string };
+};
+
 export const changePassword = async (
   oldPassword: string,
   newPassword: string

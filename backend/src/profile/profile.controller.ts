@@ -115,6 +115,67 @@ getMyProfile(@CurrentUser() user: any) {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Patch('banner')
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        banner: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  @UseInterceptors(
+    FileInterceptor('banner', {
+      storage: diskStorage({
+        destination: (req, file, cb) => {
+          const dir = './uploads/banner';
+          if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+          }
+          cb(null, dir);
+        },
+        filename: (req, file, cb) => {
+          const uniqueName =
+            Date.now() + '-' + Math.round(Math.random() * 1e9);
+          cb(null, uniqueName + extname(file.originalname));
+        },
+      }),
+      limits: { fileSize: 10 * 1024 * 1024 }, // Allow up to 10MB for banners
+      fileFilter: (req, file, cb) => {
+        const allowed = [
+          'image/jpeg',
+          'image/jpg',
+          'image/png',
+          'image/webp',
+        ];
+        if (allowed.includes(file.mimetype)) {
+          cb(null, true);
+        } else {
+          cb(
+            new BadRequestException(
+              'Only jpg, jpeg, png, webp files are allowed.',
+            ),
+            false,
+          );
+        }
+      },
+    }),
+  )
+  async uploadBannerPhoto(
+    @CurrentUser() user: any,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) {
+      throw new BadRequestException('No file uploaded');
+    }
+    return this.profileService.updateBannerPhoto(user.sub, file.filename);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Patch('password')
   changePassword(
     @CurrentUser() user: any,
