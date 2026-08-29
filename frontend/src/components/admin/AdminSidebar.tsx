@@ -65,7 +65,7 @@ function AdminSidebarContent({ onClose }: { onClose?: () => void }) {
         {onClose && (
           <button
             onClick={onClose}
-            className="lg:hidden rounded-lg p-1.5 text-slate-400 hover:bg-slate-700/50 hover:text-white transition-colors"
+            className="lg:hidden rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white transition-colors"
             aria-label="Close menu"
           >
             <X className="h-5 w-5" />
@@ -88,8 +88,8 @@ function AdminSidebarContent({ onClose }: { onClose?: () => void }) {
               aria-current={active ? "page" : undefined}
               className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[#FFC107]/30 ${
                 active
-                  ? "border-l-2 border-[#FFC107] bg-slate-700/50 font-medium text-[#FFC107]"
-                  : "text-slate-300 hover:bg-slate-700/30 hover:text-[#FFC107]"
+                  ? "border-l-2 border-[#FFC107] bg-white/10 font-medium text-white"
+                  : "border-l-2 border-transparent text-slate-300 hover:bg-white/5 hover:text-white"
               }`}
             >
               <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -106,7 +106,7 @@ export function AdminSidebar({ isOpen = false, onClose }: AdminSidebarProps) {
   return (
     <>
       {/* Desktop Sidebar - Fixed */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col overflow-y-auto border-r border-slate-700 bg-gradient-to-b from-slate-900 to-slate-800 px-4 py-6 lg:flex">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col overflow-y-auto border-r border-slate-700 bg-primary px-4 py-6 lg:flex">
         <AdminSidebarContent />
       </aside>
 
@@ -136,7 +136,7 @@ export function AdminSidebar({ isOpen = false, onClose }: AdminSidebarProps) {
               leaveTo="-translate-x-full"
             >
               <Dialog.Panel className="relative mr-16 flex w-full max-w-xs flex-1">
-                <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-slate-700 bg-gradient-to-b from-slate-900 to-slate-800 px-4 py-6">
+                <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-slate-700 bg-primary px-4 py-6">
                   <AdminSidebarContent onClose={onClose} />
                 </div>
               </Dialog.Panel>
