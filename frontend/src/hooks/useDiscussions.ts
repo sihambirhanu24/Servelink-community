@@ -49,21 +49,31 @@ export function useCreateDiscussion() {
 
   return useMutation({
     mutationFn: (dto: CreateDiscussionDto) => discussionApi.createDiscussion(dto),
-    onSuccess: (newDiscussion) => {
+    onSuccess: (result) => {
+      const { discussion, pointsAwarded, progress } = result;
+
       // Invalidate all discussion queries to refetch
       queryClient.invalidateQueries({ queryKey: discussionKeys.all });
       
-      // Invalidate progress queries for discussion points
+      // Update progress queries directly to be immediate, and also invalidate for safety
+      if (progress) {
+        queryClient.setQueryData(["progress"], progress);
+      }
       queryClient.invalidateQueries({ queryKey: ["progress"] });
       queryClient.invalidateQueries({ queryKey: ["activityHistory"] });
       
       // Optimistically add to cache
       queryClient.setQueryData(
-        discussionKeys.detail(newDiscussion.id),
-        newDiscussion
+        discussionKeys.detail(discussion.id),
+        discussion
       );
 
       toast.success('Discussion created successfully!');
+      
+      // Specifically tell the user if points were awarded
+      if (pointsAwarded > 0) {
+        toast.success(`You earned ${pointsAwarded} points!`);
+      }
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.message || 'Failed to create discussion');

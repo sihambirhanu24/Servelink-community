@@ -13,7 +13,7 @@ import { createPostByType, type CommunityTypeKey } from "@/services/community";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type PostType = "QUESTION" | "DISCUSSION" | "RESOURCE";
+type PostType = "QUESTION" | "RESOURCE";
 
 interface CreatePostModalProps {
   isOpen: boolean;
@@ -97,12 +97,6 @@ const POST_TYPE_CFG: Record<PostType, {
     placeholder: "What would you like to ask? Be specific…",
     descPlaceholder: "Provide more context — what have you tried, what exactly do you need to know?",
   },
-  DISCUSSION: {
-    label: "Start a Discussion",
-    icon: <MessageCircle className="h-4 w-4" />,
-    placeholder: "What would you like to discuss?",
-    descPlaceholder: "Share your thoughts, experience or perspective with your colleagues…",
-  },
   RESOURCE: {
     label: "Share a Resource",
     icon: <FileText className="h-4 w-4" />,
@@ -116,7 +110,7 @@ const POST_TYPE_CFG: Record<PostType, {
 export function CreatePostModal({
   isOpen,
   onClose,
-  defaultType = "DISCUSSION",
+  defaultType = "RESOURCE",
   communityType,
 }: CreatePostModalProps) {
   const qc = useQueryClient();
@@ -160,9 +154,7 @@ export function CreatePostModal({
     },
     onSuccess: () => {
       toast.success(
-        postType === "QUESTION" ? "Question posted!" :
-        postType === "RESOURCE" ? "Resource shared!" :
-        "Discussion started!"
+        postType === "QUESTION" ? "Question posted!" : "Resource shared!"
       );
       qc.invalidateQueries({ queryKey: ["community-feed"] });
       qc.invalidateQueries({ queryKey: ["network-overview"] });
@@ -225,7 +217,7 @@ export function CreatePostModal({
 
         {/* ── Post type selector ─────────────────────────────────────────── */}
         <div className="flex gap-2 border-b border-slate-100 px-6 py-3 shrink-0 overflow-x-auto">
-          {(["QUESTION", "DISCUSSION", "RESOURCE"] as PostType[]).map((t) => {
+          {(["QUESTION", "RESOURCE"] as PostType[]).map((t) => {
             const c = POST_TYPE_CFG[t];
             return (
               <button

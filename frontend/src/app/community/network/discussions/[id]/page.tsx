@@ -116,7 +116,7 @@ export default function DiscussionDetailPage() {
     if (confirm('Are you sure you want to delete this discussion? This action cannot be undone.')) {
       try {
         await deleteDiscussion.mutateAsync(discussionId);
-        router.push('/community/network/discussions');
+        router.push('/community?tab=discussions');
       } catch (error) {
         // Error already handled by mutation
       }
@@ -167,7 +167,7 @@ export default function DiscussionDetailPage() {
                     This discussion may have been deleted or you don't have access to it.
                   </p>
                   <Button
-                    onClick={() => router.push('/community/network/discussions')}
+                    onClick={() => router.push('/community?tab=discussions')}
                     variant="secondary"
                     className="mt-4"
                   >
@@ -196,7 +196,7 @@ export default function DiscussionDetailPage() {
             <div className="bg-white border-b border-slate-200 px-4 py-3">
               <div className="flex items-center gap-2 mb-2 text-xs">
                 <button
-                  onClick={() => router.push('/community')}
+                  onClick={() => router.push('/community?tab=discussions')}
                   className="flex items-center gap-1.5 text-slate-600 hover:text-[#043658] transition-colors"
                 >
                   <ArrowLeft className="w-3.5 h-3.5" />

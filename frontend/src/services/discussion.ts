@@ -7,6 +7,7 @@ import {
   UpdateDiscussionDto,
   DiscussionQueryParams,
   ReportDiscussionDto,
+  CreateDiscussionResult,
 } from '@/types/discussion';
 
 export const discussionApi = {
@@ -23,7 +24,7 @@ export const discussionApi = {
   },
 
   // Create discussion
-  async createDiscussion(dto: CreateDiscussionDto): Promise<DiscussionDetail> {
+  async createDiscussion(dto: CreateDiscussionDto): Promise<CreateDiscussionResult> {
     const { data } = await api.post('/discussions', dto);
     return data;
   },

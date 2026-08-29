@@ -16,7 +16,9 @@ import {
   DiscussionResponse,
   DiscussionDetailResponse,
   PaginatedDiscussionsResponse,
+  CreateDiscussionResult,
 } from './dto/discussion-response.dto';
+import { POINT_VALUES } from '../progress/types/progress.types';
 
 @Injectable()
 export class DiscussionService {
@@ -31,7 +33,22 @@ export class DiscussionService {
   async create(
     teacherId: string,
     dto: CreateDiscussionDto,
-  ): Promise<DiscussionDetailResponse> {
+  ): Promise<CreateDiscussionResult> {
+    // Check for duplicate discussion (anti-spam / double-click prevention)
+    const recentDuplicate = await this.prisma.discussion.findFirst({
+      where: {
+        authorId: teacherId,
+        title: dto.title,
+        createdAt: {
+          gte: new Date(Date.now() - 30000), // last 30 seconds
+        },
+      },
+    });
+
+    if (recentDuplicate) {
+      throw new BadRequestException('You recently created a discussion with this title.');
+    }
+
     // Validate category if provided
     if (dto.categoryId) {
       const category = await this.prisma.category.findUnique({
@@ -71,12 +88,17 @@ export class DiscussionService {
       },
     });
 
-    // Award points for discussion creation
-    this.progressService.awardDiscussionPoints(teacherId, discussion.id).catch((error) => {
-      console.error(`Failed to award discussion points: ${error.message}`);
-    });
+    // Award points for discussion creation synchronously
+    await this.progressService.awardDiscussionPoints(teacherId, discussion.id);
+    
+    // Fetch updated progress
+    const progress = await this.progressService.getProgress(teacherId);
 
-    return this.formatDiscussionDetail(discussion, teacherId);
+    return {
+      discussion: this.formatDiscussionDetail(discussion, teacherId),
+      pointsAwarded: POINT_VALUES.DISCUSSION_CREATED,
+      progress,
+    };
   }
 
   // ─── LIST DISCUSSIONS ──────────────────────────────────────────────────────

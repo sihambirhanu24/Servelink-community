@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { CommunityController } from './controllers/community.controller';
+import { CommunityController } from './community.controller';
 
 describe('CommunityController', () => {
   let controller: CommunityController;

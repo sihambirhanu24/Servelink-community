@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { DashboardSidebar } from "@/components/layout/Sidebar";
@@ -104,6 +104,7 @@ function QSkeleton() {
 
 const DEADLINE_OPTIONS = [
   { label: "1 hour",  value: 1   },
+  { label: "2 minutes", value: -2 },
   { label: "6 hours", value: 6   },
   { label: "24 hours",value: 24  },
   { label: "3 days",  value: 72  },
@@ -135,6 +136,10 @@ function AskQuestionModal({ onClose }: { onClose: () => void }) {
     let deadline: string;
     if (deadlineHours === 0) {
       deadline = customDeadline;
+    } else if (deadlineHours === -2) {
+      const deadlineDate = new Date();
+      deadlineDate.setMinutes(deadlineDate.getMinutes() + 2);
+      deadline = deadlineDate.toISOString();
     } else {
       const deadlineDate = new Date();
       deadlineDate.setHours(deadlineDate.getHours() + deadlineHours);
@@ -816,12 +821,15 @@ function QuestionsTab({ isVerified }: { isVerified: boolean }) {
 export default function CommunityPage() {
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen]     = useState(false);
-  const [tab, setTab]                     = useState<Tab>("overview");
+  const searchParams = useSearchParams();
+  const initialTab = (searchParams.get("tab") as Tab) || "overview";
+  const [tab, setTab]                     = useState<Tab>(initialTab);
   const [search, setSearch]               = useState("");
   const [communityFilter, setCommunityFilter] = useState("all");
   const [categoryFilter, setCategoryFilter]   = useState("all");
   const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [createModalType, setCreateModalType] = useState<"DISCUSSION" | "RESOURCE">("DISCUSSION");
+  const [createModalType, setCreateModalType] = useState<"RESOURCE">("RESOURCE");
+  const [discussionModalOpen, setDiscussionModalOpen] = useState(false);
 
   const { user, token, isInitializing } = useAuth();
   const { data: profile } = useProfile();
@@ -871,7 +879,7 @@ export default function CommunityPage() {
 
   function handleCreatePost() {
     if (!isVerified) { window.dispatchEvent(new CustomEvent("show-verification-modal")); return; }
-    setCreateModalType(tab === "resources" ? "RESOURCE" : "DISCUSSION");
+    setCreateModalType("RESOURCE");
     setCreateModalOpen(true);
   }
 
@@ -905,7 +913,14 @@ export default function CommunityPage() {
               {/* Only show create button for discussions + resources here; questions has its own */}
               {(tab === "discussions" || tab === "resources") && (
                 <button
-                  onClick={handleCreatePost}
+                  onClick={() => {
+                    if (!isVerified) { window.dispatchEvent(new CustomEvent("show-verification-modal")); return; }
+                    if (tab === "discussions") {
+                      setDiscussionModalOpen(true);
+                    } else {
+                      handleCreatePost();
+                    }
+                  }}
                   className={`flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold transition-colors shrink-0 ${
                     isVerified ? "bg-[#043658] text-white hover:bg-[#032742]" : "bg-slate-100 text-slate-400 cursor-not-allowed"
                   }`}
@@ -1043,6 +1058,16 @@ export default function CommunityPage() {
         defaultType={createModalType}
         communityType="NETWORK"
       />
+
+      {discussionModalOpen && (
+        <StartDiscussionModal
+          isOpen={discussionModalOpen}
+          onClose={() => setDiscussionModalOpen(false)}
+          onSuccess={(id) => {
+            setDiscussionModalOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 }

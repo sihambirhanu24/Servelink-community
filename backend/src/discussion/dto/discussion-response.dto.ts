@@ -42,3 +42,9 @@ export interface PaginatedDiscussionsResponse {
     hasPreviousPage: boolean;
   };
 }
+
+export interface CreateDiscussionResult {
+  discussion: DiscussionDetailResponse;
+  pointsAwarded: number;
+  progress: any; // We use any here to avoid cyclic dependency or importing ProgressResponse from another module if not already exported properly
+}

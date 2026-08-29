@@ -57,6 +57,12 @@ export interface UpdateDiscussionDto {
   tags?: string[];
 }
 
+export interface CreateDiscussionResult {
+  discussion: DiscussionDetail;
+  pointsAwarded: number;
+  progress: any;
+}
+
 export interface DiscussionMessage {
   id: string;
   content: string;

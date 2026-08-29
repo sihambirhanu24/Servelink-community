@@ -46,6 +46,7 @@ export const createPost = async (body: {
   description: string;
   communityId: string;
   categoryId: string;
+  postType?: string;
 }) => {
   const { data } = await api.post("/community/posts", body);
   return data;

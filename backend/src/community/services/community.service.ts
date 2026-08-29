@@ -548,7 +548,10 @@ export class CommunityService {
           ],
         }),
         ...(filters.categoryId && { categoryId: filters.categoryId }),
-        ...(filters.postType && { postType: filters.postType as any }),
+        ...(filters.postType 
+          ? { postType: filters.postType as any } 
+          : { postType: { not: 'DISCUSSION' as any } }
+        ),
       },
       include: {
         teacher: true,

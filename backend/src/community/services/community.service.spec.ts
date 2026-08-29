@@ -51,12 +51,12 @@ describe('CommunityService', () => {
   });
 
   it('deletes a post and its related records in a transaction', async () => {
-    prisma.communityPost.findUnique.mockResolvedValue({
+    (prisma.communityPost.findUnique as jest.Mock).mockResolvedValue({
       id: 'post-1',
       teacherId: 'teacher-1',
     } as never);
 
-    prisma.$transaction.mockImplementation(async (callback: any) => callback(prisma));
+    (prisma.$transaction as jest.Mock).mockImplementation(async (callback: any) => callback(prisma));
 
     await service.deletePost('post-1', 'teacher-1');
 

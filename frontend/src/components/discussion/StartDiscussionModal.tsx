@@ -98,7 +98,7 @@ export function StartDiscussionModal({
       setAttachments([]);
 
       onClose();
-      onSuccess?.(result.id);
+      onSuccess?.(result.discussion.id);
     } catch (error) {
       // Error already handled by mutation
     }
