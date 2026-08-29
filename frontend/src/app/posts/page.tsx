@@ -163,7 +163,7 @@ function PostComposer({ communities, categories, onSuccess, onCancel }: Composer
     setPublishState("publishing");
     setPublishError(null);
     try {
-      const newPost = await createPost({ title: title.trim(), description: description.trim(), communityId, categoryId });
+      const newPost = await createPost({ title: title.trim(), description: description.trim(), communityId, categoryId, postType: "RESOURCE" });
       for (const pf of pendingFiles) {
         try { await uploadAttachment(newPost.id, pf.file); } catch { /* non-fatal */ }
       }
@@ -491,7 +491,7 @@ export default function PostsPage() {
   const categoriesQuery = useQuery({ queryKey: ["categories"], queryFn: getCategories, staleTime: 60_000 });
   const postsQuery = useQuery({
     queryKey: ["global-feed", communityId, categoryId],
-    queryFn: () => getPosts({ communityId: communityId !== "all" ? communityId : undefined, categoryId: categoryId !== "all" ? categoryId : undefined, page: 1, limit: 50 }),
+    queryFn: () => getPosts({ communityId: communityId !== "all" ? communityId : undefined, categoryId: categoryId !== "all" ? categoryId : undefined, postType: "RESOURCE", page: 1, limit: 50 }),
     staleTime: 30_000,
   });
 
