@@ -197,7 +197,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       // ③ Ensure chat room exists and get/load messages
       const chatRoom = await this.chatService.getOrCreateChatRoom(communityId);
-      const messages = await this.chatService.getRecentMessages(chatRoom.id, 50);
+      const messages = await this.chatService.getRecentMessages(chatRoom.id, 50, teacherId);
 
       // ④ Join room, update maps
       client.join(`community:${communityId}`);
@@ -404,6 +404,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       await this.chatService.markMessagesAsRead(data.messageIds, data.communityId, teacherId);
       const count = await this.chatService.getUnreadCount(data.communityId, teacherId);
       client.emit('unread-count:update', { communityId: data.communityId, count });
+      
+      this.server.to(`community:${data.communityId}`).emit('messages_read_update', {
+        messageIds: data.messageIds,
+        readBy: teacherId,
+        communityId: data.communityId,
+      });
     } catch (err) {
       client.emit('error', { code: 'ERROR', message: err.message });
     }
@@ -494,7 +500,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       client.join(room);
       this.addPresence(discussionPostId, teacherId);
 
-      const { messages, hasMore } = await this.chatService.getDiscussionMessages(discussionPostId, 50);
+      const { messages, hasMore } = await this.chatService.getDiscussionMessages(discussionPostId, 50, undefined, teacherId);
       client.emit('discussion:joined', {
         discussionPostId,
         messages,

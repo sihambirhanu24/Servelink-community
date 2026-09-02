@@ -65,7 +65,7 @@ export class ChatController {
     await this.chatService.verifyAndGetCommunity(communityId, teacherId);
     const chatRoom = await this.chatService.getOrCreateChatRoom(communityId);
     const offset = (page - 1) * limit;
-    const { messages, total } = await this.chatService.getMessageHistory(chatRoom.id, limit, offset);
+    const { messages, total } = await this.chatService.getMessageHistory(chatRoom.id, limit, offset, teacherId);
     return { messages, total, page, limit };
   }
 

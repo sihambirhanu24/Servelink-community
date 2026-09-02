@@ -12,6 +12,7 @@ export class ChatMessageResponseDto {
   attachments?: any[];
   reactions?: Record<string, number>;
   readCount?: number;
+  isRead?: boolean;
   isPinned?: boolean;
   createdAt: Date;
   updatedAt: Date;

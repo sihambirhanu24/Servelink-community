@@ -482,7 +482,7 @@ export class ChatService {
   }
 
   /** Get recent messages for a discussion chat room by discussionPostId */
-  async getDiscussionMessages(discussionPostId: string, limit = 50, cursor?: string): Promise<{ messages: any[]; hasMore: boolean }> {
+  async getDiscussionMessages(discussionPostId: string, limit = 50, cursor?: string, currentTeacherId?: string): Promise<{ messages: any[]; hasMore: boolean }> {
     const room = await (this.prisma.chatRoom as any).findFirst({ where: { discussionPostId } });
     if (!room) return { messages: [], hasMore: false };
 
@@ -492,6 +492,7 @@ export class ChatService {
         sender: { select: { id: true, firstName: true, lastName: true, level: true, profileImage: true, verified: true, subject: true } },
         reactions: true,
         pinnedMessage: true,
+        readBy: { select: { teacherId: true, readAt: true } },
         replyTo: {
           include: {
             sender: { select: { id: true, firstName: true, lastName: true } },
@@ -504,12 +505,12 @@ export class ChatService {
     });
 
     const hasMore = rows.length > limit;
-    const messages = rows.slice(0, limit).reverse().map((m) => this.formatDiscussionMessage(m, m.sender));
+    const messages = rows.slice(0, limit).reverse().map((m) => this.formatDiscussionMessage(m, m.sender, currentTeacherId));
     return { messages, hasMore };
   }
 
-  formatDiscussionMessage(message: any, sender: any): ChatMessageResponseDto & { replyTo?: { id: string; content: string; senderName: string } | null; senderVerified?: boolean; senderSubject?: string | null } {
-    const base = this.formatMessage(message, sender);
+  formatDiscussionMessage(message: any, sender: any, currentTeacherId?: string): ChatMessageResponseDto & { replyTo?: { id: string; content: string; senderName: string } | null; senderVerified?: boolean; senderSubject?: string | null } {
+    const base = this.formatMessage(message, sender, currentTeacherId);
     return {
       ...base,
       senderVerified: sender.verified ?? false,
@@ -553,7 +554,7 @@ export class ChatService {
       },
     });
 
-    return { ...this.formatDiscussionMessage(message, sender), discussionPostId };
+    return { ...this.formatDiscussionMessage(message, sender, senderId), discussionPostId };
   }
 
   /** Edit a discussion message — only the sender may edit */
@@ -573,7 +574,7 @@ export class ChatService {
         replyTo: { include: { sender: { select: { id: true, firstName: true, lastName: true } } } },
       },
     });
-    return this.formatDiscussionMessage(updated, updated.sender);
+    return this.formatDiscussionMessage(updated, updated.sender, teacherId);
   }
 
   /** Soft-delete a discussion message */
@@ -631,6 +632,7 @@ export class ChatService {
     chatRoomId: string,
     limit = 50,
     offset = 0,
+    currentTeacherId?: string,
   ): Promise<{ messages: ChatMessageResponseDto[]; total: number }> {
     const [rows, total] = await Promise.all([
       this.prisma.chatMessage.findMany({
@@ -639,6 +641,7 @@ export class ChatService {
           sender: { select: { id: true, firstName: true, lastName: true, level: true, profileImage: true } },
           reactions: true,
           pinnedMessage: true,
+          readBy: { select: { teacherId: true, readAt: true } },
         },
         orderBy: { createdAt: 'asc' },
         take: limit,
@@ -646,21 +649,22 @@ export class ChatService {
       }),
       this.prisma.chatMessage.count({ where: { chatRoomId, deletedAt: null } }),
     ]);
-    return { messages: rows.map((m) => this.formatMessage(m, m.sender)), total };
+    return { messages: rows.map((m) => this.formatMessage(m, m.sender, currentTeacherId)), total };
   }
 
-  async getRecentMessages(chatRoomId: string, limit = 50): Promise<ChatMessageResponseDto[]> {
+  async getRecentMessages(chatRoomId: string, limit = 50, currentTeacherId?: string): Promise<ChatMessageResponseDto[]> {
     const rows = await this.prisma.chatMessage.findMany({
       where: { chatRoomId, deletedAt: null },
       include: {
         sender: { select: { id: true, firstName: true, lastName: true, level: true, profileImage: true } },
         reactions: true,
         pinnedMessage: true,
+        readBy: { select: { teacherId: true, readAt: true } },
       },
       orderBy: { createdAt: 'desc' },
       take: limit,
     });
-    return rows.reverse().map((m) => this.formatMessage(m, m.sender));
+    return rows.reverse().map((m) => this.formatMessage(m, m.sender, currentTeacherId));
   }
 
   async saveMessageWithAttachments(
@@ -684,7 +688,7 @@ export class ChatService {
 
     const message = await this.prisma.chatMessage.create({
       data: createData,
-      include: { reactions: true, pinnedMessage: true },
+      include: { reactions: true, pinnedMessage: true, readBy: { select: { teacherId: true, readAt: true } } },
     });
 
     if (attachmentUrls?.length) {
@@ -699,7 +703,7 @@ export class ChatService {
       });
     }
 
-    return this.formatMessage(message, sender);
+    return this.formatMessage(message, sender, senderId);
   }
 
   async saveMessage(chatRoomId: string, senderId: string, dto: SendMessageDto) {
@@ -769,7 +773,7 @@ export class ChatService {
         pinnedMessage: true,
       },
     });
-    return this.formatMessage(updated, updated.sender);
+    return this.formatMessage(updated, updated.sender, teacherId);
   }
 
   async deleteMessage(messageId: string, communityId: string, teacherId: string) {
@@ -810,10 +814,11 @@ export class ChatService {
         sender: { select: { id: true, firstName: true, lastName: true, level: true, profileImage: true } },
         reactions: true,
         pinnedMessage: true,
+        readBy: { select: { teacherId: true, readAt: true } },
       },
       orderBy: { pinnedMessage: { createdAt: 'desc' } },
     });
-    return rows.map((m) => this.formatMessage(m, m.sender));
+    return rows.map((m) => this.formatMessage(m, m.sender, teacherId));
   }
 
   async searchMessages(chatRoomId: string, communityId: string, teacherId: string, query: string, limit = 20) {
@@ -824,11 +829,12 @@ export class ChatService {
         sender: { select: { id: true, firstName: true, lastName: true, level: true, profileImage: true } },
         reactions: true,
         pinnedMessage: true,
+        readBy: { select: { teacherId: true, readAt: true } },
       },
       orderBy: { createdAt: 'desc' },
       take: limit,
     });
-    return rows.map((m) => this.formatMessage(m, m.sender));
+    return rows.map((m) => this.formatMessage(m, m.sender, teacherId));
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -854,9 +860,19 @@ export class ChatService {
     );
     const chatRoom = await this.prisma.chatRoom.findFirst({ where: { communityId } });
     if (chatRoom) {
-      const unreadCount = await this.prisma.chatMessage.count({
-        where: { chatRoomId: chatRoom.id, readBy: { none: { teacherId } }, deletedAt: null },
-      });
+      // Calculate unread count: total messages - messages read by this teacher
+      const [totalCount, readCount] = await Promise.all([
+        this.prisma.chatMessage.count({
+          where: { chatRoomId: chatRoom.id, deletedAt: null },
+        }),
+        this.prisma.chatMessageRead.count({
+          where: { 
+            teacherId,
+            message: { chatRoomId: chatRoom.id, deletedAt: null },
+          },
+        }),
+      ]);
+      const unreadCount = Math.max(0, totalCount - readCount);
       await this.prisma.chatUnreadCount.upsert({
         where: { chatRoomId_teacherId: { chatRoomId: chatRoom.id, teacherId } },
         update: { count: unreadCount },
@@ -927,13 +943,36 @@ export class ChatService {
   // FORMAT HELPERS
   // ───────────────────────────────────────────────────────────────────────────
 
-  formatMessage(message: any, sender: any): ChatMessageResponseDto {
+  formatMessage(message: any, sender: any, currentTeacherId?: string): ChatMessageResponseDto {
     const reactions: Record<string, number> = {};
     if (message.reactions) {
       for (const r of message.reactions) {
         reactions[r.reaction] = (reactions[r.reaction] ?? 0) + 1;
       }
     }
+
+    // isRead logic:
+    // - For sender viewing their own message: true if recipient has read it
+    // - For recipient viewing message: true if they have read it
+    // - For community chats: true if anyone other than sender has read it
+    let isRead = false;
+    if (message.readBy && message.readBy.length > 0) {
+      if (currentTeacherId) {
+        if (currentTeacherId === sender.id) {
+          // Sender viewing their own message: check if recipient has read it
+          // For direct messages: check if the specific recipient has read it
+          // For community messages: check if anyone other than sender has read it
+          isRead = message.readBy.some((r: any) => r.teacherId !== sender.id);
+        } else {
+          // Recipient viewing message: check if they have read it
+          isRead = message.readBy.some((r: any) => r.teacherId === currentTeacherId);
+        }
+      } else {
+        // Fallback: mark as read if anyone other than sender has read it
+        isRead = message.readBy.some((r: any) => r.teacherId !== sender.id);
+      }
+    }
+
     return {
       id:                 message.id,
       chatRoomId:         message.chatRoomId,
@@ -947,6 +986,7 @@ export class ChatService {
       deletedAt:          message.deletedAt   ?? undefined,
       attachments:        message.attachments ?? [],
       reactions,
+      isRead,
       isPinned:           !!message.pinnedMessage,
       createdAt:          message.createdAt,
       updatedAt:          message.updatedAt,
@@ -1216,10 +1256,7 @@ export class ChatService {
             },
           },
         },
-        readBy: {
-          where: { teacherId },
-          select: { readAt: true },
-        },
+        readBy: { select: { teacherId: true, readAt: true } },
       },
       orderBy: { createdAt: 'desc' },
       take: limit,
@@ -1241,7 +1278,7 @@ export class ChatService {
     }
 
     return {
-      messages: messages.map((m) => this.formatMessage(m, m.sender)),
+      messages: messages.map((m) => this.formatMessage(m, m.sender, teacherId)),
       hasMore: messages.length === limit,
       nextCursor: messages.length > 0 ? messages[messages.length - 1].id : null,
       otherParticipant: otherParticipant ? {
