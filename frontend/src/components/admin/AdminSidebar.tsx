@@ -20,10 +20,12 @@ import {
   MapPin,
   Megaphone,
   AlertTriangle,
+  Video,
 } from "lucide-react";
 
 const ADMIN_NAV_ITEMS = [
   { label: "Dashboard",       href: "/admin",                  icon: LayoutDashboard },
+  { label: "Live Sessions",   href: "/admin/live-sessions",    icon: Video           },
   { label: "Pending Teachers",href: "/admin/pending-teachers", icon: Clock           },
   { label: "Location Requests",href:"/admin/location-requests",icon: MapPin          },
   { label: "Teachers",        href: "/admin/teachers",         icon: UserCheck       },
