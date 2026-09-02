@@ -21,6 +21,8 @@ import { LocationChangeModule } from './location-change/location-change.module';
 import { AnnouncementModule } from './announcement/announcement.module';
 import { DiscussionModule } from './discussion/discussion.module';
 import { SuspensionModule } from './suspension/suspension.module';
+import { LiveSessionModule } from './live-session/live-session.module';
+import { PaymentModule } from './payment/payment.module';
 
 import { MailModule } from "./mail/mail.module";
 import { ConfigModule } from '@nestjs/config'
@@ -65,6 +67,8 @@ import { join } from "path";
   AnnouncementModule,
   DiscussionModule,
   SuspensionModule,
+  LiveSessionModule,
+  PaymentModule,
 
   MailModule,
 ],

@@ -8,4 +8,10 @@ export default () => ({
   jwtExpiresIn: process.env.JWT_EXPIRES_IN,
 
   frontendUrl: process.env.FRONTEND_URL,
+
+  chapaSecretKey: process.env.CHAPA_SECRET_KEY,
+
+  chapaPublicKey: process.env.CHAPA_PUBLIC_KEY,
+
+  chapaTestMode: process.env.CHAPA_TEST_MODE === 'true',
 });
