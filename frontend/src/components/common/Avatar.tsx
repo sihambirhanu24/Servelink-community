@@ -26,7 +26,7 @@ export function Avatar({
   onClick,
   showRing = false,
 }: AvatarProps) {
-  const initials = name
+  const initials = (name || "Unknown")
     .split(" ")
     .filter(Boolean)
     .map((n) => n[0])

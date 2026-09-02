@@ -9,10 +9,12 @@ export default function Button({
   children,
   variant = "primary",
   className,
+  disabled,
   ...props
 }: Props) {
   return (
     <button
+      disabled={disabled}
       className={clsx(
         "rounded-xl px-5 py-3 font-semibold transition duration-300",
 
@@ -21,6 +23,8 @@ export default function Button({
 
         variant === "secondary" &&
           "bg-[#FFC107] text-[#043658] hover:bg-yellow-400",
+
+        disabled && "opacity-50 cursor-not-allowed hover:opacity-50",
 
         className
       )}

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Heart, MessageCircle, ChevronRight, Rss } from 'lucide-react';
 import { Avatar } from '@/components/common/Avatar';
 import type { DashboardFeedPost } from '@/types/dashboard';
+import { stripHtml } from '@/lib/sanitize';
 
 function relativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -95,7 +96,7 @@ export function DashboardCommunityFeed({ posts }: Props) {
 
                     <p className="mt-0.5 line-clamp-2 text-xs text-slate-600 group-hover:text-slate-800">
                       <span className="font-medium text-slate-700">{post.title}</span>
-                      {post.description ? ` — ${post.description}` : ''}
+                      {post.description ? ` — ${stripHtml(post.description)}` : ''}
                     </p>
 
                     <div className="mt-1.5 flex items-center gap-3 text-[10px] text-slate-400">

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import BackButton from "@/components/common/BackButton";
 import { getMyPosts } from "@/services/profile";
 import { deletePost } from "@/services/community";
+import { sanitizeHtml } from "@/lib/sanitize";
 
 interface Post {
   id: string;
@@ -108,9 +109,10 @@ export default function MyPostsPage() {
                     {post.title}
                   </h2>
 
-                  <p className="mt-3 text-gray-600">
-                    {post.description}
-                  </p>
+                  <div 
+                    className="mt-3 text-gray-600 prose prose-sm max-w-none prose-p:my-2 prose-ul:list-disc prose-ol:list-decimal prose-ul:pl-4 prose-ol:pl-4 prose-a:text-[#043658] prose-a:underline hover:prose-a:text-[#FFC107]"
+                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(post.description) }}
+                  />
 
                   <div className="mt-5 flex flex-wrap gap-6 text-sm text-gray-500">
                     <span>

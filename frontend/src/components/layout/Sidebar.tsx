@@ -19,6 +19,11 @@ import {
   Globe,
   Lock,
   MessageCircle,
+  Video,
+  Wallet,
+  TrendingUp,
+  ArrowUpRight,
+  Receipt,
 } from "lucide-react";
 import { getCommunityAccess } from "@/services/community";
 import { getDirectConversations } from "@/services/direct-messages";
@@ -40,10 +45,14 @@ const COMMUNITY_ITEMS = [
 function SidebarContent({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname();
   const [communitiesExpanded, setCommunitiesExpanded] = useState(false);
+  const [financeExpanded, setFinanceExpanded] = useState(false);
 
   useEffect(() => {
     if (pathname.startsWith("/community")) {
       setCommunitiesExpanded(true);
+    }
+    if (pathname.startsWith("/dashboard/wallet")) {
+      setFinanceExpanded(true);
     }
   }, [pathname]);
 
@@ -220,6 +229,105 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
           <Bookmark className={`h-5 w-5 shrink-0 ${pathname.startsWith("/bookmarks") ? "text-[#FFC107]" : "text-slate-400"}`} />
           Bookmarks
         </Link>
+
+
+        {/* Finance Section */}
+        <div className="space-y-1 py-1">
+          <button
+            onClick={() => setFinanceExpanded(!financeExpanded)}
+            className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[#FFC107]/30 ${
+              pathname.startsWith("/dashboard/wallet") && !financeExpanded
+                ? "border-l-2 border-[#FFC107] bg-white/10 font-medium text-white"
+                : "border-l-2 border-transparent text-slate-300 hover:bg-white/5 hover:text-white"
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <Wallet className={`h-5 w-5 shrink-0 ${pathname.startsWith("/dashboard/wallet") && !financeExpanded ? "text-[#FFC107]" : "text-slate-400"}`} />
+              <span>Finance</span>
+            </div>
+            <ChevronDown
+              className={`h-4 w-4 shrink-0 transition-transform duration-200 ${
+                financeExpanded ? "rotate-180" : ""
+              }`}
+            />
+          </button>
+
+          <div
+            className={`overflow-hidden transition-all duration-300 ease-in-out ${
+              financeExpanded ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0"
+            }`}
+          >
+            <div className="mt-1 space-y-1 pl-4 pr-1 pb-1">
+              <Link
+                href="/dashboard/wallet"
+                onClick={onClose}
+                className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all hover:bg-white/5 ${
+                  pathname === "/dashboard/wallet"
+                    ? "bg-white/10 text-white font-medium border-l-[3px] border-[#FFC107]"
+                    : "text-slate-300 border-l-[3px] border-transparent"
+                }`}
+              >
+                <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors ${
+                  pathname === "/dashboard/wallet" ? "bg-[#FFC107]/15" : "bg-white/5 group-hover:bg-white/10"
+                }`}>
+                  <Wallet className={`h-3.5 w-3.5 ${pathname === "/dashboard/wallet" ? "text-[#FFC107]" : "text-slate-400"}`} />
+                </div>
+                <span>Wallet</span>
+              </Link>
+
+              <Link
+                href="/dashboard/wallet/earnings"
+                onClick={onClose}
+                className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all hover:bg-white/5 ${
+                  pathname === "/dashboard/wallet/earnings"
+                    ? "bg-white/10 text-white font-medium border-l-[3px] border-[#FFC107]"
+                    : "text-slate-300 border-l-[3px] border-transparent"
+                }`}
+              >
+                <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors ${
+                  pathname === "/dashboard/wallet/earnings" ? "bg-[#FFC107]/15" : "bg-white/5 group-hover:bg-white/10"
+                }`}>
+                  <TrendingUp className={`h-3.5 w-3.5 ${pathname === "/dashboard/wallet/earnings" ? "text-[#FFC107]" : "text-slate-400"}`} />
+                </div>
+                <span>Earnings</span>
+              </Link>
+
+              <Link
+                href="/dashboard/wallet/transactions"
+                onClick={onClose}
+                className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all hover:bg-white/5 ${
+                  pathname === "/dashboard/wallet/transactions"
+                    ? "bg-white/10 text-white font-medium border-l-[3px] border-[#FFC107]"
+                    : "text-slate-300 border-l-[3px] border-transparent"
+                }`}
+              >
+                <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors ${
+                  pathname === "/dashboard/wallet/transactions" ? "bg-[#FFC107]/15" : "bg-white/5 group-hover:bg-white/10"
+                }`}>
+                  <Receipt className={`h-3.5 w-3.5 ${pathname === "/dashboard/wallet/transactions" ? "text-[#FFC107]" : "text-slate-400"}`} />
+                </div>
+                <span>Transactions</span>
+              </Link>
+
+              <Link
+                href="/dashboard/wallet/payouts"
+                onClick={onClose}
+                className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all hover:bg-white/5 ${
+                  pathname === "/dashboard/wallet/payouts"
+                    ? "bg-white/10 text-white font-medium border-l-[3px] border-[#FFC107]"
+                    : "text-slate-300 border-l-[3px] border-transparent"
+                }`}
+              >
+                <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors ${
+                  pathname === "/dashboard/wallet/payouts" ? "bg-[#FFC107]/15" : "bg-white/5 group-hover:bg-white/10"
+                }`}>
+                  <ArrowUpRight className={`h-3.5 w-3.5 ${pathname === "/dashboard/wallet/payouts" ? "text-[#FFC107]" : "text-slate-400"}`} />
+                </div>
+                <span>Payouts</span>
+              </Link>
+            </div>
+          </div>
+        </div>
       </nav>
     </>
   );

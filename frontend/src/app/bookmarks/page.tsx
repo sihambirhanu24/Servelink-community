@@ -15,6 +15,7 @@ import Topbar from "@/components/layout/Topbar";
 import { getMediaUrl } from "@/lib/media";
 import { getBookmarks, removeBookmark } from "@/services/community";
 import { toast } from "sonner";
+import { stripHtml } from "@/lib/sanitize";
 
 // ── Types ─────────────────────────────────────────────
 interface Attachment { id: string; url: string; type: "IMAGE"|"PDF"|"DOCX"|"VIDEO"; fileName?: string; fileSize?: number }
@@ -173,7 +174,7 @@ const SavedCard = memo(function SavedCard({ post, onRemove, isRemoving }: { post
 
         {/* Title + description */}
         <h3 className="mt-2 line-clamp-2 text-sm font-bold leading-snug text-[#043658]">{post.title}</h3>
-        <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-slate-500">{post.description}</p>
+        <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-slate-500">{stripHtml(post.description)}</p>
 
         {/* Attachments */}
         {hasAttachments && <AttachmentRow attachments={post.attachments!} />}

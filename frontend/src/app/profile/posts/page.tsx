@@ -17,6 +17,7 @@ import { deletePost } from "@/services/community";
 import { getMediaUrl } from "@/lib/media";
 import { useConfirm } from "@/hooks/useConfirm";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { stripHtml } from "@/lib/sanitize";
 
 interface Post {
   id: string;
@@ -345,7 +346,7 @@ export default function MyPostsPage() {
                               {post.title}
                             </h3>
                             <p className="text-xs text-slate-600 line-clamp-2">
-                              {post.description}
+                              {stripHtml(post.description)}
                             </p>
                           </div>
                         </div>

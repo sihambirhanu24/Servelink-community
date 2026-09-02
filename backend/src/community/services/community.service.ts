@@ -21,7 +21,7 @@ export class CommunityService {
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
     private readonly progressService: TeacherProgressService,
-  ) {}
+  ) { }
 
   async getAllPosts() {
     return this.prisma.communityPost.findMany({
@@ -50,7 +50,7 @@ export class CommunityService {
     // Limit to 3 posts per day
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
-    
+
     const postCountToday = await this.prisma.communityPost.count({
       where: {
         teacherId,
@@ -134,7 +134,7 @@ export class CommunityService {
         isActive: true,
         OR: [
           { school: { equals: teacher.school, mode: 'insensitive' } },
-          { name:   { equals: teacher.school, mode: 'insensitive' } },
+          { name: { equals: teacher.school, mode: 'insensitive' } },
         ],
       };
     } else if (normalizedType === 'WOREDA' && teacher.woreda) {
@@ -195,9 +195,9 @@ export class CommunityService {
     // ── Create the post ───────────────────────────────────────────────────────
     // If deadline is provided, treat as QUESTION with blind answer period
     const postType = dto.deadline ? 'QUESTION' : (dto.postType ?? 'DISCUSSION');
-    
+
     const deadline = dto.deadline ? new Date(dto.deadline) : null;
-    
+
     // Validate deadline is in the future
     if (deadline && deadline <= new Date()) {
       throw new BadRequestException('Deadline must be in the future');
@@ -247,13 +247,13 @@ export class CommunityService {
       },
     });
     if (!post) throw new NotFoundException('Post not found');
-    
+
     // Increment view count asynchronously (fire and forget)
     this.prisma.communityPost.update({
       where: { id },
       data: { views: { increment: 1 } }
-    }).catch(() => {}); // Silently fail if increment doesn't work
-    
+    }).catch(() => { }); // Silently fail if increment doesn't work
+
     // Return with liked/bookmarked status if teacherId provided
     if (teacherId) {
       return {
@@ -263,7 +263,7 @@ export class CommunityService {
         bookmarked: post.communityBookmarks.some((b) => b.teacherId === teacherId),
       };
     }
-    
+
     return post;
   }
 
@@ -343,7 +343,7 @@ export class CommunityService {
           type: NotificationEvent.LIKE,
           referenceId: postId,
         })
-        .catch(() => {});
+        .catch(() => { });
     }
 
     return like;
@@ -390,7 +390,7 @@ export class CommunityService {
           type: NotificationEvent.COMMENT,
           referenceId: postId,
         })
-        .catch(() => {});
+        .catch(() => { });
     }
 
     return comment;
@@ -480,7 +480,7 @@ export class CommunityService {
           type: NotificationEvent.BOOKMARK,
           referenceId: postId,
         })
-        .catch(() => {});
+        .catch(() => { });
     }
 
     return bookmark;
@@ -548,8 +548,8 @@ export class CommunityService {
           ],
         }),
         ...(filters.categoryId && { categoryId: filters.categoryId }),
-        ...(filters.postType 
-          ? { postType: filters.postType as any } 
+        ...(filters.postType
+          ? { postType: filters.postType as any }
           : { postType: { not: 'DISCUSSION' as any } }
         ),
       },
@@ -660,7 +660,7 @@ export class CommunityService {
         type: NotificationEvent.REPORT,
         referenceId: report.id,
       })
-      .catch(() => {});
+      .catch(() => { });
 
     // ── Notify the POST OWNER (privacy: do NOT reveal reporter identity) ───────
     this.notificationService
@@ -673,7 +673,7 @@ export class CommunityService {
         referenceId: postId,
         // senderId / senderName intentionally omitted — reporter must stay anonymous
       })
-      .catch(() => {});
+      .catch(() => { });
 
     return { success: true, reportId: report.id };
   }
@@ -692,7 +692,7 @@ export class CommunityService {
 
     // Normalize path: convert backslashes to forward slashes and remove leading ./
     let normalizedUrl = file.path.replace(/\\/g, '/').replace(/^\.\//g, '');
-    
+
     // Ensure URL starts with 'uploads/' (not '/uploads/')
     if (!normalizedUrl.startsWith('uploads/')) {
       // If path is absolute, extract just the uploads/... part
@@ -859,11 +859,11 @@ export class CommunityService {
   async getCommunitiesByType(teacherId: string, type: string) {
     const teacher = await this.prisma.teacher.findUnique({
       where: { id: teacherId },
-      select: { 
-        level: true, 
-        school: true, 
-        woreda: true, 
-        zone: true, 
+      select: {
+        level: true,
+        school: true,
+        woreda: true,
+        zone: true,
         region: true,
         privilegeExpiresAt: true,
       },
@@ -895,35 +895,35 @@ export class CommunityService {
     // teachers always see a page even if the field values don't align exactly.
     let community = matchValue
       ? await this.prisma.community.findFirst({
-          where: {
-            type: normalizedType as any,
-            OR: [
-              { school: { equals: matchValue, mode: 'insensitive' } },
-              { woreda: { equals: matchValue, mode: 'insensitive' } },
-              { zone: { equals: matchValue, mode: 'insensitive' } },
-              { region: { equals: matchValue, mode: 'insensitive' } },
-              { name: { equals: matchValue, mode: 'insensitive' } },
-            ],
-          },
-          include: {
-            communityMembers: {
-              include: {
-                teacher: {
-                  select: {
-                    id: true,
-                    firstName: true,
-                    lastName: true,
-                    profileImage: true,
-                    level: true,
-                    school: true,
-                    subject: true,
-                  },
+        where: {
+          type: normalizedType as any,
+          OR: [
+            { school: { equals: matchValue, mode: 'insensitive' } },
+            { woreda: { equals: matchValue, mode: 'insensitive' } },
+            { zone: { equals: matchValue, mode: 'insensitive' } },
+            { region: { equals: matchValue, mode: 'insensitive' } },
+            { name: { equals: matchValue, mode: 'insensitive' } },
+          ],
+        },
+        include: {
+          communityMembers: {
+            include: {
+              teacher: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  profileImage: true,
+                  level: true,
+                  school: true,
+                  subject: true,
                 },
               },
             },
-            _count: { select: { communityMembers: true, posts: true } },
           },
-        })
+          _count: { select: { communityMembers: true, posts: true } },
+        },
+      })
       : null;
 
     // Fallback: any community of this type
@@ -1030,11 +1030,11 @@ export class CommunityService {
   ) {
     const teacher = await this.prisma.teacher.findUnique({
       where: { id: teacherId },
-      select: { 
-        level: true, 
-        school: true, 
-        woreda: true, 
-        zone: true, 
+      select: {
+        level: true,
+        school: true,
+        woreda: true,
+        zone: true,
         region: true,
         privilegeExpiresAt: true,
       },
@@ -1063,7 +1063,7 @@ export class CommunityService {
         type: 'SCHOOL',
         OR: [
           { school: { equals: teacher.school, mode: 'insensitive' } },
-          { name:   { equals: teacher.school, mode: 'insensitive' } },
+          { name: { equals: teacher.school, mode: 'insensitive' } },
         ],
       };
     } else if (normalizedType === 'WOREDA' && teacher.woreda) {
@@ -1131,7 +1131,13 @@ export class CommunityService {
     }));
   }
 
-  async getMembersByType(teacherId: string, type: string) {
+  async getMembersByType(
+    teacherId: string,
+    type: string,
+    page = 1,
+    limit = 20,
+    search?: string
+  ) {
     const teacher = await this.prisma.teacher.findUnique({
       where: { id: teacherId },
       select: { level: true, privilegeExpiresAt: true },
@@ -1139,31 +1145,66 @@ export class CommunityService {
     if (!teacher) throw new NotFoundException('Teacher not found');
 
     const requiredLevel = CommunityService.TYPE_MIN_LEVEL[type.toUpperCase()] ?? 99;
-    
-    // Check access with privilege system
     if (!this.hasAccessToType(teacher.level, teacher.privilegeExpiresAt, requiredLevel)) {
       throw new ForbiddenException('Access denied');
     }
 
-    return this.prisma.communityMember.findMany({
-      where: { community: { type: type.toUpperCase() as any } },
-      include: {
-        teacher: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            profileImage: true,
-            level: true,
-            school: true,
-            subject: true,
-            verified: true,
+    const skip = (page - 1) * limit;
+
+    // Build dynamic search filter if user types in search box
+    const searchFilter = search ? {
+      OR: [
+        { teacher: { firstName: { contains: search, mode: 'insensitive' as const } } },
+        { teacher: { lastName: { contains: search, mode: 'insensitive' as const } } },
+        { teacher: { subject: { contains: search, mode: 'insensitive' as const } } },
+      ],
+    } : {};
+
+    const communityTypeEnum = type.toUpperCase() as any;
+
+    // Run queries in parallel for efficiency
+    const [members, total] = await Promise.all([
+      this.prisma.communityMember.findMany({
+        where: {
+          community: { type: communityTypeEnum },
+          ...searchFilter,
+        },
+        include: {
+          teacher: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              profileImage: true,
+              level: true,
+              school: true,
+              subject: true,
+              verified: true,
+            },
           },
         },
+        distinct: ['teacherId'],
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.communityMember.count({
+        where: {
+          community: { type: communityTypeEnum },
+          ...searchFilter,
+        },
+      }),
+    ]);
+
+    return {
+      data: members,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
       },
-      distinct: ['teacherId'],
-      orderBy: { createdAt: 'desc' },
-    });
+    };
   }
 
   async getWoredaSchools(teacherId: string) {
@@ -1213,11 +1254,11 @@ export class CommunityService {
   async getAccessibleCommunities(teacherId: string) {
     const teacher = await this.prisma.teacher.findUnique({
       where: { id: teacherId },
-      select: { 
-        level: true, 
-        school: true, 
-        woreda: true, 
-        zone: true, 
+      select: {
+        level: true,
+        school: true,
+        woreda: true,
+        zone: true,
         region: true,
         privilegeExpiresAt: true,
       },
@@ -1225,7 +1266,7 @@ export class CommunityService {
     if (!teacher) throw new NotFoundException('Teacher not found');
 
     const levelNum = CommunityService.LEVEL_ORDER[teacher.level] ?? 1;
-    
+
     // Effective level is just the actual level
     const effectiveLevel = levelNum;
 
@@ -1323,11 +1364,11 @@ export class CommunityService {
       }),
       this.prisma.teacher.findUnique({
         where: { id: teacherId },
-        select: { 
-          level: true, 
-          school: true, 
-          woreda: true, 
-          zone: true, 
+        select: {
+          level: true,
+          school: true,
+          woreda: true,
+          zone: true,
           region: true,
           privilegeExpiresAt: true,
         },
@@ -1487,6 +1528,41 @@ export class CommunityService {
       recentDiscussions,
       recentResources,
     };
+  }
+
+  // ─── Top Contributors ────────────────────────────────────────────────────────
+  // Returns teachers ranked by their total contribution points
+
+  async getTopContributors(limit: number = 10) {
+    const topContributors = await this.prisma.teacher.findMany({
+      where: {
+        status: 'ACTIVE',
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        profileImage: true,
+        level: true,
+        points: true,
+        createdAt: true,
+      },
+      orderBy: [
+        { points: 'desc' },
+        { createdAt: 'asc' }, // Earlier contributors rank higher on ties
+      ],
+      take: limit,
+    });
+
+    return topContributors.map((teacher, index) => ({
+      rank: index + 1,
+      id: teacher.id,
+      firstName: teacher.firstName,
+      lastName: teacher.lastName,
+      profileImage: teacher.profileImage,
+      level: teacher.level,
+      points: teacher.points,
+    }));
   }
 
   // ─── Get comments (answers) for a post ──────────────────────────────────────

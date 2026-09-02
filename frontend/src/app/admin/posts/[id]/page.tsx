@@ -11,6 +11,7 @@ import {
 import AdminLayout from '@/components/admin/layout';
 import { toast } from 'sonner';
 import { adminApi } from '@/lib/axios';
+import { sanitizeHtml } from '@/lib/sanitize';
 
 interface PostDetail {
   id: string;
@@ -264,7 +265,10 @@ export default function PostReviewPage() {
               <h2 className="text-xl font-bold text-[#043658] mb-3">{post.title}</h2>
 
               {/* Description */}
-              <p className="text-[#043658] leading-relaxed whitespace-pre-wrap">{post.description}</p>
+              <div 
+                className="text-[#043658] leading-relaxed prose prose-sm max-w-none prose-p:my-2 prose-ul:list-disc prose-ol:list-decimal prose-ul:pl-4 prose-ol:pl-4 prose-a:text-[#043658] prose-a:underline hover:prose-a:text-[#FFC107]"
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(post.description) }}
+              />
 
               {/* Attachments */}
               {post.attachments.length > 0 && (

@@ -34,6 +34,10 @@ const PAGE_TITLES: Record<string, string> = {
   '/bookmarks': 'Bookmarks',
   '/notifications': 'Notifications',
   '/settings': 'Settings',
+  '/dashboard/wallet': 'Wallet',
+  '/dashboard/wallet/earnings': 'Earnings',
+  '/dashboard/wallet/transactions': 'Transactions',
+  '/dashboard/wallet/payouts': 'Payouts',
 };
 
 interface TopbarProps {
@@ -83,7 +87,7 @@ function PageBreadcrumb() {
       {/* Breadcrumb Navigation */}
       <nav className="hidden sm:flex items-center gap-1 text-xs min-w-0">
         {breadcrumbs.map((crumb, index) => (
-          <Fragment key={crumb.href}>
+          <Fragment key={`${crumb.href}-${index}`}>
             {index === 0 ? (
               <Link 
                 href={crumb.href}

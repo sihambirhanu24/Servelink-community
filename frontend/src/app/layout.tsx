@@ -39,7 +39,18 @@ export default function RootLayout({
     <QueryProvider>
       <NotificationProvider>
         {children}
-        <Toaster position="top-right" richColors />
+        <Toaster 
+          position="top-right" 
+          richColors 
+          closeButton 
+          duration={5000}
+          offset="80px"
+          className="pointer-events-none"
+          toastOptions={{
+            style: { pointerEvents: 'auto' },
+            className: 'max-w-[420px] w-full sm:w-[400px]',
+          }}
+        />
         <ProtectedActionModal />
         <VerificationRequiredModal />
       </NotificationProvider>

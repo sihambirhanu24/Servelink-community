@@ -11,6 +11,7 @@ import {
   deletePost,
 } from "@/services/community";
 import { getMediaUrl } from "@/lib/media";
+import { RichTextEditor } from "@/components/ui/RichTextEditor";
 
 interface Props {
   post: any;
@@ -158,7 +159,7 @@ export default function EditPostForm({
 
           <section className="space-y-3">
             <div className="flex items-center justify-between"><label className="flex items-center gap-2 text-sm font-semibold text-[#043658]" htmlFor="edit-description"><FileText className="h-4 w-4" />Description</label><span className="text-xs text-slate-400">{description.length} / 2000 characters</span></div>
-            <textarea id="edit-description" rows={8} value={description} onChange={(e) => setDescription(e.target.value)} className="min-h-[220px] w-full resize-y rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 leading-7 text-[#043658] outline-none transition focus:border-[#043658] focus:bg-white focus:ring-4 focus:ring-[#043658]/10" />
+            <RichTextEditor value={description} onChange={setDescription} placeholder="What would you like to share with the community today?" minHeight="220px" />
           </section>
 
           <section className="grid gap-5 border-t border-slate-100 pt-8 sm:grid-cols-2">

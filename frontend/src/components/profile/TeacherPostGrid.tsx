@@ -3,6 +3,7 @@
 import { getMediaUrl } from "@/lib/media";
 import type { TeacherPost } from "@/services/teachers";
 import { PostCardSkeleton } from "@/components/post/PostCardSkeleton";
+import { sanitizeHtml } from "@/lib/sanitize";
 
 interface TeacherPostGridProps {
   posts: TeacherPost[];
@@ -66,9 +67,10 @@ export function TeacherPostGrid({ posts, isLoading, onPostClick }: TeacherPostGr
               <h3 className="mb-2 text-sm font-semibold text-[#043658] line-clamp-2 group-hover:text-[#032742]">
                 {post.title}
               </h3>
-              <p className="mb-3 text-xs text-slate-500 line-clamp-2">
-                {post.description}
-              </p>
+              <div 
+                className="mb-3 text-xs text-slate-500 line-clamp-2 prose prose-xs max-w-none"
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(post.description) }}
+              />
               <div className="mt-auto flex items-center gap-4 text-xs text-slate-500">
                 <span className="flex items-center gap-1">
                   <span>❤️</span>

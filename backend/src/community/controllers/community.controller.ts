@@ -200,6 +200,14 @@ markHelpful(
   );
 }
 
+@ApiOperation({ summary: 'Get top contributors ranked by points' })
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
+@Get('network/top-contributors')
+getTopContributors(@Query('limit') limit = '10') {
+  return this.communityService.getTopContributors(Number(limit));
+}
+
 @ApiOperation({ summary: 'Get Network Community overview stats + recent content' })
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)

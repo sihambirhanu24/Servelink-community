@@ -5,6 +5,7 @@ import { Avatar } from '@/components/common/Avatar';
 import { MessageCircle, ThumbsUp, Bookmark, Clock, BadgeCheck } from 'lucide-react';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
+import { stripHtml } from '@/lib/sanitize';
 
 interface DiscussionCardProps {
   discussion: Discussion;
@@ -61,7 +62,7 @@ export function DiscussionCard({ discussion }: DiscussionCardProps) {
           {discussion.title}
         </h3>
         <p className="text-gray-700 mb-4 line-clamp-3">
-          {discussion.description}
+          {stripHtml(discussion.description)}
         </p>
 
         {/* Tags */}

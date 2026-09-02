@@ -15,6 +15,7 @@ import { PostActions } from "./PostActions";
 import { PostAttachment } from "./PostAttachment";
 import { PostTags } from "./PostTags";
 import { markBestAnswer, markHelpful } from "@/services/comment.service";
+import { sanitizeHtml } from "@/lib/sanitize";
 
 interface Attachment {
   id: string;
@@ -303,9 +304,10 @@ export default function PostCard({ post, onDelete, onToast, feedMode = false }: 
         {/* Post Content */}
         <div className="mt-4">
           <h2 className="text-lg font-bold text-[#043658] leading-tight">{post.title}</h2>
-          <p className="mt-2 text-[15px] leading-relaxed text-slate-700 whitespace-pre-wrap">
-            {displayedDescription}
-          </p>
+          <div 
+            className="mt-2 text-[15px] leading-relaxed text-slate-700 prose prose-sm max-w-none prose-p:my-2 prose-ul:list-disc prose-ol:list-decimal prose-ul:pl-4 prose-ol:pl-4 prose-a:text-[#043658] prose-a:underline hover:prose-a:text-[#FFC107]"
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(displayedDescription) }}
+          />
           {isLongDescription && (
             <button
               type="button"

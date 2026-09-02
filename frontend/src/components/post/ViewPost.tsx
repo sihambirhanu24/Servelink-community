@@ -5,6 +5,7 @@ import { Heart, MessageCircle, Calendar, Send } from "lucide-react";
 import { createComment } from "@/services/comment.service";
 import { useState } from "react";
 import { getMediaUrl } from "@/lib/media";
+import { sanitizeHtml } from "@/lib/sanitize";
 
 interface Props {
   post: any;
@@ -80,11 +81,10 @@ export default function ViewPost({ post }: Props) {
 
           </h1>
 
-          <p className="leading-8 text-[#043658]/75">
-
-            {post.description}
-
-          </p>
+          <div 
+            className="leading-8 text-[#043658]/75 prose prose-sm max-w-none prose-p:my-2 prose-ul:list-disc prose-ol:list-decimal prose-ul:pl-4 prose-ol:pl-4 prose-a:text-[#043658] prose-a:underline hover:prose-a:text-[#FFC107]"
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(post.description) }}
+          />
 
           <div className="flex gap-3">
 
