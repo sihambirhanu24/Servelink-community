@@ -18,6 +18,7 @@ export interface ChatMessage {
   attachments?: any[];
   reactions?: Record<string, number>;
   readCount?: number;
+  isRead?: boolean;
   isPinned?: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -158,6 +159,21 @@ export function useChatSocket(communityId?: string) {
         messages: prev.messages.map((m) =>
           m.id === data.messageId ? { ...m, isPinned: false } : m,
         ),
+      }));
+    });
+
+    socket.on('messages_read_update', (data: { messageIds: string[]; readBy: string; communityId: string }) => {
+      setState((prev) => ({
+        ...prev,
+        messages: prev.messages.map((m) => {
+          if (data.messageIds.includes(m.id)) {
+            // Only mark as read if the current user is the sender and someone else read it
+            // We need to know the current user's ID, but this hook doesn't have access to it
+            // For now, we'll rely on the page-level handler to handle this correctly
+            return m;
+          }
+          return m;
+        }),
       }));
     });
 

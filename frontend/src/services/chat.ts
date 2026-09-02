@@ -16,6 +16,7 @@ export interface ChatMessage {
   deletedAt?: string;
   attachments?: any[];
   reactions?: Record<string, number>;
+  isRead?: boolean;
   isPinned?: boolean;
   createdAt: string;
   updatedAt: string;
@@ -178,6 +179,7 @@ class ChatSocketClient {
         'unread-count:update',
         'typing:started',
         'typing:stopped',
+        'messages_read_update',
         'error',
         'pong',
       ].forEach(forward);

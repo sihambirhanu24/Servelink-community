@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { MessageCircleMore, Trash2, Edit2, Pin, PinOff, Copy } from 'lucide-react';
+import { MessageCircleMore, Trash2, Edit2, Pin, PinOff, Copy, Check, CheckCheck } from 'lucide-react';
 import { ChatMessage } from '@/hooks/useChatSocket';
 
 interface ChatMessageBubbleProps {
@@ -95,6 +95,15 @@ export function ChatMessageBubble({
                 minute: '2-digit',
               })}
             </span>
+            {isOwnMessage && (
+              <span className="ml-1">
+                {message.isRead ? (
+                  <CheckCheck className="w-3.5 h-3.5 text-sky-400" />
+                ) : (
+                  <Check className="w-3.5 h-3.5" />
+                )}
+              </span>
+            )}
           </div>
         </div>
 
