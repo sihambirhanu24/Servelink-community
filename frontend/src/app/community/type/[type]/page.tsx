@@ -62,6 +62,8 @@ export default function CommunityTypePage({ params }: PageProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('posts');
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [membersPage, setMembersPage] = useState(1);
+  const [membersSearch, setMembersSearch] = useState("");
   const queryClient = useQueryClient();
 
   const { status } = useVerification();
@@ -85,10 +87,10 @@ export default function CommunityTypePage({ params }: PageProps) {
   } = useCommunityTypePosts(type);
 
   const {
-    data: members = [],
+    data: membersData,
     isLoading: membersLoading,
     isError: membersError,
-  } = useCommunityTypeMembers(type);
+  } = useCommunityTypeMembers(type, membersPage, membersSearch);
 
   const community = communityData?.community ?? null;
 
@@ -268,9 +270,13 @@ export default function CommunityTypePage({ params }: PageProps) {
               {activeTab === 'members' && (
                 <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                   <CommunityMembersTab
-                    members={members}
+                    membersData={membersData as any}
                     isLoading={membersLoading}
                     isError={membersError}
+                    page={membersPage}
+                    setPage={setMembersPage}
+                    search={membersSearch}
+                    setSearch={setMembersSearch}
                   />
                 </div>
               )}

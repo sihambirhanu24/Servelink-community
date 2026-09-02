@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
@@ -18,6 +18,7 @@ import { CommunityMembersTab } from "@/components/community/CommunityMembersTab"
 import { CreatePostModal } from "@/components/community/CreatePostModal";
 import { ResourceCard } from "@/components/community/resource/ResourceCard";
 import { useDiscussions } from "@/hooks/useDiscussions";
+import { stripHtml } from "@/lib/sanitize";
 import { StartDiscussionModal } from "@/components/discussion/StartDiscussionModal";
 import { formatDistanceToNow } from "date-fns";
 import { Avatar } from "@/components/common/Avatar";
@@ -26,27 +27,29 @@ import { useQuestions, useCreateQuestion } from "@/hooks/useQuestions";
 import api from "@/lib/axios";
 import { toast } from "sonner";
 import type { QuestionFilter, QuestionSortKey } from "@/services/questions";
+import { LiveStreamsTab } from "@/components/community/live-streams/LiveStreamsTab";
 import {
   MessageCircle, HelpCircle, FileText, TrendingUp, Users, Plus,
   Clock, Trophy, Lock, Tag, ChevronLeft, ChevronRight,
-  X, Search as SearchIcon, AlertCircle, Loader2,
+  X, Search as SearchIcon, AlertCircle, Loader2, Video,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Tab = "overview" | "questions" | "discussions" | "resources" | "members";
+type Tab = "overview" | "questions" | "discussions" | "resources" | "members" | "live-streams";
 
 const TAB_POST_TYPE: Partial<Record<Tab, string>> = {
   discussions: "DISCUSSION",
-  resources:   "RESOURCE",
+  resources: "RESOURCE",
 };
 
 const EMPTY_STATE: Record<Tab, { icon: React.ReactNode; title: string; message: string; action: string }> = {
-  overview:    { icon: <TrendingUp className="h-10 w-10 text-slate-300" />, title: "Nothing to show", message: "", action: "" },
-  questions:   { icon: <HelpCircle  className="h-10 w-10 text-slate-300" />, title: "No questions yet", message: "Be the first teacher to ask a question.", action: "Ask a Question" },
+  overview: { icon: <TrendingUp className="h-10 w-10 text-slate-300" />, title: "Nothing to show", message: "", action: "" },
+  questions: { icon: <HelpCircle className="h-10 w-10 text-slate-300" />, title: "No questions yet", message: "Be the first teacher to ask a question.", action: "Ask a Question" },
   discussions: { icon: <MessageCircle className="h-10 w-10 text-slate-300" />, title: "No discussions yet", message: "Start a professional conversation.", action: "Start Discussion" },
-  resources:   { icon: <FileText    className="h-10 w-10 text-slate-300" />, title: "No resources yet", message: "Share a resource that could help another teacher.", action: "Share Resource" },
-  members:     { icon: <Users       className="h-10 w-10 text-slate-300" />, title: "No members found", message: "Try a different search.", action: "" },
+  resources: { icon: <FileText className="h-10 w-10 text-slate-300" />, title: "No resources yet", message: "Share a resource that could help another teacher.", action: "Share Resource" },
+  members: { icon: <Users className="h-10 w-10 text-slate-300" />, title: "No members found", message: "Try a different search.", action: "" },
+  "live-streams": { icon: <Video className="h-10 w-10 text-slate-300" />, title: "No live sessions", message: "No scheduled sessions found.", action: "" },
 };
 
 // ─── Q&A helpers ─────────────────────────────────────────────────────────────
@@ -76,7 +79,7 @@ function QStatusBadge({ status, deadline }: { status: string; deadline?: string 
     return <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100/80 px-3 py-1.5 text-[11px] font-bold text-emerald-800 shadow-sm border border-emerald-200"><Trophy className="h-3.5 w-3.5" /> Solved</span>;
   if (status === "CLOSED")
     return <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-[11px] font-bold text-slate-600 shadow-sm border border-slate-200"><span className="h-1.5 w-1.5 rounded-full bg-slate-400" /> Closed</span>;
-  
+
   const isEndingSoon = deadline && (new Date(deadline).getTime() - Date.now() < 3600000 * 3); // 3 hours
   return (
     <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold shadow-sm border transition-all ${isEndingSoon ? "bg-red-50 text-red-700 border-red-200 animate-pulse" : "bg-blue-50 text-blue-700 border-blue-200"}`}>
@@ -103,13 +106,13 @@ function QSkeleton() {
 // ─── Deadline options ─────────────────────────────────────────────────────────
 
 const DEADLINE_OPTIONS = [
-  { label: "1 hour",  value: 1   },
+  { label: "1 hour", value: 1 },
   { label: "2 minutes", value: -2 },
-  { label: "6 hours", value: 6   },
-  { label: "24 hours",value: 24  },
-  { label: "3 days",  value: 72  },
-  { label: "7 days",  value: 168 },
-  { label: "Custom…", value: 0   },
+  { label: "6 hours", value: 6 },
+  { label: "24 hours", value: 24 },
+  { label: "3 days", value: 72 },
+  { label: "7 days", value: 168 },
+  { label: "Custom…", value: 0 },
 ];
 
 // ─── Ask Question Modal (with deadline) ──────────────────────────────────────
@@ -127,9 +130,9 @@ function AskQuestionModal({ onClose }: { onClose: () => void }) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!title.trim())       { toast.error("Please enter a title");     return; }
-    if (!description.trim()) { toast.error("Please enter details");     return; }
-    if (!categoryId)         { toast.error("Please select a category"); return; }
+    if (!title.trim()) { toast.error("Please enter a title"); return; }
+    if (!description.trim()) { toast.error("Please enter details"); return; }
+    if (!categoryId) { toast.error("Please select a category"); return; }
     if (deadlineHours === 0 && !customDeadline) { toast.error("Please set a custom deadline"); return; }
 
     // Convert deadline to ISO 8601 DateTime string
@@ -149,7 +152,7 @@ function AskQuestionModal({ onClose }: { onClose: () => void }) {
     try {
       await createMutation.mutateAsync({
         communityType: "NETWORK",
-        title:       title.trim(),
+        title: title.trim(),
         description: description.trim(),
         categoryId,
         deadline,
@@ -335,7 +338,7 @@ function DiscussionsTab({ isVerified }: { isVerified: boolean }) {
   const filteredDiscussions = data?.data.filter(d => {
     if (searchQuery) {
       return d.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-             d.description.toLowerCase().includes(searchQuery.toLowerCase());
+        d.description.toLowerCase().includes(searchQuery.toLowerCase());
     }
     return true;
   }) || [];
@@ -351,11 +354,10 @@ function DiscussionsTab({ isVerified }: { isVerified: boolean }) {
                 <button
                   key={tab}
                   onClick={() => setFilterTab(tab)}
-                  className={`px-4 py-2 text-xs font-medium rounded-lg transition-all whitespace-nowrap flex-shrink-0 ${
-                    filterTab === tab
+                  className={`px-4 py-2 text-xs font-medium rounded-lg transition-all whitespace-nowrap flex-shrink-0 ${filterTab === tab
                       ? 'bg-[#043658] text-white shadow-sm'
                       : 'text-[#043658] hover:bg-slate-100'
-                  }`}
+                    }`}
                 >
                   {tab === 'all' ? 'All Discussions' : tab === 'my' ? 'My Discussions' : 'Following'}
                 </button>
@@ -389,7 +391,7 @@ function DiscussionsTab({ isVerified }: { isVerified: boolean }) {
         {/* Discussion list with enhanced cards */}
         <div className="space-y-3">
           {isLoading ? (
-            [1,2,3].map((i) => (
+            [1, 2, 3].map((i) => (
               <div key={i} className="animate-pulse bg-white rounded-xl border border-slate-200 p-4">
                 <div className="flex gap-3">
                   <div className="h-10 w-10 rounded-full bg-slate-200 shrink-0" />
@@ -418,7 +420,7 @@ function DiscussionsTab({ isVerified }: { isVerified: boolean }) {
                 Start the first discussion and connect with educators nationwide
               </p>
               {isVerified && (
-                <button 
+                <button
                   onClick={handleStartDiscussion}
                   className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-[#FFC107] to-yellow-500 text-[#043658] rounded-xl text-sm font-bold hover:from-yellow-500 hover:to-[#FFC107] transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
                 >
@@ -431,7 +433,7 @@ function DiscussionsTab({ isVerified }: { isVerified: boolean }) {
             filteredDiscussions.map((discussion, index) => {
               const authorName = `${discussion.author.firstName} ${discussion.author.lastName}`;
               const timeAgo = formatDistanceToNow(new Date(discussion.lastActiveAt), { addSuffix: true });
-              
+
               return (
                 <div
                   key={discussion.id}
@@ -466,7 +468,7 @@ function DiscussionsTab({ isVerified }: { isVerified: boolean }) {
                           </div>
                         </div>
                         <p className="text-sm text-slate-600 line-clamp-2 mb-3 leading-relaxed">
-                          {discussion.description}
+                          {stripHtml(discussion.description)}
                         </p>
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2 flex-wrap">
@@ -620,8 +622,8 @@ function QuestionsTab({ isVerified }: { isVerified: boolean }) {
   const meta = data?.meta;
 
   const FILTERS: { label: string; value: QuestionFilter }[] = [
-    { label: "All",    value: "all"    },
-    { label: "Open",   value: "OPEN"   },
+    { label: "All", value: "all" },
+    { label: "Open", value: "OPEN" },
     { label: "Closed", value: "CLOSED" },
     { label: "Solved", value: "SOLVED" },
   ];
@@ -661,11 +663,10 @@ function QuestionsTab({ isVerified }: { isVerified: boolean }) {
           <button
             key={f.value}
             onClick={() => { setStatusFilter(f.value); setPage(1); }}
-            className={`rounded-xl border px-3 py-1.5 text-xs font-semibold transition-colors ${
-              statusFilter === f.value
+            className={`rounded-xl border px-3 py-1.5 text-xs font-semibold transition-colors ${statusFilter === f.value
                 ? "border-[#043658] bg-[#043658] text-white"
                 : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-            }`}
+              }`}
           >
             {f.label}
           </button>
@@ -673,9 +674,8 @@ function QuestionsTab({ isVerified }: { isVerified: boolean }) {
         <div className="ml-auto flex items-center gap-2">
           <button
             onClick={() => { setMine(!mine); setPage(1); }}
-            className={`rounded-xl border px-3 py-1.5 text-xs font-semibold transition-colors ${
-              mine ? "border-[#FFC107] bg-[#FFC107]/10 text-[#043658]" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-            }`}
+            className={`rounded-xl border px-3 py-1.5 text-xs font-semibold transition-colors ${mine ? "border-[#FFC107] bg-[#FFC107]/10 text-[#043658]" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+              }`}
           >
             My Questions
           </button>
@@ -694,7 +694,7 @@ function QuestionsTab({ isVerified }: { isVerified: boolean }) {
       {/* List */}
       <div className="space-y-3">
         {isLoading ? (
-          [1,2,3].map((i) => <QSkeleton key={i} />)
+          [1, 2, 3].map((i) => <QSkeleton key={i} />)
         ) : isError ? (
           <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-center text-sm text-red-700">
             Could not load questions. Please try again.
@@ -723,7 +723,7 @@ function QuestionsTab({ isVerified }: { isVerified: boolean }) {
               <article className="relative overflow-hidden rounded-2xl border border-slate-200/60 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-[#043658]/40 hover:shadow-lg focus:ring-2 focus:ring-[#043658]/30">
                 {/* Decorative background gradient */}
                 <div className="absolute top-0 right-0 h-32 w-32 -translate-y-16 translate-x-16 rounded-full bg-gradient-to-br from-blue-50 to-[#FFC107]/10 blur-2xl transition-opacity group-hover:opacity-100 opacity-50" />
-                
+
                 <div className="relative flex items-start gap-4">
                   {/* Avatar */}
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#043658] to-[#0a5c91] text-sm font-bold text-white shadow-inner">
@@ -748,7 +748,7 @@ function QuestionsTab({ isVerified }: { isVerified: boolean }) {
 
                     {/* Title */}
                     <h3 className="text-base font-bold text-slate-900 group-hover:text-[#043658] transition-colors line-clamp-2 leading-snug">{q.title}</h3>
-                    <p className="mt-1.5 text-sm text-slate-500 line-clamp-2 leading-relaxed">{q.description}</p>
+                    <p className="mt-1.5 text-sm text-slate-500 line-clamp-2 leading-relaxed">{stripHtml(q.description)}</p>
 
                     {/* Tags row */}
                     <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
@@ -758,9 +758,9 @@ function QuestionsTab({ isVerified }: { isVerified: boolean }) {
                             <Tag className="h-3 w-3 text-slate-400" /> {q.category.name}
                           </span>
                         )}
-                        
+
                         <div className="h-4 w-px bg-slate-200" />
-                        
+
                         {q.effectiveStatus === "OPEN" ? (
                           <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-amber-600 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-100">
                             <Lock className="h-3.5 w-3.5" />
@@ -818,18 +818,21 @@ function QuestionsTab({ isVerified }: { isVerified: boolean }) {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-export default function CommunityPage() {
+function CommunityPageContent() {
   const router = useRouter();
-  const [sidebarOpen, setSidebarOpen]     = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const searchParams = useSearchParams();
   const initialTab = (searchParams.get("tab") as Tab) || "overview";
-  const [tab, setTab]                     = useState<Tab>(initialTab);
-  const [search, setSearch]               = useState("");
+  const [tab, setTab] = useState<Tab>(initialTab);
+  const [search, setSearch] = useState("");
   const [communityFilter, setCommunityFilter] = useState("all");
-  const [categoryFilter, setCategoryFilter]   = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [createModalType, setCreateModalType] = useState<"RESOURCE">("RESOURCE");
   const [discussionModalOpen, setDiscussionModalOpen] = useState(false);
+  
+  const [membersPage, setMembersPage] = useState(1);
+  const [membersSearch, setMembersSearch] = useState("");
 
   const { user, token, isInitializing } = useAuth();
   const { data: profile } = useProfile();
@@ -868,8 +871,8 @@ export default function CommunityPage() {
   });
 
   const membersQuery = useQuery({
-    queryKey: ["network-members"],
-    queryFn: () => fetchMembersByType("network"),
+    queryKey: ["network-members", membersPage, membersSearch],
+    queryFn: () => fetchMembersByType("network", { page: membersPage, limit: 10, search: membersSearch }),
     enabled: authReady && tab === "members",
     staleTime: 60_000,
   });
@@ -921,9 +924,8 @@ export default function CommunityPage() {
                       handleCreatePost();
                     }
                   }}
-                  className={`flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold transition-colors shrink-0 ${
-                    isVerified ? "bg-[#043658] text-white hover:bg-[#032742]" : "bg-slate-100 text-slate-400 cursor-not-allowed"
-                  }`}
+                  className={`flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold transition-colors shrink-0 ${isVerified ? "bg-[#043658] text-white hover:bg-[#032742]" : "bg-slate-100 text-slate-400 cursor-not-allowed"
+                    }`}
                 >
                   <Plus className="h-4 w-4" />
                   {tab === "discussions" ? "Start Discussion" : "Share Resource"}
@@ -962,17 +964,26 @@ export default function CommunityPage() {
           ) : tab === "members" ? (
             <div className="mt-4">
               <CommunityMembersTab
-                members={membersQuery.data ?? []}
+                membersData={membersQuery.data as any}
                 isLoading={membersQuery.isLoading}
                 isError={membersQuery.isError}
+                page={membersPage}
+                setPage={setMembersPage}
+                search={membersSearch}
+                setSearch={setMembersSearch}
               />
+            </div>
+
+          ) : tab === "live-streams" ? (
+            <div className="mt-4">
+              <LiveStreamsTab />
             </div>
 
           ) : tab === "resources" ? (
             <div className="mt-4">
               {postsQuery.isLoading ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {[1,2,3,4,5,6].map((i) => (
+                  {[1, 2, 3, 4, 5, 6].map((i) => (
                     <div key={i} className="animate-pulse rounded-xl border border-slate-200 bg-white">
                       <div className="h-32 rounded-t-xl bg-slate-100" />
                       <div className="p-4 space-y-2">
@@ -1007,7 +1018,7 @@ export default function CommunityPage() {
             <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
               <div className="min-w-0 space-y-4">
                 {postsQuery.isLoading ? (
-                  [1,2,3].map((i) => (
+                  [1, 2, 3].map((i) => (
                     <div key={i} className="animate-pulse rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-10 rounded-full bg-slate-200" />
@@ -1069,5 +1080,13 @@ export default function CommunityPage() {
         />
       )}
     </div>
+  );
+}
+
+export default function CommunityPage() {
+  return (
+    <Suspense fallback={<div className="flex h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-slate-400" /></div>}>
+      <CommunityPageContent />
+    </Suspense>
   );
 }

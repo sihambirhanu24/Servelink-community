@@ -5,6 +5,7 @@ import {
   getCommunitiesByType,
   getPostsByType,
   getMembersByType,
+  fetchMembersByType,
   type CommunityTypeResponse,
   type CommunityTypePost,
   type CommunityTypeMemberRow,
@@ -33,10 +34,10 @@ export function useCommunityTypePosts(
   });
 }
 
-export function useCommunityTypeMembers(type: string) {
-  return useQuery<CommunityTypeMemberRow[]>({
-    queryKey: ['community-type-members', type],
-    queryFn: () => getMembersByType(type),
+export function useCommunityTypeMembers(type: string, page: number = 1, search: string = "") {
+  return useQuery({
+    queryKey: ['community-type-members', type, page, search],
+    queryFn: () => fetchMembersByType(type, { page, limit: 10, search }),
     staleTime: 60_000,
     retry: 1,
     enabled: !!type,

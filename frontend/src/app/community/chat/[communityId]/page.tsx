@@ -14,6 +14,8 @@ import {
   MoreVertical,
   Pin,
   AlertCircle,
+  Check,
+  CheckCheck,
 } from 'lucide-react';
 import { DashboardSidebar } from '@/components/layout/Sidebar';
 import Topbar from '@/components/layout/Topbar';
@@ -146,6 +148,15 @@ function MessageBubble({
         <div className="flex items-center gap-1 mt-0.5">
           <span className="text-[10px] text-slate-400">{formatTime(message.createdAt)}</span>
           {message.isPinned && <Pin className="w-2.5 h-2.5 text-amber-500" />}
+          {isOwn && (
+            <span className="ml-1">
+              {message.isRead ? (
+                <CheckCheck className="w-3.5 h-3.5 text-sky-400" />
+              ) : (
+                <Check className="w-3.5 h-3.5" />
+              )}
+            </span>
+          )}
         </div>
       </div>
     </div>
@@ -262,6 +273,15 @@ export default function ChatRoomPage() {
       if (!mounted) return;
       setOnlineCount(payload.onlineCount ?? null);
       setJoinError(null);
+      // Mark only incoming messages (not sent by current user) as read
+      if (payload.messages && payload.messages.length > 0) {
+        const incomingMessageIds = payload.messages
+          .filter((m: ChatMessage) => m.senderId !== user?.id)
+          .map((m: ChatMessage) => m.id);
+        if (incomingMessageIds.length > 0) {
+          chatSocket.markRead(communityId, incomingMessageIds);
+        }
+      }
     };
 
     const onNewMessage = (msg: ChatMessage) => {
@@ -286,6 +306,22 @@ export default function ChatRoomPage() {
       if (mounted && data.communityId === communityId) setOnlineCount(data.onlineCount);
     };
 
+    const onMessagesReadUpdate = (data: { messageIds: string[]; readBy: string; communityId: string }) => {
+      if (!mounted) return;
+      // Only update read status for messages sent by the current user
+      // If someone else read a message, the sender should see it as read
+      setMessages((prev) => prev.map((m) => {
+        if (data.messageIds.includes(m.id)) {
+          // Only mark as read if the current user is the sender of this message
+          // and someone else (readBy) has read it
+          if (m.senderId === user?.id && data.readBy !== user?.id) {
+            return { ...m, isRead: true };
+          }
+        }
+        return m;
+      }));
+    };
+
     const onError = (err: { code?: string; message: string }) => {
       if (!mounted) return;
       if (err.code === 'FORBIDDEN') setJoinError(err.message);
@@ -298,6 +334,7 @@ export default function ChatRoomPage() {
     chatSocket.on('message:updated', onMessageUpdated);
     chatSocket.on('message:deleted', onMessageDeleted);
     chatSocket.on('presence:update', onPresence);
+    chatSocket.on('messages_read_update', onMessagesReadUpdate);
     chatSocket.on('error', onError);
 
     if (chatSocket.isConnected()) {
@@ -317,6 +354,7 @@ export default function ChatRoomPage() {
       chatSocket.off('message:updated', onMessageUpdated);
       chatSocket.off('message:deleted', onMessageDeleted);
       chatSocket.off('presence:update', onPresence);
+      chatSocket.off('messages_read_update', onMessagesReadUpdate);
       chatSocket.off('error', onError);
     };
   }, [communityId, token, scrollToBottom]);

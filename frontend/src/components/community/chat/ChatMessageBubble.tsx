@@ -1,4 +1,4 @@
-import { ThumbsUp, MessageCircle, FileText } from 'lucide-react';
+import { ThumbsUp, MessageCircle, FileText, Check, CheckCheck } from 'lucide-react';
 
 interface MessageAttachment {
   name: string;
@@ -14,10 +14,11 @@ export interface ChatMessageData {
   text?: string;
   attachment?: MessageAttachment;
   reactions?: { likeCount: number; commentCount: number };
+  isRead?: boolean;
 }
 
 export function ChatMessageBubble({ message }: { message: ChatMessageData }) {
-  const { isOwnMessage, authorName, levelBadge, timestamp, text, attachment, reactions } = message;
+  const { isOwnMessage, authorName, levelBadge, timestamp, text, attachment, reactions, isRead } = message;
 
   return (
     <div className={`flex flex-col ${isOwnMessage ? 'items-end' : 'items-start'}`}>
@@ -28,7 +29,16 @@ export function ChatMessageBubble({ message }: { message: ChatMessageData }) {
         <span className="text-[9px] font-semibold uppercase tracking-wide bg-[#FFC107]/20 text-[#926E00] rounded-full px-2 py-0.5">
           {levelBadge}
         </span>
-        <span className="text-xs text-slate-400">{timestamp}</span>
+        <span className="text-xs text-slate-400 flex items-center gap-1">
+          {timestamp}
+          {isOwnMessage && (
+            isRead ? (
+              <CheckCheck className="w-3 h-3 text-sky-400" />
+            ) : (
+              <Check className="w-3 h-3" />
+            )
+          )}
+        </span>
         {isOwnMessage && <span className="text-sm font-semibold text-[#043658]">{authorName}</span>}
       </div>
 

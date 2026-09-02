@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { Search, BadgeCheck, Users } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Search, BadgeCheck, Users, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Avatar } from '@/components/common/Avatar';
 import type { CommunityTypeMemberRow } from '@/services/community';
 
@@ -24,35 +24,45 @@ function MemberCardSkeleton() {
 }
 
 interface Props {
-  members: CommunityTypeMemberRow[];
+  membersData?: {
+    data: CommunityTypeMemberRow[];
+    meta: { total: number; page: number; limit: number; totalPages: number };
+  };
   isLoading: boolean;
   isError: boolean;
+  page: number;
+  setPage: (p: number) => void;
+  search: string;
+  setSearch: (s: string) => void;
 }
 
-export function CommunityMembersTab({ members, isLoading, isError }: Props) {
-  const [search, setSearch] = useState('');
-
-  const filtered = search.trim()
-    ? members.filter((m) => {
-        const name = `${m.teacher.firstName} ${m.teacher.lastName}`.toLowerCase();
-        const subject = (m.teacher.subject ?? '').toLowerCase();
-        const q = search.toLowerCase();
-        return name.includes(q) || subject.includes(q);
-      })
-    : members;
+export function CommunityMembersTab({
+  membersData,
+  isLoading,
+  isError,
+  page,
+  setPage,
+  search,
+  setSearch
+}: Props) {
+  const members = membersData?.data ?? [];
+  const meta = membersData?.meta;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm font-semibold text-[#043658]">
-          {isLoading ? 'Loading…' : `${members.length} member${members.length !== 1 ? 's' : ''}`}
+          {isLoading ? 'Loading…' : `${meta?.total ?? 0} member${meta?.total !== 1 ? 's' : ''}`}
         </p>
         <div className="relative w-56">
           <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
           <input
             type="search"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1); // Reset to first page on search
+            }}
             placeholder="Search members…"
             aria-label="Search members"
             className="h-8 w-full rounded-lg border border-slate-200 bg-slate-50 pl-8 pr-3 text-xs text-slate-800 placeholder:text-slate-400 focus:border-[#043658]/40 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#043658]/10"
@@ -72,7 +82,7 @@ export function CommunityMembersTab({ members, isLoading, isError }: Props) {
         </p>
       )}
 
-      {!isLoading && !isError && filtered.length === 0 && (
+      {!isLoading && !isError && members.length === 0 && (
         <div className="flex flex-col items-center gap-2 py-12 text-center">
           <Users className="h-8 w-8 text-slate-300" />
           <p className="text-sm font-medium text-slate-600">
@@ -89,39 +99,66 @@ export function CommunityMembersTab({ members, isLoading, isError }: Props) {
         </div>
       )}
 
-      {!isLoading && !isError && filtered.length > 0 && (
-        <div className="grid gap-2 sm:grid-cols-2">
-          {filtered.map((m) => {
-            const name = `${m.teacher.firstName} ${m.teacher.lastName}`.trim();
-            return (
-              <div
-                key={m.id}
-                className="flex items-center gap-3 rounded-xl border border-slate-100 bg-white p-3 transition-shadow hover:shadow-sm"
-              >
-                <Avatar
-                  name={name}
-                  profileImage={m.teacher.profileImage}
-                  size="md"
-                  className="shrink-0"
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <p className="truncate text-sm font-semibold text-[#043658]">{name}</p>
-                    {m.teacher.verified && (
-                      <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-[#043658]" />
+      {!isLoading && !isError && members.length > 0 && (
+        <>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {members.map((m) => {
+              const name = `${m.teacher.firstName} ${m.teacher.lastName}`.trim();
+              return (
+                <div
+                  key={m.id}
+                  className="flex items-center gap-3 rounded-xl border border-slate-100 bg-white p-3 transition-shadow hover:shadow-sm"
+                >
+                  <Avatar
+                    name={name}
+                    profileImage={m.teacher.profileImage}
+                    size="md"
+                    className="shrink-0"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <p className="truncate text-sm font-semibold text-[#043658]">{name}</p>
+                      {m.teacher.verified && (
+                        <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-[#043658]" />
+                      )}
+                    </div>
+                    {m.teacher.subject && (
+                      <p className="truncate text-xs text-slate-500">{m.teacher.subject}</p>
                     )}
                   </div>
-                  {m.teacher.subject && (
-                    <p className="truncate text-xs text-slate-500">{m.teacher.subject}</p>
-                  )}
+                  <span className="shrink-0 rounded-full bg-[#043658]/8 px-2 py-0.5 text-[10px] font-semibold text-[#043658]">
+                    {LEVEL_LABEL[m.teacher.level] ?? m.teacher.level}
+                  </span>
                 </div>
-                <span className="shrink-0 rounded-full bg-[#043658]/8 px-2 py-0.5 text-[10px] font-semibold text-[#043658]">
-                  {LEVEL_LABEL[m.teacher.level] ?? m.teacher.level}
-                </span>
+              );
+            })}
+          </div>
+
+          {/* Pagination Footer Controls */}
+          {meta && meta.totalPages > 1 && (
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+              <p className="text-xs text-slate-500">
+                Page <span className="font-semibold">{meta.page}</span> of <span className="font-semibold">{meta.totalPages}</span>
+              </p>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setPage(Math.max(page - 1, 1))}
+                  disabled={page === 1}
+                  className="p-1.5 rounded-lg border border-slate-200 text-slate-600 disabled:opacity-40 hover:bg-slate-50"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setPage(Math.min(page + 1, meta.totalPages))}
+                  disabled={page === meta.totalPages}
+                  className="p-1.5 rounded-lg border border-slate-200 text-slate-600 disabled:opacity-40 hover:bg-slate-50"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
               </div>
-            );
-          })}
-        </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

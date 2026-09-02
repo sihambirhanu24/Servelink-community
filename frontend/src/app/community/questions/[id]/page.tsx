@@ -14,6 +14,7 @@ import { useVerification } from "@/hooks/useVerification";
 import { useQuestion, useAnswers, useSubmitAnswer, useToggleHelpful, useSelectBestAnswer } from "@/hooks/useQuestions";
 import { toast } from "sonner";
 import type { Answer } from "@/services/questions";
+import { sanitizeHtml } from "@/lib/sanitize";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -173,7 +174,10 @@ function AnswerCard({
             </span>
           </div>
 
-          <p className="text-sm leading-relaxed text-slate-700 whitespace-pre-wrap">{answer.content}</p>
+          <div 
+            className="text-sm leading-relaxed text-slate-700 prose prose-sm max-w-none prose-p:my-2 prose-ul:list-disc prose-ol:list-decimal prose-ul:pl-4 prose-ol:pl-4 prose-a:text-[#043658] prose-a:underline hover:prose-a:text-[#FFC107]"
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(answer.content) }}
+          />
 
           <div className="mt-5 flex flex-wrap items-center gap-3">
             {/* Helpful */}
@@ -387,7 +391,10 @@ export default function QuestionDetailPage({ params }: Props) {
             </div>
 
             <h1 className="font-['Lexend'] text-xl font-bold text-[#043658] mb-3">{q.title}</h1>
-            <p className="text-[15px] leading-relaxed text-slate-700 whitespace-pre-wrap">{q.description}</p>
+            <div 
+              className="text-[15px] leading-relaxed text-slate-700 prose prose-sm max-w-none prose-p:my-2 prose-ul:list-disc prose-ol:list-decimal prose-ul:pl-4 prose-ol:pl-4 prose-a:text-[#043658] prose-a:underline hover:prose-a:text-[#FFC107]"
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(q.description) }}
+            />
 
             {/* Attachments */}
             {q.attachments && q.attachments.length > 0 && (

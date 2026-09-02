@@ -16,9 +16,10 @@ export function usePostsByType(type: string, filters: { search?: string; categor
   });
 }
 
-export function useMembersByType(type: string) {
+export function useMembersByType(type: string, params: { page: number; limit: number; search?: string }) {
   return useQuery({
-    queryKey: ['community', 'type', type, 'members'],
-    queryFn: () => communityTypeApi.fetchMembersByType(type),
-  });
+    queryKey: ['community', 'type', type, 'members', params],
+    queryFn: () => communityTypeApi.fetchMembersByType(type, params),
+    keepPreviousData: true, // Prevents layout shift/flickering while loading next page
+  } as any);
 }

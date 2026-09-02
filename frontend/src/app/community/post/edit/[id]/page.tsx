@@ -37,6 +37,7 @@ import { getMediaUrl } from "@/lib/media";
 import { toast } from "sonner";
 import { useConfirm } from "@/hooks/useConfirm";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { RichTextEditor } from "@/components/ui/RichTextEditor";
 
 interface Attachment {
   id: string;
@@ -140,13 +141,10 @@ export default function EditPostPage() {
   // Update mutation
   const updateMutation = useMutation({
     mutationFn: async () => {
-      // Strip HTML tags and trim description
-      const cleanDescription = description.replace(/<[^>]*>/g, '').trim();
-      
       // Update post
       await updatePost(postId, {
         title: title.trim(),
-        description: cleanDescription || undefined, // Send undefined if empty
+        description: description || undefined, // Send undefined if empty
         categoryId,
         communityId, // Include communityId
       });
@@ -180,11 +178,6 @@ export default function EditPostPage() {
       toast.error("Failed to delete post. Please try again.");
     },
   });
-
-  // Text formatting functions
-  const formatText = (command: string, value?: string) => {
-    document.execCommand(command, false, value);
-  };
 
   // File handling
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -328,71 +321,12 @@ export default function EditPostPage() {
                     Description
                   </label>
                   
-                  {/* Compact Toolbar */}
-                  <div className="mb-2 flex items-center gap-1 rounded-lg border-2 border-slate-200 bg-slate-50 p-1.5">
-                    <button
-                      type="button"
-                      onClick={() => formatText("bold")}
-                      className="rounded-md p-1.5 hover:bg-[#FFC107]/20 hover:text-[#043658] transition-all"
-                      title="Bold"
-                    >
-                      <Bold className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => formatText("italic")}
-                      className="rounded-md p-1.5 hover:bg-[#FFC107]/20 hover:text-[#043658] transition-all"
-                      title="Italic"
-                    >
-                      <Italic className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => formatText("underline")}
-                      className="rounded-md p-1.5 hover:bg-[#FFC107]/20 hover:text-[#043658] transition-all"
-                      title="Underline"
-                    >
-                      <Underline className="h-4 w-4" />
-                    </button>
-                    <div className="mx-1 h-4 w-px bg-slate-300" />
-                    <button
-                      type="button"
-                      onClick={() => formatText("insertUnorderedList")}
-                      className="rounded-md p-1.5 hover:bg-[#FFC107]/20 hover:text-[#043658] transition-all"
-                      title="Bullet List"
-                    >
-                      <List className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => formatText("insertOrderedList")}
-                      className="rounded-md p-1.5 hover:bg-[#FFC107]/20 hover:text-[#043658] transition-all"
-                      title="Numbered List"
-                    >
-                      <ListOrdered className="h-4 w-4" />
-                    </button>
-                    <div className="mx-1 h-4 w-px bg-slate-300" />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const url = prompt("Enter URL:");
-                        if (url) formatText("createLink", url);
-                      }}
-                      className="rounded-md p-1.5 hover:bg-[#FFC107]/20 hover:text-[#043658] transition-all"
-                      title="Insert Link"
-                    >
-                      <LinkIcon className="h-4 w-4" />
-                    </button>
-                  </div>
-
                   {/* Editor */}
-                  <div
-                    contentEditable
-                    suppressContentEditableWarning
-                    onInput={(e) => setDescription(e.currentTarget.innerHTML)}
-                    dangerouslySetInnerHTML={{ __html: description }}
-                    className="min-h-[150px] rounded-lg border-2 border-slate-200 p-3 text-sm text-[#043658] focus:border-[#FFC107] focus:outline-none focus:ring-2 focus:ring-[#FFC107]/20 transition-all"
-                    data-placeholder="Describe your post..."
+                  <RichTextEditor
+                    value={description}
+                    onChange={setDescription}
+                    placeholder="Describe your post..."
+                    minHeight="150px"
                   />
                 </div>
 

@@ -36,6 +36,7 @@ import { PostAuthor } from "@/components/post/PostAuthor";
 import { PostActions } from "@/components/post/PostActions";
 import { PostAttachment } from "@/components/post/PostAttachment";
 import { PostTags } from "@/components/post/PostTags";
+import { sanitizeHtml } from "@/lib/sanitize";
 
 export default function PostDetailPage() {
   const params = useParams();
@@ -376,9 +377,10 @@ export default function PostDetailPage() {
                   </h1>
 
                   {/* Description */}
-                  <div className="text-[15px] leading-relaxed text-slate-700 whitespace-pre-wrap mb-10">
-                    {post.description}
-                  </div>
+                  <div 
+                    className="text-[15px] leading-relaxed text-slate-700 mb-10 prose prose-sm max-w-none prose-p:my-2 prose-ul:list-disc prose-ol:list-decimal prose-ul:pl-4 prose-ol:pl-4 prose-a:text-[#043658] prose-a:underline hover:prose-a:text-[#FFC107]"
+                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(post.description) }}
+                  />
 
                   {/* Attached Resources */}
                   {post.attachments && post.attachments.length > 0 && (

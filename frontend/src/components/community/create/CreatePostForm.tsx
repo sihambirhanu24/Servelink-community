@@ -14,6 +14,7 @@ import CategorySelect from "./CategorySelect";
 import VisibilitySelect from "./VisibilitySelect";
 import AttachmentUploader from "./AttachmentUploader";
 import FormActions from "./FormActions";
+import { RichTextEditor } from "@/components/ui/RichTextEditor";
 
 export default function CreatePostForm() {
   const queryClient = useQueryClient();
@@ -116,13 +117,11 @@ export default function CreatePostForm() {
           </label>
           <span className="text-xs font-medium text-slate-400">{description.length} / 2000 characters</span>
         </div>
-        <textarea
-          id="post-description"
-          rows={8}
+        <RichTextEditor
           value={description}
-          onChange={(e) => setDescription(e.target.value)}
+          onChange={setDescription}
           placeholder="What would you like to share with the community today?"
-          className="min-h-[220px] w-full resize-y rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-base leading-7 text-[#043658] outline-none transition focus:border-[#043658] focus:bg-white focus:ring-4 focus:ring-[#043658]/10"
+          minHeight="220px"
         />
       </section>
 

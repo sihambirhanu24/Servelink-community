@@ -6,9 +6,11 @@ import Link from "next/link";
 import {
   Users, BookOpen, MessageCircle, FileText, HelpCircle,
   CheckCircle2, Clock, TrendingUp, ChevronRight, Star,
+  Handshake, Trophy, User
 } from "lucide-react";
-import { getNetworkOverview, getGuidelines } from "@/services/community-network";
-import type { NetworkPost, CommunityGuideline } from "@/services/community-network";
+import { getNetworkOverview, getGuidelines, getTopContributors } from "@/services/community-network";
+import type { NetworkPost, CommunityGuideline, TopContributor } from "@/services/community-network";
+import { stripHtml } from "@/lib/sanitize";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -61,7 +63,7 @@ function PostMiniCard({ post, icon }: { post: NetworkPost; icon: React.ReactNode
           <h4 className="text-sm font-semibold text-[#043658] line-clamp-2 group-hover:underline">
             {post.title}
           </h4>
-          <p className="mt-1 text-xs text-slate-500 line-clamp-2">{post.description}</p>
+          <p className="mt-1 text-xs text-slate-500 line-clamp-2">{stripHtml(post.description)}</p>
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-400">
             <span className="flex items-center gap-1">
               <div className="h-4 w-4 rounded-full bg-[#043658]/10 flex items-center justify-center text-[8px] font-bold text-[#043658]">
@@ -146,6 +148,13 @@ export function OverviewTab({ onTabChange }: OverviewTabProps) {
     staleTime: 5 * 60_000,
   });
 
+  const { data: topContributors = [], isLoading: contributorsLoading, error: contributorsError } = useQuery({
+    queryKey: ["top-contributors"],
+    queryFn: () => getTopContributors(3),
+    enabled: authReady,
+    staleTime: 5 * 60_000,
+  });
+
   const stats = overview?.stats;
 
   return (
@@ -190,15 +199,15 @@ export function OverviewTab({ onTabChange }: OverviewTabProps) {
               {overviewLoading
                 ? [1, 2, 3].map((i) => <CardSkeleton key={i} />)
                 : overview?.recentQuestions.length === 0
-                ? (
-                  <div className="rounded-xl border border-dashed border-slate-200 py-8 text-center">
-                    <HelpCircle className="mx-auto h-8 w-8 text-slate-300 mb-2" />
-                    <p className="text-sm text-slate-500">No questions yet. Be the first to ask!</p>
-                  </div>
-                )
-                : overview?.recentQuestions.map((q) => (
-                  <PostMiniCard key={q.id} post={q} icon={<HelpCircle className="h-4 w-4" />} />
-                ))}
+                  ? (
+                    <div className="rounded-xl border border-dashed border-slate-200 py-8 text-center">
+                      <HelpCircle className="mx-auto h-8 w-8 text-slate-300 mb-2" />
+                      <p className="text-sm text-slate-500">No questions yet. Be the first to ask!</p>
+                    </div>
+                  )
+                  : overview?.recentQuestions.map((q) => (
+                    <PostMiniCard key={q.id} post={q} icon={<HelpCircle className="h-4 w-4" />} />
+                  ))}
             </div>
           </div>
 
@@ -220,15 +229,15 @@ export function OverviewTab({ onTabChange }: OverviewTabProps) {
               {overviewLoading
                 ? [1, 2].map((i) => <CardSkeleton key={i} />)
                 : overview?.recentDiscussions.length === 0
-                ? (
-                  <div className="rounded-xl border border-dashed border-slate-200 py-8 text-center">
-                    <MessageCircle className="mx-auto h-8 w-8 text-slate-300 mb-2" />
-                    <p className="text-sm text-slate-500">No discussions yet. Start a conversation!</p>
-                  </div>
-                )
-                : overview?.recentDiscussions.map((d) => (
-                  <PostMiniCard key={d.id} post={d} icon={<MessageCircle className="h-4 w-4" />} />
-                ))}
+                  ? (
+                    <div className="rounded-xl border border-dashed border-slate-200 py-8 text-center">
+                      <MessageCircle className="mx-auto h-8 w-8 text-slate-300 mb-2" />
+                      <p className="text-sm text-slate-500">No discussions yet. Start a conversation!</p>
+                    </div>
+                  )
+                  : overview?.recentDiscussions.map((d) => (
+                    <PostMiniCard key={d.id} post={d} icon={<MessageCircle className="h-4 w-4" />} />
+                  ))}
             </div>
           </div>
 
@@ -250,15 +259,15 @@ export function OverviewTab({ onTabChange }: OverviewTabProps) {
               {overviewLoading
                 ? [1, 2].map((i) => <CardSkeleton key={i} />)
                 : overview?.recentResources.length === 0
-                ? (
-                  <div className="rounded-xl border border-dashed border-slate-200 py-8 text-center">
-                    <FileText className="mx-auto h-8 w-8 text-slate-300 mb-2" />
-                    <p className="text-sm text-slate-500">No resources yet. Share something helpful!</p>
-                  </div>
-                )
-                : overview?.recentResources.map((r) => (
-                  <PostMiniCard key={r.id} post={r} icon={<FileText className="h-4 w-4" />} />
-                ))}
+                  ? (
+                    <div className="rounded-xl border border-dashed border-slate-200 py-8 text-center">
+                      <FileText className="mx-auto h-8 w-8 text-slate-300 mb-2" />
+                      <p className="text-sm text-slate-500">No resources yet. Share something helpful!</p>
+                    </div>
+                  )
+                  : overview?.recentResources.map((r) => (
+                    <PostMiniCard key={r.id} post={r} icon={<FileText className="h-4 w-4" />} />
+                  ))}
             </div>
           </div>
         </div>
@@ -266,44 +275,118 @@ export function OverviewTab({ onTabChange }: OverviewTabProps) {
         {/* Right: Guidelines + Quick Actions */}
         <div className="space-y-5">
 
-          {/* Community Guidelines */}
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="mb-4 flex items-center gap-2 text-base font-semibold text-[#043658]">
-              <BookOpen className="h-5 w-5 text-[#FFC107]" />
-              Community Guidelines
-            </h2>
-            <div className="space-y-3">
-              {guidelinesLoading
-                ? [1, 2, 3].map((i) => (
-                  <div key={i} className="h-12 animate-pulse rounded-xl bg-slate-100" />
-                ))
-                : guidelines.length === 0
-                ? (
-                  <p className="text-sm text-slate-500 text-center py-4">
-                    No guidelines configured yet.
-                  </p>
-                )
-                : guidelines.map((g) => <GuidelineCard key={g.id} g={g} />)
-              }
+          {/* Teacher Support Card */}
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-6 h-6 rounded-md bg-[#043658]/10 flex items-center justify-center">
+                <Handshake className="w-4 h-4 text-[#043658]" />
+              </div>
+              <h3 className="font-bold text-[#043658] text-sm">Teacher Support</h3>
+            </div>
+            <p className="text-xs text-slate-600 mb-4 leading-relaxed">
+              Connect with mentors or offer your expertise to peers in the network.
+            </p>
+            <div className="space-y-2.5">
+              <button className="w-full flex items-center justify-center gap-2 bg-[#043658] text-white py-2 rounded-lg text-xs font-semibold hover:bg-[#032a44] transition-colors">
+                <MessageCircle className="w-4 h-4" />
+                Request Support
+              </button>
+              <button className="w-full flex items-center justify-center gap-2 bg-white text-[#043658] border border-slate-200 py-2 rounded-lg text-xs font-semibold hover:bg-slate-50 transition-colors shadow-sm">
+                <Handshake className="w-4 h-4" />
+                Offer Support
+              </button>
             </div>
           </div>
 
-          {/* Trending indicator */}
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-[#043658]">
-              <TrendingUp className="h-5 w-5 text-green-500" />
-              Network Activity
-            </h2>
-            <p className="text-xs text-slate-500 leading-relaxed">
-              The Network Community connects verified teachers across ServeLink with no geographic restrictions.
-              Ask questions, share resources, and collaborate with educators nationwide.
-            </p>
-            <div className="mt-4 rounded-lg bg-[#043658]/5 border border-[#043658]/10 p-3 text-xs text-[#043658]">
-              <span className="font-semibold">Open to all verified teachers.</span>{" "}
-              No school, woreda, zone, region or subject restriction.
+          {/* Top Contributors Card */}
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-slate-900 text-sm">Top Contributors</h3>
+              <Trophy className="w-4 h-4 text-[#FFC107]" />
+            </div>
+            <div className="space-y-4">
+              {contributorsLoading ? (
+                [1, 2, 3].map((i) => (
+                  <div key={i} className="flex items-center gap-3 animate-pulse">
+                    <div className="w-4 h-4 rounded bg-slate-200" />
+                    <div className="w-7 h-7 rounded-full bg-slate-200" />
+                    <div className="flex-1 h-3 rounded bg-slate-200" />
+                    <div className="w-12 h-5 rounded bg-slate-200" />
+                  </div>
+                ))
+              ) : contributorsError ? (
+                <div className="rounded-xl border border-dashed border-slate-200 py-6 text-center">
+                  <Trophy className="mx-auto h-6 w-6 text-slate-300 mb-2" />
+                  <p className="text-xs text-slate-500">Failed to load contributors</p>
+                </div>
+              ) : topContributors.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-200 py-6 text-center">
+                  <User className="mx-auto h-6 w-6 text-slate-300 mb-2" />
+                  <p className="text-xs text-slate-500">No contributors yet</p>
+                </div>
+              ) : (
+                topContributors.map((contributor) => {
+                  const initials = `${contributor.firstName[0]}${contributor.lastName[0]}`;
+                  const name = `${contributor.firstName} ${contributor.lastName}`;
+                  const rankColor = contributor.rank === 1 ? 'text-[#FFC107]' : 'text-slate-400';
+                  
+                  return (
+                    <div key={contributor.id} className="flex items-center gap-3">
+                      <span className={`text-xs font-bold w-4 ${rankColor}`}>#{contributor.rank}</span>
+                      {contributor.profileImage ? (
+                        <img
+                          src={contributor.profileImage}
+                          alt={name}
+                          className="w-7 h-7 rounded-full object-cover flex-shrink-0"
+                        />
+                      ) : (
+                        <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-600 flex-shrink-0">
+                          {initials}
+                        </div>
+                      )}
+                      <span className="text-xs font-bold text-slate-900 flex-1 truncate">{name}</span>
+                      <span className="bg-[#f0f5fa] text-[#043658] text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap">
+                        {contributor.points} pts
+                      </span>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+            <Link
+              href="/community/leaderboard"
+              className="block w-full text-center text-xs font-bold text-[#043658] mt-5 hover:underline"
+            >
+              View Leaderboard
+            </Link>
+          </div>
+
+          {/* Community Guidelines Card */}
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <BookOpen className="w-4 h-4 text-slate-700" />
+              <h3 className="font-bold text-slate-900 text-sm">Community Guidelines</h3>
+            </div>
+            <div className="space-y-3.5">
+              {[
+                { title: 'Be Respectful & Professional:', desc: 'Maintain a constructive tone in all interactions.' },
+                { title: 'Share Knowledge:', desc: 'Aim to provide actionable advice and resources.' },
+                { title: 'Search First:', desc: 'Avoid duplicating questions by using the search bar.' },
+                { title: 'Stay on Topic:', desc: 'Keep discussions relevant to education and community.' },
+              ].map((rule, idx) => (
+                <div key={idx} className="flex items-start gap-2.5">
+                  <CheckCircle2 className="w-4 h-4 text-[#a38757] flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    <span className="font-bold text-slate-900 mr-1">{rule.title}</span>
+                    {rule.desc}
+                  </p>
+                </div>
+              ))}
             </div>
           </div>
+
         </div>
+
       </div>
     </div>
   );

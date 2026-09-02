@@ -13,8 +13,11 @@ export async function fetchPostsByType(
   return data;
 }
 
-export async function fetchMembersByType(type: string) {
-  const { data } = await api.get(`/community/type/${type}/members`);
+export async function fetchMembersByType(
+  type: string,
+  params?: { page?: number; limit?: number; search?: string }
+) {
+  const { data } = await api.get(`/community/type/${type}/members`, { params });
   return data;
 }
 

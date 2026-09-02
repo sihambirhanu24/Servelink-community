@@ -11,6 +11,16 @@ export interface NetworkTeacher {
   verified?: boolean;
 }
 
+export interface TopContributor {
+  rank: number;
+  id: string;
+  firstName: string;
+  lastName: string;
+  profileImage?: string | null;
+  level: string;
+  points: number;
+}
+
 export interface NetworkPost {
   id: string;
   title: string;
@@ -64,6 +74,13 @@ export interface PostComment {
 
 export async function getNetworkOverview(): Promise<NetworkOverview> {
   const { data } = await api.get<NetworkOverview>("/community/network/overview");
+  return data;
+}
+
+export async function getTopContributors(limit: number = 10): Promise<TopContributor[]> {
+  const { data } = await api.get<TopContributor[]>("/community/network/top-contributors", {
+    params: { limit },
+  });
   return data;
 }
 

@@ -331,3 +331,20 @@ export async function createPostByType(payload: CreatePostByTypePayload) {
   const { data } = await api.post('/community/create-by-type', payload);
   return data;
 }
+export interface PaginatedMembersResponse {
+  data: CommunityTypeMemberRow[];
+  meta: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+}
+
+export const fetchMembersByType = async (
+  type: string,
+  params?: { page?: number; limit?: number; search?: string }
+): Promise<PaginatedMembersResponse> => {
+  const { data } = await api.get(`/community/type/${type}/members`, { params });
+  return data;
+};

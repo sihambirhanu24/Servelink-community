@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { formatDistanceToNow } from 'date-fns';
 import { Avatar } from '@/components/common/Avatar';
+import { stripHtml } from '@/lib/sanitize';
 
 type SortOption = 'latest' | 'popular' | 'mostReplied' | 'trending';
 type FilterTab = 'all' | 'my' | 'following';
@@ -163,7 +164,7 @@ export default function DiscussionsPage() {
                               </div>
                               
                               <p className="text-xs text-slate-600 line-clamp-2 mb-2 break-words" style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
-                                {discussion.description}
+                                {stripHtml(discussion.description)}
                               </p>
                               
                               {/* Footer Metadata */}
