@@ -2,13 +2,13 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
-} from "@nestjs/common";
+} from '@nestjs/common';
 
-import { PrismaService } from "../prisma/prisma.service";
+import { PrismaService } from '../prisma/prisma.service';
+import { publiclyVisiblePostWhere } from '../common/post-visibility';
 
 @Injectable()
 export class TeacherService {
-
   constructor(private prisma: PrismaService) {}
 
   async getProfile(id: string) {
@@ -17,7 +17,7 @@ export class TeacherService {
     });
 
     if (!teacher) {
-      throw new NotFoundException("Teacher not found");
+      throw new NotFoundException('Teacher not found');
     }
 
     return teacher;
@@ -53,7 +53,7 @@ export class TeacherService {
     });
 
     if (!teacher) {
-      throw new NotFoundException("Teacher not found");
+      throw new NotFoundException('Teacher not found');
     }
 
     const isFollowedByCurrentUser = currentUserId
@@ -73,7 +73,7 @@ export class TeacherService {
       followingCount: teacher._count.following,
       postsCount: teacher._count.posts,
       isFollowedByCurrentUser: !!isFollowedByCurrentUser,
-      isVerified: teacher.verificationStatus === "APPROVED",
+      isVerified: teacher.verificationStatus === 'APPROVED',
     };
   }
 
@@ -83,14 +83,14 @@ export class TeacherService {
     });
 
     if (!teacher) {
-      throw new NotFoundException("Teacher not found");
+      throw new NotFoundException('Teacher not found');
     }
 
     const skip = (page - 1) * limit;
 
     const [posts, total] = await Promise.all([
       this.prisma.communityPost.findMany({
-        where: { teacherId: id },
+        where: { teacherId: id, ...publiclyVisiblePostWhere },
         include: {
           teacher: {
             select: {
@@ -129,12 +129,12 @@ export class TeacherService {
             },
           },
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: { createdAt: 'desc' },
         skip,
         take: limit,
       }),
       this.prisma.communityPost.count({
-        where: { teacherId: id },
+        where: { teacherId: id, ...publiclyVisiblePostWhere },
       }),
     ]);
 
@@ -147,7 +147,7 @@ export class TeacherService {
         bookmarksCount: post._count.communityBookmarks,
         teacher: {
           ...post.teacher,
-          verified: post.teacher.verificationStatus === "APPROVED",
+          verified: post.teacher.verificationStatus === 'APPROVED',
         },
       })),
       total,
@@ -159,7 +159,7 @@ export class TeacherService {
 
   async followTeacher(followerId: string, followingId: string) {
     if (followerId === followingId) {
-      throw new BadRequestException("You cannot follow yourself");
+      throw new BadRequestException('You cannot follow yourself');
     }
 
     const teacher = await this.prisma.teacher.findUnique({
@@ -167,7 +167,7 @@ export class TeacherService {
     });
 
     if (!teacher) {
-      throw new NotFoundException("Teacher not found");
+      throw new NotFoundException('Teacher not found');
     }
 
     const existingFollow = await this.prisma.teacherFollow.findUnique({
@@ -180,7 +180,7 @@ export class TeacherService {
     });
 
     if (existingFollow) {
-      throw new BadRequestException("You already follow this teacher");
+      throw new BadRequestException('You already follow this teacher');
     }
 
     await this.prisma.teacherFollow.create({
@@ -202,7 +202,7 @@ export class TeacherService {
 
   async unfollowTeacher(followerId: string, followingId: string) {
     if (followerId === followingId) {
-      throw new BadRequestException("You cannot unfollow yourself");
+      throw new BadRequestException('You cannot unfollow yourself');
     }
 
     const existingFollow = await this.prisma.teacherFollow.findUnique({
@@ -215,7 +215,7 @@ export class TeacherService {
     });
 
     if (!existingFollow) {
-      throw new BadRequestException("You are not following this teacher");
+      throw new BadRequestException('You are not following this teacher');
     }
 
     await this.prisma.teacherFollow.delete({
@@ -237,33 +237,34 @@ export class TeacherService {
     };
   }
 
- async getStatistics(id: string) {
-  const teacher = await this.prisma.teacher.findUnique({
-    where: {
-      id,
-    },
-    include: {
-      _count: {
-        select: {
-          posts: true,
-          comments: true,
-          communityLikes: true,
-          communityBookmarks: true,
-          communityMembers: true,
+  async getStatistics(id: string) {
+    const teacher = await this.prisma.teacher.findUnique({
+      where: {
+        id,
+      },
+      include: {
+        _count: {
+          select: {
+            posts: true,
+            comments: true,
+            communityLikes: true,
+            communityBookmarks: true,
+            communityMembers: true,
+          },
         },
       },
-    },
-  });
+    });
 
-  if (!teacher) {
-    throw new NotFoundException("Teacher not found");
+    if (!teacher) {
+      throw new NotFoundException('Teacher not found');
+    }
+
+    return {
+      posts: teacher._count.posts,
+      comments: teacher._count.comments,
+      likes: teacher._count.communityLikes,
+      bookmarks: teacher._count.communityBookmarks,
+      memberships: teacher._count.communityMembers,
+    };
   }
-
-  return {
-    posts: teacher._count.posts,
-    comments: teacher._count.comments,
-    likes: teacher._count.communityLikes,
-    bookmarks: teacher._count.communityBookmarks,
-    memberships: teacher._count.communityMembers,
-  };
-}}
+}

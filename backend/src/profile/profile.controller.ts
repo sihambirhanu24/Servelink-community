@@ -9,12 +9,7 @@ import {
   UseInterceptors,
   BadRequestException,
 } from '@nestjs/common';
-import {
-  ApiBearerAuth,
-  ApiTags,
-  ApiConsumes,
-  ApiBody,
-} from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
@@ -32,25 +27,17 @@ import { UpdateNotificationPreferenceDto } from './dto/update-notification-prefe
 @ApiBearerAuth()
 @Controller('profile')
 export class ProfileController {
-  constructor(
-    private readonly profileService: ProfileService,
-  ) {}
+  constructor(private readonly profileService: ProfileService) {}
 
-@UseGuards(JwtAuthGuard)
-@Get("me")
-getMyProfile(@CurrentUser() user: any) {
-  return this.profileService.getProfile(user.sub);
-}
+  @UseGuards(JwtAuthGuard)
+  @Get('me')
+  getMyProfile(@CurrentUser() user: any) {
+    return this.profileService.getProfile(user.sub);
+  }
   @UseGuards(JwtAuthGuard)
   @Patch()
-  updateProfile(
-    @CurrentUser() user: any,
-    @Body() dto: UpdateProfileDto,
-  ) {
-    return this.profileService.updateProfile(
-      user.sub,
-      dto,
-    );
+  updateProfile(@CurrentUser() user: any, @Body() dto: UpdateProfileDto) {
+    return this.profileService.updateProfile(user.sub, dto);
   }
 
   @UseGuards(JwtAuthGuard)
@@ -78,19 +65,13 @@ getMyProfile(@CurrentUser() user: any) {
           cb(null, dir);
         },
         filename: (req, file, cb) => {
-          const uniqueName =
-            Date.now() + '-' + Math.round(Math.random() * 1e9);
+          const uniqueName = Date.now() + '-' + Math.round(Math.random() * 1e9);
           cb(null, uniqueName + extname(file.originalname));
         },
       }),
       limits: { fileSize: 5 * 1024 * 1024 },
       fileFilter: (req, file, cb) => {
-        const allowed = [
-          'image/jpeg',
-          'image/jpg',
-          'image/png',
-          'image/webp',
-        ];
+        const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
         if (allowed.includes(file.mimetype)) {
           cb(null, true);
         } else {
@@ -139,19 +120,13 @@ getMyProfile(@CurrentUser() user: any) {
           cb(null, dir);
         },
         filename: (req, file, cb) => {
-          const uniqueName =
-            Date.now() + '-' + Math.round(Math.random() * 1e9);
+          const uniqueName = Date.now() + '-' + Math.round(Math.random() * 1e9);
           cb(null, uniqueName + extname(file.originalname));
         },
       }),
       limits: { fileSize: 10 * 1024 * 1024 }, // Allow up to 10MB for banners
       fileFilter: (req, file, cb) => {
-        const allowed = [
-          'image/jpeg',
-          'image/jpg',
-          'image/png',
-          'image/webp',
-        ];
+        const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
         if (allowed.includes(file.mimetype)) {
           cb(null, true);
         } else {
@@ -177,10 +152,7 @@ getMyProfile(@CurrentUser() user: any) {
 
   @UseGuards(JwtAuthGuard)
   @Patch('password')
-  changePassword(
-    @CurrentUser() user: any,
-    @Body() dto: ChangePasswordDto,
-  ) {
+  changePassword(@CurrentUser() user: any, @Body() dto: ChangePasswordDto) {
     return this.profileService.changePassword(
       user.sub,
       dto.oldPassword,
@@ -220,4 +192,4 @@ getMyProfile(@CurrentUser() user: any) {
   ) {
     return this.profileService.updateNotificationPreferences(user.sub, dto);
   }
-}
+}

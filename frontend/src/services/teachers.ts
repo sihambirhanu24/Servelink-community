@@ -8,6 +8,7 @@ export interface TeacherProfile {
   bannerUrl?: string | null;
   bio?: string | null;
   profession?: string | null;
+  subject?: string | null;
   department?: string | null;
   school: string;
   woreda: string;

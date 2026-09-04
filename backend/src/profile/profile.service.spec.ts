@@ -13,10 +13,6 @@ describe('ProfileService', () => {
       communityPost: {
         findMany: jest.fn(),
       },
-    } as unknown as {
-      communityPost: {
-        findMany: jest.Mock;
-      };
     };
 
     service = new ProfileService(prisma as any);

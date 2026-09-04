@@ -5,7 +5,7 @@ export function useTeachers(query?: {
   page?: number;
   pageSize?: number;
   search?: string;
-  status?: "ACTIVE" | "SUSPENDED";
+  status?: "ACTIVE" | "SUSPENDED" | "PERMANENTLY_SUSPENDED";
   teacherLevel?: string;
   sortBy?: string;
   sortOrder?: "asc" | "desc";

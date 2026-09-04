@@ -6,30 +6,28 @@ import {
   UseGuards,
   Param,
   Query,
-} from "@nestjs/common";
+} from '@nestjs/common';
 
-import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
-import { CurrentUser } from "../auth/decorators/current-user.decorator";
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
-import { TeacherService } from "./teacher.service";
+import { TeacherService } from './teacher.service';
 
-@Controller("teachers")
+@Controller('teachers')
 export class TeacherController {
-  constructor(
-    private readonly teacherService: TeacherService,
-  ) {}
+  constructor(private readonly teacherService: TeacherService) {}
 
-  @Get(":id/profile")
-  async getPublicProfile(@Param("id") id: string) {
+  @Get(':id/profile')
+  async getPublicProfile(@Param('id') id: string) {
     return this.teacherService.getPublicProfile(id);
   }
 
-  @Get(":id/posts")
+  @Get(':id/posts')
   async getTeacherPosts(
-    @Param("id") id: string,
-    @Query("page") page?: string,
-    @Query("limit") limit?: string,
+    @Param('id') id: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
     return this.teacherService.getTeacherPosts(
       id,
@@ -39,32 +37,30 @@ export class TeacherController {
   }
 
   @UseGuards(JwtAuthGuard)
-  @Post(":id/follow")
-  async followTeacher(@Param("id") id: string, @CurrentUser() user) {
+  @Post(':id/follow')
+  async followTeacher(@Param('id') id: string, @CurrentUser() user) {
     return this.teacherService.followTeacher(user.sub, id);
   }
 
   @UseGuards(JwtAuthGuard)
-  @Delete(":id/follow")
-  async unfollowTeacher(@Param("id") id: string, @CurrentUser() user) {
+  @Delete(':id/follow')
+  async unfollowTeacher(@Param('id') id: string, @CurrentUser() user) {
     return this.teacherService.unfollowTeacher(user.sub, id);
   }
 }
 
-@Controller("teacher")
+@Controller('teacher')
 export class CurrentTeacherController {
-  constructor(
-    private readonly teacherService: TeacherService,
-  ) {}
+  constructor(private readonly teacherService: TeacherService) {}
 
   @UseGuards(JwtAuthGuard)
-  @Get("profile")
+  @Get('profile')
   getProfile(@CurrentUser() user) {
     return this.teacherService.getProfile(user.sub);
   }
 
   @UseGuards(JwtAuthGuard)
-  @Get("statistics")
+  @Get('statistics')
   getStatistics(@CurrentUser() user) {
     return this.teacherService.getStatistics(user.sub);
   }
