@@ -3,10 +3,12 @@ import { LiveSessionService } from './live-session.service';
 import { LiveSessionController } from './live-session.controller';
 import { PrismaModule } from '../prisma/prisma.module';
 import { NotificationModule } from '../notification/notification.module';
+import { PaymentModule } from '../payment/payment.module';
+import { LiveKitService } from './livekit.service';
 
 @Module({
-  imports: [PrismaModule, NotificationModule],
+  imports: [PrismaModule, NotificationModule, PaymentModule],
   controllers: [LiveSessionController],
-  providers: [LiveSessionService],
+  providers: [LiveSessionService, LiveKitService],
 })
 export class LiveSessionModule {}

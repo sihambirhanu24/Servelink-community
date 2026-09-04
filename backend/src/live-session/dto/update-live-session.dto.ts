@@ -1,9 +1,14 @@
-import { IsString, IsNotEmpty, IsDateString, IsOptional } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsDateString,
+  IsOptional,
+} from 'class-validator';
 
 export class ApproveLiveSessionDto {
   @IsString()
   @IsOptional()
-  adminId?: string; // Optional if we extract from JWT
+  adminId?: string;
 }
 
 export class RejectLiveSessionDto {
@@ -22,12 +27,4 @@ export class UpdateLiveSessionStatusDto {
   @IsString()
   @IsNotEmpty()
   status: 'LIVE' | 'COMPLETED' | 'CANCELLED';
-
-  @IsString()
-  @IsOptional()
-  restreamPlayerUrl?: string;
-
-  @IsString()
-  @IsOptional()
-  restreamChannelId?: string;
 }

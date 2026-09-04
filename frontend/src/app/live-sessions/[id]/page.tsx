@@ -2,10 +2,11 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { useLiveSession, useUpdateLiveSessionStatus } from '@/services/live-sessions';
+import { useLiveSession, useUpdateLiveSessionStatus, useCancelLiveSession, useDeleteLiveSession } from '@/services/live-sessions';
+import { CancelSessionModal } from '@/components/live-sessions/CancelSessionModal';
 import { paymentsApi } from '@/services/payments';
 import { Avatar } from '@/components/common/Avatar';
-import { Loader2, AlertTriangle, ArrowLeft, Calendar, Users, Clock, CheckCircle2, Video, CreditCard, Lock, Bell, Info } from 'lucide-react';
+import { Loader2, AlertTriangle, ArrowLeft, Calendar, Users, Clock, CheckCircle2, Video, CreditCard, Lock, Unlock, Bell, Info } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
 import { api } from '@/lib/axios';
@@ -21,6 +22,9 @@ export default function LiveSessionDetailsPage() {
   
   const { data: session, isLoading: isLoadingSession, error: sessionError, refetch } = useLiveSession(id, isAdmin);
   const updateStatusMutation = useUpdateLiveSessionStatus(isAdmin);
+  const cancelMutation = useCancelLiveSession(isAdmin);
+  const deleteMutation = useDeleteLiveSession(isAdmin);
+  const [showCancelModal, setShowCancelModal] = useState(false);
   const [isVerifyingPayment] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [isSettingReminder, setIsSettingReminder] = useState(false);
@@ -76,12 +80,13 @@ export default function LiveSessionDetailsPage() {
 
 
 
-  const handleJoinRestream = () => {
-    if (session?.restreamPlayerUrl) {
-      window.open(session.restreamPlayerUrl, '_blank', 'noopener,noreferrer');
-    } else {
-      toast.error('No Restream URL configured for this session.');
+  const handleEnterClassroom = () => {
+    // Google Meet: host opens the external URL directly — no LiveKit room
+    if (session.provider === 'GOOGLE_MEET' && session.meetingUrl) {
+      window.open(session.meetingUrl, '_blank', 'noopener,noreferrer');
+      return;
     }
+    router.push(isAdmin ? `/admin/live-sessions/${id}/room` : `/live-sessions/${id}/studio`);
   };
 
   if (isLoadingSession || isVerifyingPayment) {
@@ -125,26 +130,57 @@ export default function LiveSessionDetailsPage() {
   const isEnded = realTimeStatus === 'ENDED';
   const isScheduled = realTimeStatus === 'UPCOMING';
   const price = session.isPaid && session.price ? Number(session.price) : 0;
+  const isCancelled = session.status === 'CANCELLED' || access?.sessionCancelled;
+  const refundStatus = access?.refundStatus;
+  const hostActions = (session as any).hostActions;
+  const refundSummary = (session as any).refundSummary;
+
+  const refundLabel = () => {
+    if (!refundStatus || refundStatus === 'NOT_REQUIRED') return null;
+    if (refundStatus === 'PROCESSING') return 'Refund Processing';
+    if (refundStatus === 'REFUNDED' || paymentStatus === 'REFUNDED') return 'Refunded';
+    if (refundStatus === 'PENDING') return 'Refund Pending';
+    if (refundStatus === 'FAILED') return 'Refund Failed — Contact Support';
+    return null;
+  };
 
   // Render the primary CTA intelligently
   const renderActionCTA = () => {
+    if (isCancelled) {
+      return (
+        <div className="space-y-2">
+          <button disabled className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-200 px-4 py-4 text-sm font-bold text-slate-600 shadow-sm">
+            Session Cancelled
+          </button>
+          {refundLabel() && (
+            <p className="text-xs font-semibold text-white/80">{refundLabel()}</p>
+          )}
+        </div>
+      );
+    }
+
     // HOST/ADMIN CONTROLS
     if (isTeacher || isAdmin) {
-      if (!session.restreamPlayerUrl) {
+      if (isLive) {
         return (
-          <button disabled className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-200 px-4 py-4 text-sm font-bold text-slate-500 shadow-sm">
-            Configure Restream URL
+          <button
+            onClick={handleEnterClassroom}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#FFC107] px-4 py-4 text-sm font-bold text-[#043658] shadow-sm transition-all hover:bg-[#ffcd38]"
+          >
+            <Video className="h-5 w-5" />
+            {session.provider === 'GOOGLE_MEET' ? 'Open Google Meet' : 'Enter Live Classroom'}
           </button>
         );
       }
 
-      if (isScheduled || isLive) {
+      if (isScheduled) {
         return (
-          <button 
-            onClick={handleJoinRestream} 
+          <button
+            onClick={handleEnterClassroom}
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#FFC107] px-4 py-4 text-sm font-bold text-[#043658] shadow-sm transition-all hover:bg-[#ffcd38]"
           >
-            <Video className="h-5 w-5" /> 🎥 Open Restream
+            <Video className="h-5 w-5" />
+            {session.provider === 'GOOGLE_MEET' ? 'Open Google Meet' : 'Open Live Studio'}
           </button>
         );
       }
@@ -178,15 +214,6 @@ export default function LiveSessionDetailsPage() {
       );
     }
 
-    // USER HAS ACCESS
-    if (!session.restreamPlayerUrl) {
-      return (
-        <button disabled className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-200 px-4 py-4 text-sm font-bold text-slate-500 shadow-sm text-center leading-tight">
-          Live session link is not configured yet.
-        </button>
-      );
-    }
-
     if (isEnded) {
       return (
         <button disabled className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-200 px-4 py-4 text-sm font-bold text-slate-500 shadow-sm">
@@ -196,9 +223,23 @@ export default function LiveSessionDetailsPage() {
     }
 
     if (isLive) {
+      // Google Meet: render an external join button instead of entering LiveKit room
+      if (session.provider === 'GOOGLE_MEET' && session.meetingUrl) {
+        return (
+          <a
+            href={session.meetingUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a73e8] px-4 py-4 text-sm font-bold text-white shadow-sm transition-all hover:bg-[#1557b0] hover:-translate-y-0.5"
+          >
+            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
+            Join Google Meet
+          </a>
+        );
+      }
       return (
         <button
-          onClick={handleJoinRestream}
+          onClick={handleEnterClassroom}
           className="flex w-full items-center justify-center gap-2 rounded-xl bg-red-500 px-4 py-4 text-sm font-bold text-white shadow-sm transition-all hover:bg-red-600 hover:-translate-y-0.5 animate-pulse"
         >
           🔴 Join Live Session
@@ -234,7 +275,11 @@ export default function LiveSessionDetailsPage() {
         <div className="relative z-10 flex flex-col md:flex-row md:items-center p-8 md:p-12 gap-8">
           <div className="flex-1 text-white">
             <div className="mb-6 flex flex-wrap items-center gap-3">
-              {isLive ? (
+              {isCancelled ? (
+                <span className="flex items-center gap-2 rounded-full bg-red-500/20 px-4 py-1.5 text-xs font-bold tracking-widest text-red-100 ring-1 ring-red-500/40">
+                  CANCELLED
+                </span>
+              ) : isLive ? (
                 <span className="flex items-center gap-2 rounded-full bg-red-500/20 px-4 py-1.5 text-xs font-bold tracking-widest text-red-100 ring-1 ring-red-500/40">
                   <span className="h-2 w-2 animate-pulse rounded-full bg-red-400" />
                   LIVE NOW
@@ -296,6 +341,35 @@ export default function LiveSessionDetailsPage() {
             ) : null}
 
             {renderActionCTA()}
+            {(isTeacher || isAdmin) && !isCancelled && (
+              <div className="mt-3 flex flex-col gap-2">
+                {hostActions?.canDelete && (
+                  <button
+                    onClick={() => {
+                      if (window.confirm('Delete this session? This cannot be undone.')) {
+                        deleteMutation.mutate(id, { onSuccess: () => router.push('/community?tab=live-streams') });
+                      }
+                    }}
+                    className="w-full rounded-xl bg-white/10 px-4 py-2 text-xs font-semibold text-white ring-1 ring-white/20"
+                  >
+                    Delete
+                  </button>
+                )}
+                {hostActions?.canCancel && (
+                  <button
+                    onClick={() => setShowCancelModal(true)}
+                    className="w-full rounded-xl bg-red-500/20 px-4 py-2 text-xs font-semibold text-red-100 ring-1 ring-red-400/30"
+                  >
+                    Cancel Session
+                  </button>
+                )}
+              </div>
+            )}
+            {isCancelled && (isTeacher || isAdmin) && refundSummary && (
+              <p className="mt-3 text-xs text-white/70">
+                {refundSummary.paidParticipants} participants · {refundSummary.refundedCount} refunded · {refundSummary.pendingCount + refundSummary.processingCount} pending · {refundSummary.failedCount} failed
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -311,21 +385,25 @@ export default function LiveSessionDetailsPage() {
           {/* Access Status Card */}
           {!isTeacher && !isAdmin && (
             <div className={`flex items-start gap-4 rounded-2xl p-6 border ${
-              isPaidAndLocked ? "bg-amber-50 border-amber-200" : "bg-emerald-50 border-emerald-200"
+              isCancelled
+                ? "bg-red-50 border-red-200"
+                : isPaidAndLocked ? "bg-amber-50 border-amber-200" : "bg-emerald-50 border-emerald-200"
             }`}>
               <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${
-                isPaidAndLocked ? "bg-amber-100 text-amber-600" : "bg-emerald-100 text-emerald-600"
+                isCancelled ? "bg-red-100 text-red-600" : isPaidAndLocked ? "bg-amber-100 text-amber-600" : "bg-emerald-100 text-emerald-600"
               }`}>
                 {isPaidAndLocked ? <Lock className="h-6 w-6" /> : <CheckCircle2 className="h-6 w-6" />}
               </div>
               <div>
                 <h3 className={`font-['Lexend'] text-lg font-bold mb-1 ${
-                  isPaidAndLocked ? "text-amber-800" : "text-emerald-800"
+                  isCancelled ? "text-red-800" : isPaidAndLocked ? "text-amber-800" : "text-emerald-800"
                 }`}>
-                  {isPaidAndLocked ? "Registration Required" : "Access Granted"}
+                  {isCancelled ? "Session Cancelled" : isPaidAndLocked ? "Registration Required" : "Access Granted"}
                 </h3>
-                <p className={`text-sm ${isPaidAndLocked ? "text-amber-700/80" : "text-emerald-700/80"}`}>
-                  {isPaidAndLocked 
+                <p className={`text-sm ${isCancelled ? "text-red-700/80" : isPaidAndLocked ? "text-amber-700/80" : "text-emerald-700/80"}`}>
+                  {isCancelled
+                    ? (refundLabel() || "This live session will not take place.")
+                    : isPaidAndLocked 
                     ? "You must complete registration and payment to access this live session."
                     : "You are registered and have full access to this live session."}
                 </p>
@@ -395,11 +473,62 @@ export default function LiveSessionDetailsPage() {
                   </p>
                 </div>
               </div>
+
+              {/* ── MEETING PROVIDER ── */}
+              <div className="flex items-start gap-4">
+                <div className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-[#043658]">
+                  <Video className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Meeting Provider</p>
+                  {session.provider === 'GOOGLE_MEET' ? (
+                    <div className="mt-1 space-y-1">
+                      <p className="text-base font-semibold text-slate-700">Google Meet</p>
+                      {session.meetingUrl && (isTeacher || isAdmin || (!isPaidAndLocked && (isLive || isScheduled))) ? (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm text-slate-500 font-mono truncate max-w-[180px]">
+                            {(() => { try { return new URL(session.meetingUrl).host + new URL(session.meetingUrl).pathname; } catch { return session.meetingUrl; } })()}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(session.meetingUrl!).then(() => {
+                                alert('Meeting link copied');
+                              }).catch(() => {});
+                            }}
+                            className="text-xs text-[#043658] underline hover:no-underline"
+                          >
+                            Copy
+                          </button>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-slate-500">Available when session is live</p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="mt-1 text-base font-semibold text-slate-700">ServeLink LiveKit</p>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
       </div>
+      <CancelSessionModal
+        open={showCancelModal}
+        topic={session.topic}
+        paidParticipants={hostActions?.paidParticipants || refundSummary?.paidParticipants || 0}
+        totalCollected={hostActions?.totalCollected || refundSummary?.totalCollected || 0}
+        refundDisclaimer="Refunds are requested through Chapa and are only marked refunded after Chapa confirms them."
+        isPending={cancelMutation.isPending}
+        onKeep={() => setShowCancelModal(false)}
+        onConfirm={async () => {
+          await cancelMutation.mutateAsync(id);
+          setShowCancelModal(false);
+          refetch();
+        }}
+      />
     </div>
   );
 }

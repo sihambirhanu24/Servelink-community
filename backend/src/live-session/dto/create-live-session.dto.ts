@@ -1,4 +1,21 @@
-import { IsString, IsNotEmpty, IsDateString, IsInt, Min, IsOptional, IsBoolean, IsNumber } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsDateString,
+  IsInt,
+  Min,
+  IsOptional,
+  IsBoolean,
+  IsNumber,
+  IsEnum,
+  IsUrl,
+  ValidateIf,
+} from 'class-validator';
+
+export enum LiveSessionProviderDto {
+  LIVEKIT = 'LIVEKIT',
+  GOOGLE_MEET = 'GOOGLE_MEET',
+}
 
 export class CreateLiveSessionDto {
   @IsString()
@@ -33,10 +50,25 @@ export class CreateLiveSessionDto {
 
   @IsString()
   @IsOptional()
-  visibility?: any; // LiveSessionVisibility
+  visibility?: string; // LiveSessionVisibility
 
-  @IsString()
+  /**
+   * Which real-time communication provider to use.
+   * Defaults to LIVEKIT when omitted.
+   */
+  @IsEnum(LiveSessionProviderDto)
   @IsOptional()
-  restreamUrl?: string;
-}
+  provider?: LiveSessionProviderDto;
 
+  /**
+   * Required when provider = GOOGLE_MEET.
+   * Must be a valid https://meet.google.com/... URL.
+   * Must be absent (or null) when provider = LIVEKIT.
+   */
+  @ValidateIf((o) => o.provider === LiveSessionProviderDto.GOOGLE_MEET)
+  @IsNotEmpty({
+    message: 'Google Meet link is required when provider is GOOGLE_MEET.',
+  })
+  @IsString()
+  meetingUrl?: string;
+}
