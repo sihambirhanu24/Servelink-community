@@ -9,6 +9,9 @@ import { useAuth } from "@/context/AuthContext";
 import api from "@/lib/axios";
 import { toast } from "sonner";
 import { CreateLiveSessionModal } from "@/components/live-sessions/CreateLiveSessionModal";
+import { CancelSessionModal } from "@/components/live-sessions/CancelSessionModal";
+import { getSessionStatus } from "@/hooks/useSessionStatus";
+import { useCancelLiveSession, useDeleteLiveSession } from "@/services/live-sessions";
 
 export function LiveStreamsTab() {
   const router = useRouter();
@@ -18,6 +21,9 @@ export function LiveStreamsTab() {
   const [filter, setFilter] = useState("all");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [mySessionsTab, setMySessionsTab] = useState<"upcoming" | "live" | "completed">("upcoming");
+  const [cancelTarget, setCancelTarget] = useState<Session | null>(null);
+  const cancelMutation = useCancelLiveSession();
+  const deleteMutation = useDeleteLiveSession();
 
   const { data: sessions = [], isLoading, isError, error, refetch } = useQuery<Session[], any>({
     queryKey: ["discoverable-live-sessions"],
@@ -28,8 +34,13 @@ export function LiveStreamsTab() {
     refetchInterval: 30000,
   });
 
-  const handleJoin = (id: string) => {
-    router.push(`/live-sessions/${id}`);
+  const handleJoin = (session: { id: string; teacherId?: string; teacher?: { id?: string }; scheduledStart: string; duration: number }) => {
+    const isHost = session.teacher?.id === user?.id || session.teacherId === user?.id;
+    if (isHost) {
+      router.push(`/live-sessions/${session.id}/studio`);
+      return;
+    }
+    router.push(`/live-sessions/${session.id}`);
   };
 
   const handleRemind = (id: string) => {
@@ -45,20 +56,26 @@ export function LiveStreamsTab() {
     }
     if (filter === "free" && s.isPaid) return false;
     if (filter === "paid" && !s.isPaid) return false;
-    if (filter === "live now" && s.status !== "LIVE") return false;
-    if (filter === "upcoming" && s.status !== "REQUESTED" && s.status !== "APPROVED") return false;
-    if (filter === "past" && s.status !== "COMPLETED") return false;
+    
+    // Use real-time status for filtering
+    const realTimeStatus = getSessionStatus(s.scheduledStart, s.duration);
+    
+    if (filter === "live now" && realTimeStatus !== "LIVE") return false;
+    if (filter === "upcoming" && realTimeStatus !== "UPCOMING") return false;
+    if (filter === "past" && realTimeStatus !== "ENDED") return false;
+    
     return true;
   });
 
-  const liveNow = filteredSessions.filter(s => s.status === "LIVE");
-  const upcoming = filteredSessions.filter(s => s.status === "REQUESTED" || s.status === "APPROVED");
-  const past = filteredSessions.filter(s => s.status === "COMPLETED");
+  // Use real-time status for section grouping
+  const liveNow = filteredSessions.filter(s => getSessionStatus(s.scheduledStart, s.duration) === "LIVE");
+  const upcoming = filteredSessions.filter(s => getSessionStatus(s.scheduledStart, s.duration) === "UPCOMING");
+  const past = filteredSessions.filter(s => getSessionStatus(s.scheduledStart, s.duration) === "ENDED");
 
   const mySessions = filteredSessions.filter(s => s.teacher?.id === user?.id);
-  const myLive = mySessions.filter(s => s.status === "LIVE");
-  const myUpcoming = mySessions.filter(s => s.status === "REQUESTED" || s.status === "APPROVED");
-  const myCompleted = mySessions.filter(s => s.status === "COMPLETED");
+  const myLive = mySessions.filter(s => getSessionStatus(s.scheduledStart, s.duration) === "LIVE");
+  const myUpcoming = mySessions.filter(s => getSessionStatus(s.scheduledStart, s.duration) === "UPCOMING");
+  const myCompleted = mySessions.filter(s => getSessionStatus(s.scheduledStart, s.duration) === "ENDED");
   
   const displayMySessions = mySessionsTab === "upcoming" ? myUpcoming : mySessionsTab === "live" ? myLive : myCompleted;
 
@@ -191,8 +208,8 @@ export function LiveStreamsTab() {
                 <LiveSessionCard 
                   key={session.id} 
                   session={session} 
-                  onJoin={() => handleJoin(session.id)}
-                  onRegister={() => handleJoin(session.id)}
+                  onJoin={() => handleJoin(session)}
+                  onRegister={() => handleJoin(session)}
                 />
               ))}
             </div>
@@ -223,9 +240,9 @@ export function LiveStreamsTab() {
                 <LiveSessionCard 
                   key={session.id} 
                   session={session} 
-                  onJoin={() => handleJoin(session.id)}
+                  onJoin={() => handleJoin(session)}
                   onRemind={() => handleRemind(session.id)}
-                  onRegister={() => handleJoin(session.id)}
+                  onRegister={() => handleJoin(session)}
                 />
               ))}
             </div>
@@ -291,7 +308,13 @@ export function LiveStreamsTab() {
                 key={session.id} 
                 session={session} 
                 isOwner
-                onJoin={() => handleJoin(session.id)}
+                onJoin={() => handleJoin(session)}
+                onCancel={() => setCancelTarget(session)}
+                onDelete={() => {
+                  if (window.confirm('Delete this session? This cannot be undone.')) {
+                    deleteMutation.mutate(session.id);
+                  }
+                }}
               />
             ))}
           </div>
@@ -301,6 +324,23 @@ export function LiveStreamsTab() {
           </div>
         )}
       </section>
+
+      {cancelTarget && (
+        <CancelSessionModal
+          open={!!cancelTarget}
+          topic={cancelTarget.topic}
+          paidParticipants={cancelTarget.hostActions?.paidParticipants || 0}
+          totalCollected={cancelTarget.hostActions?.totalCollected || 0}
+          refundDisclaimer="Refunds are requested through Chapa and are only marked refunded after Chapa confirms them."
+          isPending={cancelMutation.isPending}
+          onKeep={() => setCancelTarget(null)}
+          onConfirm={async () => {
+            await cancelMutation.mutateAsync(cancelTarget.id);
+            setCancelTarget(null);
+            refetch();
+          }}
+        />
+      )}
 
       {/* Modal */}
       {isCreateModalOpen && (

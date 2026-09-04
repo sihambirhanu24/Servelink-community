@@ -7,7 +7,6 @@ import {
   Globe,
   Users,
   MessageCircle,
-  PenSquare,
   MapPin,
 } from 'lucide-react';
 import type { CommunityTypeData } from '@/services/community';
@@ -112,14 +111,6 @@ export function CommunityTypeHeader({ community, type }: Props) {
           <span className="hidden sm:inline">{chatLabel}</span>
           <span className="sm:hidden">Chat</span>
         </button>
-        <button
-          type="button"
-          onClick={() => handleProtectedAction(() => router.push('/posts'))}
-          className="flex items-center gap-1.5 rounded-lg bg-[#043658] px-3 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[#043658]/30"
-        >
-          <PenSquare className="h-3.5 w-3.5" />
-          <span>Create Post</span>
-        </button>
       </div>
     </div>
   );
@@ -137,7 +128,6 @@ export function CommunityTypeHeaderSkeleton() {
       </div>
       <div className="flex gap-2">
         <div className="h-8 w-28 rounded-lg bg-slate-200" />
-        <div className="h-8 w-24 rounded-lg bg-slate-200" />
       </div>
     </div>
   );

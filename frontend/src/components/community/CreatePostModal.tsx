@@ -4,12 +4,13 @@ import { useState, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   X, HelpCircle, MessageCircle, FileText, Loader2, Paperclip, Globe,
-  School, MapPin, Building2, Flag, Trophy,
+  School, MapPin, Building2, Flag, Trophy, Image as ImageIcon, Video, FileUp,
 } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/axios";
 import { getCategories } from "@/services/community";
 import { createPostByType, type CommunityTypeKey } from "@/services/community";
+import { RichTextEditor } from "@/components/common/RichTextEditor";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -121,6 +122,7 @@ export function CreatePostModal({
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
 
   const { data: categories = [] } = useQuery({
     queryKey: ["categories"],
@@ -174,6 +176,7 @@ export function CreatePostModal({
     setDescription("");
     setCategoryId("");
     setAttachedFile(null);
+    setFilePreviewUrl(null);
     setPostType(defaultType);
   }
 
@@ -185,8 +188,46 @@ export function CreatePostModal({
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     if (!f) return;
-    if (f.size > 10 * 1024 * 1024) { toast.error("File must be under 10 MB"); return; }
+
+    // Validate file type
+    const isImage = f.type.startsWith("image/");
+    const isVideo = f.type.startsWith("video/");
+    const isPDF = f.type === "application/pdf";
+    const isDoc = f.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || 
+                  f.type === "application/msword";
+
+    if (!isImage && !isVideo && !isPDF && !isDoc) {
+      toast.error("Unsupported file type. Please upload an image, video, PDF, or DOCX file.");
+      e.target.value = "";
+      return;
+    }
+
+    // Validate video format specifically
+    if (isVideo && !["video/mp4", "video/webm", "video/quicktime"].includes(f.type)) {
+      toast.error("Video must be MP4, WebM, or MOV format.");
+      e.target.value = "";
+      return;
+    }
+
+    // Size limits: 50MB for video, 10MB for others
+    const maxSize = isVideo ? 50 * 1024 * 1024 : 10 * 1024 * 1024;
+    if (f.size > maxSize) {
+      const maxMB = isVideo ? 50 : 10;
+      toast.error(`File must be under ${maxMB} MB`);
+      e.target.value = "";
+      return;
+    }
+
     setAttachedFile(f);
+
+    // Create preview for images and videos
+    if (isImage || isVideo) {
+      const url = URL.createObjectURL(f);
+      setFilePreviewUrl(url);
+    } else {
+      setFilePreviewUrl(null);
+    }
+
     e.target.value = "";
   }
 
@@ -277,12 +318,11 @@ export function CreatePostModal({
                postType === "RESOURCE" ? "Description" : "Content"}{" "}
               <span className="text-red-500">*</span>
             </label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={5}
+            <RichTextEditor
+              content={description}
+              onChange={setDescription}
               placeholder={ptCfg.descPlaceholder}
-              className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-800 focus:border-[#043658] focus:outline-none focus:ring-1 focus:ring-[#043658]/20"
+              className="min-h-[140px]"
             />
           </div>
 
@@ -310,37 +350,107 @@ export function CreatePostModal({
             <label className="mb-1 block text-xs font-semibold text-slate-700">
               Attachment{" "}
               <span className="font-normal text-slate-400">
-                (optional — image, PDF, DOCX, video)
+                (optional)
               </span>
             </label>
+            
             {attachedFile ? (
-              <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                <Paperclip className="h-4 w-4 text-slate-400" />
-                <span className="flex-1 truncate text-xs text-slate-700">
-                  {attachedFile.name}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setAttachedFile(null)}
-                  className="text-slate-400 hover:text-red-500"
-                >
-                  <X className="h-4 w-4" />
-                </button>
+              <div className="space-y-2">
+                {/* Preview */}
+                {filePreviewUrl && attachedFile.type.startsWith("image/") && (
+                  <div className="relative overflow-hidden rounded-lg border border-slate-200">
+                    <img
+                      src={filePreviewUrl}
+                      alt="Preview"
+                      className="h-auto w-full max-h-64 object-contain"
+                    />
+                  </div>
+                )}
+
+                {filePreviewUrl && attachedFile.type.startsWith("video/") && (
+                  <div className="relative overflow-hidden rounded-lg border border-slate-200">
+                    <video
+                      src={filePreviewUrl}
+                      controls
+                      className="h-auto w-full max-h-64 rounded-lg"
+                    />
+                  </div>
+                )}
+
+                {/* File info */}
+                <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                  <Paperclip className="h-4 w-4 text-slate-400" />
+                  <div className="flex-1 min-w-0">
+                    <p className="truncate text-xs font-medium text-slate-700">
+                      {attachedFile.name}
+                    </p>
+                    <p className="text-[10px] text-slate-500">
+                      {(attachedFile.size / 1024 / 1024).toFixed(2)} MB
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAttachedFile(null);
+                      setFilePreviewUrl(null);
+                    }}
+                    className="text-slate-400 hover:text-red-500"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 bg-slate-50 py-3 text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors"
-              >
-                <Paperclip className="h-4 w-4" />
-                Click to attach a file (max 10 MB)
-              </button>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const input = fileRef.current;
+                    if (input) {
+                      input.accept = "image/*";
+                      input.click();
+                    }
+                  }}
+                  className="flex flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-slate-300 bg-slate-50 py-3 text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors"
+                >
+                  <ImageIcon className="h-4 w-4" />
+                  Image
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const input = fileRef.current;
+                    if (input) {
+                      input.accept = "video/mp4,video/webm,video/quicktime";
+                      input.click();
+                    }
+                  }}
+                  className="flex flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-slate-300 bg-slate-50 py-3 text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors"
+                >
+                  <Video className="h-4 w-4" />
+                  Video
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const input = fileRef.current;
+                    if (input) {
+                      input.accept = ".pdf,.docx,.doc";
+                      input.click();
+                    }
+                  }}
+                  className="flex flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-slate-300 bg-slate-50 py-3 text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors"
+                >
+                  <FileUp className="h-4 w-4" />
+                  Document
+                </button>
+              </div>
             )}
             <input
               ref={fileRef}
               type="file"
-              accept="image/*,.pdf,.docx,.doc,video/*"
               className="hidden"
               onChange={handleFileChange}
             />

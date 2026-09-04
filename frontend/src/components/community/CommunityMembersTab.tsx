@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Search, BadgeCheck, Users, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Avatar } from '@/components/common/Avatar';
 import type { CommunityTypeMemberRow } from '@/services/community';
@@ -45,6 +46,7 @@ export function CommunityMembersTab({
   search,
   setSearch
 }: Props) {
+  const router = useRouter();
   const members = membersData?.data ?? [];
   const meta = membersData?.meta;
 
@@ -105,9 +107,10 @@ export function CommunityMembersTab({
             {members.map((m) => {
               const name = `${m.teacher.firstName} ${m.teacher.lastName}`.trim();
               return (
-                <div
+                <button
                   key={m.id}
-                  className="flex items-center gap-3 rounded-xl border border-slate-100 bg-white p-3 transition-shadow hover:shadow-sm"
+                  onClick={() => router.push(`/profile/${m.teacher.id}`)}
+                  className="flex items-center gap-3 rounded-xl border border-slate-100 bg-white p-3 text-left transition-all hover:shadow-md hover:border-[#043658]/20 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#043658]/30"
                 >
                   <Avatar
                     name={name}
@@ -129,7 +132,7 @@ export function CommunityMembersTab({
                   <span className="shrink-0 rounded-full bg-[#043658]/8 px-2 py-0.5 text-[10px] font-semibold text-[#043658]">
                     {LEVEL_LABEL[m.teacher.level] ?? m.teacher.level}
                   </span>
-                </div>
+                </button>
               );
             })}
           </div>
