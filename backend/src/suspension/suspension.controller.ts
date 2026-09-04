@@ -1,11 +1,19 @@
-import { Controller, Post, Get, Body, Param, UseGuards, Query } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
+import { AllowSuspended } from '../auth/decorators/allow-suspended.decorator';
 import { SuspensionService } from './suspension.service';
-import { SuspendTeacherDto } from './dto/suspend-teacher.dto';
+import {
+  ExtendSuspensionDto,
+  SuspendTeacherDto,
+  UnsuspendTeacherDto,
+} from './dto/suspend-teacher.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 @Controller('admin/suspension')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('ADMIN')
 export class SuspensionController {
   constructor(private readonly suspensionService: SuspensionService) {}
 
@@ -14,15 +22,13 @@ export class SuspensionController {
    * Suspend a teacher
    */
   @Post('suspend')
-  async suspendTeacher(@CurrentUser() user: any, @Body() dto: SuspendTeacherDto) {
-    // Only admins can suspend teachers
-    if (!user.isAdmin) {
-      throw new Error('Unauthorized: Admin access required');
-    }
-
+  async suspendTeacher(
+    @CurrentUser() user: any,
+    @Body() dto: SuspendTeacherDto,
+  ) {
     return this.suspensionService.suspendTeacher({
       teacherId: dto.teacherId,
-      suspensionType: dto.suspensionType as any,
+      suspensionType: dto.suspensionType,
       reason: dto.reason,
       duration: dto.duration,
       adminId: user.sub || user.id,
@@ -38,16 +44,12 @@ export class SuspensionController {
   async unsuspendTeacher(
     @CurrentUser() user: any,
     @Param('teacherId') teacherId: string,
-    @Body() body: { reason?: string },
+    @Body() body: UnsuspendTeacherDto,
   ) {
-    if (!user.isAdmin) {
-      throw new Error('Unauthorized: Admin access required');
-    }
-
     return this.suspensionService.unsuspendTeacher({
       teacherId,
       adminId: user.sub || user.id,
-      reason: body.reason,
+      reason: body?.reason,
     });
   }
 
@@ -59,12 +61,8 @@ export class SuspensionController {
   async extendSuspension(
     @CurrentUser() user: any,
     @Param('teacherId') teacherId: string,
-    @Body() body: { days: number; reason: string },
+    @Body() body: ExtendSuspensionDto,
   ) {
-    if (!user.isAdmin) {
-      throw new Error('Unauthorized: Admin access required');
-    }
-
     return this.suspensionService.extendSuspension(
       teacherId,
       body.days,
@@ -93,10 +91,13 @@ export class SuspensionController {
 }
 
 /**
- * Teacher-accessible suspension endpoints
+ * Teacher-accessible suspension endpoints.
+ * Marked @AllowSuspended: a suspended teacher must be able to read why they
+ * are suspended (this is what the "Account Suspended" screen renders).
  */
 @Controller('suspension')
 @UseGuards(JwtAuthGuard)
+@AllowSuspended()
 export class TeacherSuspensionController {
   constructor(private readonly suspensionService: SuspensionService) {}
 

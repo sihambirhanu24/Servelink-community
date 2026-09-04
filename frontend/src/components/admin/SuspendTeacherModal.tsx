@@ -2,18 +2,21 @@
 
 import { useState } from 'react';
 import { AlertTriangle, X, Clock, Ban } from 'lucide-react';
-import axios from 'axios';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+import { suspendTeacher } from '@/services/admin';
+import { getErrorMessage } from '@/lib/error-message';
+import type { SuspensionType, Teacher } from '@/types/admin';
 
 interface SuspendTeacherModalProps {
   isOpen: boolean;
   onClose: () => void;
   teacherId: string;
   teacherName: string;
-  onSuccess: () => void;
+  /** Receives the updated teacher returned by the backend. */
+  onSuccess: (teacher: Teacher, suspensionType: SuspensionType) => void;
   reportId?: string;
 }
+
+const DURATION_PRESETS = [1, 3, 7, 14, 30];
 
 export default function SuspendTeacherModal({
   isOpen,
@@ -23,58 +26,60 @@ export default function SuspendTeacherModal({
   onSuccess,
   reportId,
 }: SuspendTeacherModalProps) {
-  const [suspensionType, setSuspensionType] = useState<'WARNING' | 'TEMPORARY' | 'PERMANENT'>('TEMPORARY');
+  const [suspensionType, setSuspensionType] = useState<SuspensionType>('TEMPORARY');
   const [duration, setDuration] = useState<number>(7);
   const [reason, setReason] = useState('');
-  const [adminNotes, setAdminNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
+  const resetForm = () => {
+    setSuspensionType('TEMPORARY');
+    setDuration(7);
+    setReason('');
+    setError(null);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     setError(null);
 
-    if (!reason.trim()) {
-      setError('Please provide a reason for the suspension');
+    if (reason.trim().length < 3) {
+      setError('Please provide a reason for the suspension (at least 3 characters)');
       return;
     }
 
-    if (suspensionType === 'TEMPORARY' && (!duration || duration < 1)) {
-      setError('Please provide a valid duration');
+    if (suspensionType === 'TEMPORARY' && (!duration || duration < 1 || duration > 365)) {
+      setError('Please provide a duration between 1 and 365 days');
       return;
     }
 
     setLoading(true);
 
     try {
-      const token = localStorage.getItem('admin_token');
-      await axios.post(
-        `${API_URL}/admin/suspension/suspend`,
-        {
-          teacherId,
-          suspensionType,
-          reason,
-          duration: suspensionType === 'TEMPORARY' ? duration : undefined,
-          reportId,
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const updated = await suspendTeacher(teacherId, {
+        suspensionType,
+        reason: reason.trim(),
+        durationDays: suspensionType === 'TEMPORARY' ? duration : undefined,
+        reportId,
+      });
 
-      onSuccess();
+      onSuccess(updated, suspensionType);
+      resetForm();
       onClose();
-      // Reset form
-      setSuspensionType('TEMPORARY');
-      setDuration(7);
-      setReason('');
-      setAdminNotes('');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to suspend teacher');
+    } catch (err) {
+      setError(getErrorMessage(err, 'Failed to suspend teacher'));
     } finally {
       setLoading(false);
     }
   };
+
+  const submitLabel =
+    suspensionType === 'WARNING' ? 'Send Warning' : 'Suspend Teacher';
+  const loadingLabel =
+    suspensionType === 'WARNING' ? 'Sending...' : 'Suspending...';
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
@@ -92,8 +97,11 @@ export default function SuspendTeacherModal({
               </div>
             </div>
             <button
+              type="button"
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
+              disabled={loading}
+              className="text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50"
+              aria-label="Close"
             >
               <X className="w-6 h-6" />
             </button>
@@ -118,7 +126,7 @@ export default function SuspendTeacherModal({
                 }`}
               >
                 <div className="flex flex-col items-center gap-2">
-                  <Clock className="w-6 h-6 text-yellow-600" />
+                  <AlertTriangle className="w-6 h-6 text-yellow-600" />
                   <span className="text-sm font-medium">Warning</span>
                 </div>
               </button>
@@ -157,8 +165,24 @@ export default function SuspendTeacherModal({
           {suspensionType === 'TEMPORARY' && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Suspension Duration (days)
+                Suspension Duration
               </label>
+              <div className="flex flex-wrap gap-2 mb-3">
+                {DURATION_PRESETS.map((days) => (
+                  <button
+                    key={days}
+                    type="button"
+                    onClick={() => setDuration(days)}
+                    className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                      duration === days
+                        ? 'border-orange-500 bg-orange-50 text-orange-800'
+                        : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                    }`}
+                  >
+                    {days} day{days !== 1 ? 's' : ''}
+                  </button>
+                ))}
+              </div>
               <input
                 type="number"
                 min="1"
@@ -169,7 +193,7 @@ export default function SuspendTeacherModal({
                 placeholder="Enter number of days"
               />
               <p className="mt-1 text-sm text-gray-500">
-                The suspension will expire after {duration} day{duration !== 1 ? 's' : ''}.
+                Access is restored automatically after {duration} day{duration !== 1 ? 's' : ''}.
               </p>
             </div>
           )}
@@ -177,42 +201,51 @@ export default function SuspendTeacherModal({
           {/* Reason */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Suspension Reason <span className="text-red-500">*</span>
+              Reason <span className="text-red-500">*</span>
             </label>
             <textarea
               required
               rows={3}
+              maxLength={500}
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FFC107] focus:border-transparent"
-              placeholder="Provide a clear reason for the suspension..."
-            />
-          </div>
-
-          {/* Admin Notes */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Admin Notes (Optional)
-            </label>
-            <textarea
-              rows={2}
-              value={adminNotes}
-              onChange={(e) => setAdminNotes(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FFC107] focus:border-transparent"
-              placeholder="Additional notes for internal reference..."
+              placeholder="Provide a clear reason. The teacher will see this."
             />
           </div>
 
           {/* Warning */}
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <div
+            className={`rounded-lg border p-4 ${
+              suspensionType === 'WARNING'
+                ? 'bg-yellow-50 border-yellow-200'
+                : 'bg-red-50 border-red-200'
+            }`}
+          >
             <div className="flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5" />
+              <AlertTriangle
+                className={`w-5 h-5 mt-0.5 ${
+                  suspensionType === 'WARNING' ? 'text-yellow-600' : 'text-red-600'
+                }`}
+              />
               <div>
-                <h4 className="font-semibold text-red-900">Important</h4>
-                <p className="text-sm text-red-700 mt-1">
-                  {suspensionType === 'PERMANENT'
-                    ? 'Permanent suspensions cannot be automatically lifted. Only an authorized admin can restore the account.'
-                    : 'The teacher will be notified of the suspension and can submit an appeal.'}
+                <h4
+                  className={`font-semibold ${
+                    suspensionType === 'WARNING' ? 'text-yellow-900' : 'text-red-900'
+                  }`}
+                >
+                  Important
+                </h4>
+                <p
+                  className={`text-sm mt-1 ${
+                    suspensionType === 'WARNING' ? 'text-yellow-800' : 'text-red-700'
+                  }`}
+                >
+                  {suspensionType === 'WARNING'
+                    ? 'A warning is recorded in the suspension history and the teacher is notified. It does not restrict access.'
+                    : suspensionType === 'PERMANENT'
+                      ? 'This teacher will immediately lose access to protected ServeLink features. Permanent suspensions are never lifted automatically; only an admin can restore the account.'
+                      : 'This teacher will immediately lose access to protected ServeLink features, including any session they are currently signed in to. They will be notified and can submit an appeal.'}
                 </p>
               </div>
             </div>
@@ -220,7 +253,7 @@ export default function SuspendTeacherModal({
 
           {/* Error */}
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-800 text-sm">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-800 text-sm" role="alert">
               {error}
             </div>
           )}
@@ -238,9 +271,13 @@ export default function SuspendTeacherModal({
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className={`flex-1 text-white font-semibold py-3 px-6 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                suspensionType === 'WARNING'
+                  ? 'bg-yellow-600 hover:bg-yellow-700'
+                  : 'bg-red-600 hover:bg-red-700'
+              }`}
             >
-              {loading ? 'Suspending...' : 'Suspend Teacher'}
+              {loading ? loadingLabel : submitLabel}
             </button>
           </div>
         </form>

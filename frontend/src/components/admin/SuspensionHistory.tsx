@@ -1,22 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Clock, Ban, CheckCircle, XCircle, AlertTriangle, X } from 'lucide-react';
-import axios from 'axios';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-
-interface SuspensionHistoryItem {
-  id: string;
-  suspensionType: 'WARNING' | 'TEMPORARY' | 'PERMANENT';
-  reason: string;
-  suspendedBy: string;
-  suspendedAt: string;
-  suspendedUntil: string | null;
-  restoredAt: string | null;
-  restoredBy: string | null;
-  reportId: string | null;
-}
+import { useQuery } from '@tanstack/react-query';
+import { Clock, Ban, AlertTriangle, X, ShieldCheck } from 'lucide-react';
+import { getTeacherSuspensionHistory } from '@/services/admin';
+import { getErrorMessage } from '@/lib/error-message';
+import type { SuspensionHistoryItem } from '@/types/admin';
 
 interface SuspensionHistoryProps {
   teacherId: string;
@@ -25,86 +13,84 @@ interface SuspensionHistoryProps {
   onClose: () => void;
 }
 
-export default function SuspensionHistory({
-  teacherId,
-  teacherName,
-  isOpen,
-  onClose,
-}: SuspensionHistoryProps) {
-  const [history, setHistory] = useState<SuspensionHistoryItem[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+export const suspensionHistoryQueryKey = (teacherId: string) => ['teacher-suspension-history', teacherId] as const;
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchSuspensionHistory();
-    }
-  }, [isOpen, teacherId]);
+const TYPE_STYLES: Record<SuspensionHistoryItem['suspensionType'], { className: string; icon: React.ReactNode; label: string }> = {
+  WARNING: {
+    className: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+    icon: <AlertTriangle className="w-3.5 h-3.5" />,
+    label: 'Warning',
+  },
+  TEMPORARY: {
+    className: 'bg-orange-100 text-orange-800 border-orange-200',
+    icon: <Clock className="w-3.5 h-3.5" />,
+    label: 'Temporary',
+  },
+  PERMANENT: {
+    className: 'bg-red-100 text-red-800 border-red-200',
+    icon: <Ban className="w-3.5 h-3.5" />,
+    label: 'Permanent',
+  },
+};
 
-  const fetchSuspensionHistory = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const token = localStorage.getItem('admin_token');
-      const response = await axios.get(
-        `${API_URL}/admin/suspension/${teacherId}/history`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      setHistory(response.data);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to load suspension history');
-    } finally {
-      setLoading(false);
-    }
-  };
+const STATUS_STYLES: Record<SuspensionHistoryItem['status'], { className: string; label: string }> = {
+  ACTIVE: { className: 'bg-red-50 text-red-700 border-red-200', label: 'Active' },
+  COMPLETED: { className: 'bg-green-50 text-green-700 border-green-200', label: 'Completed' },
+  WARNING: { className: 'bg-yellow-50 text-yellow-800 border-yellow-200', label: 'Warning' },
+};
 
-  const getSuspensionTypeBadge = (type: string) => {
-    const styles = {
-      WARNING: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-      TEMPORARY: 'bg-orange-100 text-orange-800 border-orange-200',
-      PERMANENT: 'bg-red-100 text-red-800 border-red-200',
-    };
+const formatDate = (value: string | null) => {
+  if (!value) return '—';
+  return new Date(value).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+};
 
-    const icons = {
-      WARNING: <AlertTriangle className="w-4 h-4" />,
-      TEMPORARY: <Clock className="w-4 h-4" />,
-      PERMANENT: <Ban className="w-4 h-4" />,
-    };
+const formatDateTime = (value: string | null) => {
+  if (!value) return '—';
+  return new Date(value).toLocaleString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
 
-    return (
-      <span
-        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border ${styles[type as keyof typeof styles]}`}
-      >
-        {icons[type as keyof typeof icons]}
-        {type}
-      </span>
-    );
-  };
+/**
+ * Duration of the suspension: scheduled length for temporary suspensions,
+ * actual served time when lifted early, "Permanent" when open-ended.
+ */
+const getDuration = (item: SuspensionHistoryItem) => {
+  if (item.suspensionType === 'WARNING') return '—';
+  const start = new Date(item.suspendedAt).getTime();
+  const end = item.restoredAt
+    ? new Date(item.restoredAt).getTime()
+    : item.suspendedUntil
+      ? new Date(item.suspendedUntil).getTime()
+      : null;
+  if (end === null) return 'Permanent';
+  const hours = Math.max(0, Math.round((end - start) / (1000 * 60 * 60)));
+  if (hours < 24) return hours <= 1 ? '< 1 hour' : `${hours} hours`;
+  const days = Math.round(hours / 24);
+  return `${days} day${days !== 1 ? 's' : ''}`;
+};
 
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
-  const getDuration = (suspendedAt: string, suspendedUntil: string | null) => {
-    if (!suspendedUntil) return 'Permanent';
-    const start = new Date(suspendedAt);
-    const end = new Date(suspendedUntil);
-    const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-    return `${days} day${days !== 1 ? 's' : ''}`;
-  };
+export default function SuspensionHistory({ teacherId, teacherName, isOpen, onClose }: SuspensionHistoryProps) {
+  const { data: history = [], isLoading, error } = useQuery({
+    queryKey: suspensionHistoryQueryKey(teacherId),
+    queryFn: () => getTeacherSuspensionHistory(teacherId),
+    enabled: isOpen && !!teacherId,
+  });
 
   if (!isOpen) return null;
 
+  const errorMessage = error ? getErrorMessage(error, 'Failed to load suspension history') : null;
+
+  const suspensionCount = history.filter((h) => h.suspensionType !== 'WARNING').length;
+  const warningCount = history.length - suspensionCount;
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-lg max-w-5xl w-full max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="p-6 border-b border-gray-200">
           <div className="flex items-center justify-between">
@@ -113,8 +99,10 @@ export default function SuspensionHistory({
               <p className="text-sm text-gray-500 mt-1">{teacherName}</p>
             </div>
             <button
+              type="button"
               onClick={onClose}
               className="text-gray-400 hover:text-gray-600 transition-colors"
+              aria-label="Close"
             >
               <X className="w-6 h-6" />
             </button>
@@ -122,111 +110,96 @@ export default function SuspensionHistory({
         </div>
 
         {/* Content */}
-        <div className="p-6">
-          {loading ? (
+        <div className="p-6 overflow-y-auto">
+          {isLoading ? (
             <div className="flex items-center justify-center h-48">
               <div className="text-gray-600">Loading suspension history...</div>
             </div>
-          ) : error ? (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-800">
-              {error}
-            </div>
+          ) : errorMessage ? (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-800">{errorMessage}</div>
           ) : history.length === 0 ? (
             <div className="text-center py-12">
-              <Clock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <ShieldCheck className="w-12 h-12 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">No Suspension History</h3>
-              <p className="text-gray-500">This teacher has no previous suspensions.</p>
+              <p className="text-gray-500">This teacher has never been warned or suspended.</p>
             </div>
           ) : (
-            <div className="space-y-4">
-              {history.map((item) => (
-                <div
-                  key={item.id}
-                  className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 space-y-3">
-                      {/* Header */}
-                      <div className="flex items-center gap-3">
-                        {getSuspensionTypeBadge(item.suspensionType)}
-                        <span className="text-sm text-gray-500">
+            <div className="overflow-x-auto rounded-lg border border-gray-200">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50">
+                  <tr className="text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    <th className="px-4 py-3">Admin</th>
+                    <th className="px-4 py-3">Type</th>
+                    <th className="px-4 py-3">Reason</th>
+                    <th className="px-4 py-3">Started</th>
+                    <th className="px-4 py-3">Ended</th>
+                    <th className="px-4 py-3">Duration</th>
+                    <th className="px-4 py-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {history.map((item) => {
+                    const type = TYPE_STYLES[item.suspensionType];
+                    const status = STATUS_STYLES[item.status];
+                    return (
+                      <tr key={item.id} className="align-top hover:bg-gray-50">
+                        <td className="px-4 py-3">
+                          <p className="font-medium text-gray-900">{item.suspendedByName ?? 'Admin'}</p>
+                          {item.restoredBy && item.restoredByName && item.suspensionType !== 'WARNING' && (
+                            <p className="text-xs text-gray-500 mt-0.5">Lifted by {item.restoredByName}</p>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${type.className}`}
+                          >
+                            {type.icon}
+                            {type.label}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 max-w-xs">
+                          <p className="text-gray-800 whitespace-pre-wrap break-words">{item.reason}</p>
+                          {item.reportId && (
+                            <p className="text-xs text-gray-500 mt-1">Report: {item.reportId}</p>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-gray-700 whitespace-nowrap" title={formatDateTime(item.suspendedAt)}>
                           {formatDate(item.suspendedAt)}
-                        </span>
-                        {item.restoredAt ? (
-                          <span className="inline-flex items-center gap-1 text-xs text-green-600">
-                            <CheckCircle className="w-3 h-3" />
-                            Restored
+                        </td>
+                        <td className="px-4 py-3 text-gray-700 whitespace-nowrap" title={formatDateTime(item.endedAt)}>
+                          {item.suspensionType === 'WARNING'
+                            ? '—'
+                            : item.endedAt
+                              ? formatDate(item.endedAt)
+                              : 'Permanent'}
+                        </td>
+                        <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{getDuration(item)}</td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${status.className}`}
+                          >
+                            {status.label}
                           </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-xs text-red-600">
-                            <XCircle className="w-3 h-3" />
-                            Active
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Reason */}
-                      <div>
-                        <h4 className="font-medium text-gray-900">Reason</h4>
-                        <p className="text-sm text-gray-600 mt-1">{item.reason}</p>
-                      </div>
-
-                      {/* Details */}
-                      <div className="grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <span className="text-gray-500">Duration:</span>
-                          <span className="ml-2 font-medium text-gray-900">
-                            {getDuration(item.suspendedAt, item.suspendedUntil)}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-gray-500">Suspended By:</span>
-                          <span className="ml-2 font-medium text-gray-900">{item.suspendedBy}</span>
-                        </div>
-                        {item.suspendedUntil && (
-                          <div>
-                            <span className="text-gray-500">Suspended Until:</span>
-                            <span className="ml-2 font-medium text-gray-900">
-                              {formatDate(item.suspendedUntil)}
-                            </span>
-                          </div>
-                        )}
-                        {item.restoredAt && (
-                          <div>
-                            <span className="text-gray-500">Restored At:</span>
-                            <span className="ml-2 font-medium text-gray-900">
-                              {formatDate(item.restoredAt)}
-                            </span>
-                          </div>
-                        )}
-                        {item.restoredBy && (
-                          <div>
-                            <span className="text-gray-500">Restored By:</span>
-                            <span className="ml-2 font-medium text-gray-900">{item.restoredBy}</span>
-                          </div>
-                        )}
-                        {item.reportId && (
-                          <div>
-                            <span className="text-gray-500">Related Report:</span>
-                            <span className="ml-2 font-medium text-gray-900">{item.reportId}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="p-6 border-t border-gray-200 bg-gray-50">
+        <div className="p-6 border-t border-gray-200 bg-gray-50 mt-auto">
           <div className="flex justify-between items-center">
             <p className="text-sm text-gray-500">
-              Total suspensions: <span className="font-medium text-gray-900">{history.length}</span>
+              Suspensions: <span className="font-medium text-gray-900">{suspensionCount}</span>
+              <span className="mx-2 text-gray-300">|</span>
+              Warnings: <span className="font-medium text-gray-900">{warningCount}</span>
             </p>
             <button
+              type="button"
               onClick={onClose}
               className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium rounded-lg transition-colors"
             >

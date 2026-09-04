@@ -1,4 +1,9 @@
-import { Injectable, ForbiddenException, NotFoundException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  ForbiddenException,
+  NotFoundException,
+  Logger,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { SuspensionService } from './suspension.service';
@@ -42,7 +47,10 @@ export class AppealService {
     }
 
     // Check if teacher is suspended
-    if (teacher.status !== 'SUSPENDED' && teacher.status !== 'PERMANENTLY_SUSPENDED') {
+    if (
+      teacher.status !== 'SUSPENDED' &&
+      teacher.status !== 'PERMANENTLY_SUSPENDED'
+    ) {
       throw new ForbiddenException('You can only appeal a suspension');
     }
 
@@ -88,10 +96,16 @@ export class AppealService {
   /**
    * Get all appeals for admin review
    */
-  async getAllAppeals(status?: 'PENDING' | 'APPROVED' | 'REJECTED') {
+  async getAllAppeals(
+    status?: 'PENDING' | 'APPROVED' | 'REJECTED',
+    teacherId?: string,
+  ) {
     const where: any = {};
     if (status) {
       where.status = status;
+    }
+    if (teacherId) {
+      where.teacherId = teacherId;
     }
 
     const appeals = await (this.prisma as any).suspensionAppeal.findMany({
@@ -188,12 +202,15 @@ export class AppealService {
     });
 
     if (dto.status === 'APPROVED') {
-      // Unsuspend the teacher
-      await this.suspensionService.unsuspendTeacher({
-        teacherId: appeal.teacherId,
-        adminId: dto.adminId,
-        reason: 'Appeal approved',
-      });
+      // Restore access. The teacher may already be ACTIVE (e.g. a temporary
+      // suspension expired while the appeal was pending) — that is not an error.
+      if (appeal.teacher.status !== 'ACTIVE') {
+        await this.suspensionService.unsuspendTeacher({
+          teacherId: appeal.teacherId,
+          adminId: dto.adminId,
+          reason: 'Appeal approved',
+        });
+      }
 
       // Notify teacher
       await this.notificationService.create({

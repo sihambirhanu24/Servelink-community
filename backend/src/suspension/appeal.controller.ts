@@ -1,10 +1,26 @@
-import { Controller, Post, Get, Body, Param, UseGuards, Query } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Body,
+  Param,
+  UseGuards,
+  Query,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
+import { AllowSuspended } from '../auth/decorators/allow-suspended.decorator';
 import { AppealService } from './appeal.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
+/**
+ * Teacher appeal endpoints. Marked @AllowSuspended on purpose: appeals are the
+ * one thing a suspended teacher is meant to be able to do.
+ */
 @Controller('suspension/appeals')
 @UseGuards(JwtAuthGuard)
+@AllowSuspended()
 export class AppealController {
   constructor(private readonly appealService: AppealService) {}
 
@@ -13,11 +29,15 @@ export class AppealController {
    * Create a suspension appeal (teacher endpoint)
    */
   @Post()
-  async createAppeal(@CurrentUser() user: any, @Body() dto: {
-    subject: string;
-    explanation: string;
-    attachmentUrl?: string;
-  }) {
+  async createAppeal(
+    @CurrentUser() user: any,
+    @Body()
+    dto: {
+      subject: string;
+      explanation: string;
+      attachmentUrl?: string;
+    },
+  ) {
     return this.appealService.createAppeal({
       teacherId: user.teacherId,
       subject: dto.subject,
@@ -48,21 +68,24 @@ export class AppealController {
 }
 
 @Controller('admin/suspension/appeals')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('ADMIN')
 export class AdminAppealController {
   constructor(private readonly appealService: AppealService) {}
 
   /**
-   * GET /admin/suspension/appeals
+   * GET /admin/suspension/appeals?status=&teacherId=
    * Get all appeals for admin review
    */
   @Get()
-  async getAllAppeals(@CurrentUser() user: any, @Query('status') status?: string) {
-    if (!user.isAdmin) {
-      throw new Error('Unauthorized: Admin access required');
-    }
-
-    return this.appealService.getAllAppeals(status as any);
+  async getAllAppeals(
+    @Query('status') status?: string,
+    @Query('teacherId') teacherId?: string,
+  ) {
+    return this.appealService.getAllAppeals(
+      status as any,
+      teacherId || undefined,
+    );
   }
 
   /**
@@ -70,11 +93,7 @@ export class AdminAppealController {
    * Get appeal details
    */
   @Get(':id')
-  async getAppeal(@CurrentUser() user: any, @Param('id') id: string) {
-    if (!user.isAdmin) {
-      throw new Error('Unauthorized: Admin access required');
-    }
-
+  async getAppeal(@Param('id') id: string) {
     return this.appealService.getAppeal(id);
   }
 
@@ -86,16 +105,13 @@ export class AdminAppealController {
   async reviewAppeal(
     @CurrentUser() user: any,
     @Param('id') id: string,
-    @Body() dto: {
+    @Body()
+    dto: {
       status: 'PENDING' | 'APPROVED' | 'REJECTED';
       adminResponse?: string;
       extendSuspensionDays?: number;
     },
   ) {
-    if (!user.isAdmin) {
-      throw new Error('Unauthorized: Admin access required');
-    }
-
     return this.appealService.reviewAppeal({
       appealId: id,
       adminId: user.sub || user.id,

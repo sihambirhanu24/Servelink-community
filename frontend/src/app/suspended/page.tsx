@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, Clock, LogOut, FileText, XCircle } from 'lucide-react';
-import axios from 'axios';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { AlertTriangle, Clock, LogOut, FileText, CheckCircle2, XCircle, Info } from 'lucide-react';
+import { api } from '@/lib/axios';
+import { getErrorMessage } from '@/lib/error-message';
+import { useAuth, isSuspendedStatus } from '@/context/AuthContext';
 
 interface SuspensionStatus {
   status: string;
@@ -16,88 +17,103 @@ interface SuspensionStatus {
   suspensionCount: number;
 }
 
+interface Appeal {
+  id: string;
+  subject: string;
+  explanation: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  adminResponse: string | null;
+  createdAt: string;
+  reviewedAt: string | null;
+}
+
+const formatDate = (dateString: string | null) => {
+  if (!dateString) return 'N/A';
+  return new Date(dateString).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+};
+
+interface SuspensionScreenData {
+  status: SuspensionStatus;
+  latestAppeal: Appeal | null;
+}
+
+const SUSPENSION_SCREEN_KEY = ['suspension-screen'] as const;
+
+// Both endpoints are explicitly marked @AllowSuspended on the backend.
+async function fetchSuspensionScreen(): Promise<SuspensionScreenData> {
+  const [statusRes, appealRes] = await Promise.all([
+    api.get<SuspensionStatus>('/suspension/me/status'),
+    api.get<Appeal | null>('/suspension/appeals/my-appeal').catch(() => ({ data: null })),
+  ]);
+  return { status: statusRes.data, latestAppeal: appealRes.data ?? null };
+}
+
 export default function SuspendedPage() {
   const router = useRouter();
-  const [suspensionStatus, setSuspensionStatus] = useState<SuspensionStatus | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const { token, isInitializing, logout } = useAuth();
+
+  // Captured once per mount so "days remaining" is stable across re-renders.
+  const [renderedAt] = useState(() => Date.now());
+  const [showDetails, setShowDetails] = useState(false);
   const [showAppealForm, setShowAppealForm] = useState(false);
-  const [appealSubmitted, setAppealSubmitted] = useState(false);
-  const [appealForm, setAppealForm] = useState({
-    subject: '',
-    explanation: '',
+  const [submitting, setSubmitting] = useState(false);
+  const [appealError, setAppealError] = useState<string | null>(null);
+  const [appealForm, setAppealForm] = useState({ subject: '', explanation: '' });
+
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: SUSPENSION_SCREEN_KEY,
+    queryFn: fetchSuspensionScreen,
+    enabled: !isInitializing && !!token,
+    retry: false,
   });
 
+  const suspensionStatus = data?.status ?? null;
+  const latestAppeal = data?.latestAppeal ?? null;
+  const unauthorized =
+    !isInitializing && (!token || (error !== null && (error as { response?: { status?: number } }).response?.status === 401));
+  // The backend synchronises expired temporary suspensions, so an ACTIVE
+  // answer here means access has genuinely been restored.
+  const accessRestored = !!suspensionStatus && !isSuspendedStatus(suspensionStatus.status);
+
   useEffect(() => {
-    fetchSuspensionStatus();
-  }, []);
-
-  const fetchSuspensionStatus = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      
-      const teacherId = response.data.id;
-      const suspensionResponse = await axios.get(
-        `${API_URL}/admin/suspension/${teacherId}/status`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      
-      setSuspensionStatus(suspensionResponse.data);
-    } catch (err: any) {
-      if (err.response?.status === 403 && err.response?.data?.code === 'ACCOUNT_SUSPENDED') {
-        setSuspensionStatus(err.response.data);
-      } else {
-        setError('Failed to load suspension status');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('admin');
-    router.push('/login');
-  };
+    if (unauthorized) router.replace('/auth/login');
+    else if (accessRestored) router.replace('/dashboard');
+  }, [unauthorized, accessRestored, router]);
 
   const handleSubmitAppeal = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
+    setAppealError(null);
+    setSubmitting(true);
     try {
-      const token = localStorage.getItem('token');
-      await axios.post(
-        `${API_URL}/suspension/appeals`,
-        appealForm,
-        { headers: { Authorization: `Bearer ${token}` } }
+      const { data: appeal } = await api.post<Appeal>('/suspension/appeals', {
+        subject: appealForm.subject.trim(),
+        explanation: appealForm.explanation.trim(),
+      });
+      queryClient.setQueryData<SuspensionScreenData | undefined>(SUSPENSION_SCREEN_KEY, (old) =>
+        old ? { ...old, latestAppeal: appeal } : old,
       );
-      setAppealSubmitted(true);
       setShowAppealForm(false);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to submit appeal');
+      setAppealForm({ subject: '', explanation: '' });
+    } catch (err) {
+      setAppealError(getErrorMessage(err, 'Failed to submit appeal'));
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const getDaysRemaining = () => {
     if (!suspensionStatus?.suspensionUntil) return null;
-    const now = new Date();
-    const until = new Date(suspensionStatus.suspensionUntil);
-    const diff = until.getTime() - now.getTime();
-    const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
-    return days > 0 ? days : 0;
+    const diff = new Date(suspensionStatus.suspensionUntil).getTime() - renderedAt;
+    return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
   };
 
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
-  };
-
-  if (loading) {
+  if (isInitializing || isLoading || unauthorized || accessRestored) {
     return (
       <div className="min-h-screen bg-[#F5F8FB] flex items-center justify-center">
         <div className="text-gray-600">Loading...</div>
@@ -107,14 +123,32 @@ export default function SuspendedPage() {
 
   if (error && !suspensionStatus) {
     return (
-      <div className="min-h-screen bg-[#F5F8FB] flex items-center justify-center">
-        <div className="text-red-600">{error}</div>
+      <div className="min-h-screen bg-[#F5F8FB] flex flex-col items-center justify-center gap-4 p-4">
+        <div className="text-red-600">{getErrorMessage(error, 'Failed to load suspension status')}</div>
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={() => refetch()}
+            className="rounded-lg bg-[#043658] px-4 py-2 text-sm font-semibold text-white hover:bg-[#043658]/90"
+          >
+            Retry
+          </button>
+          <button
+            type="button"
+            onClick={logout}
+            className="rounded-lg bg-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-300"
+          >
+            Log out
+          </button>
+        </div>
       </div>
     );
   }
 
   const isPermanent = suspensionStatus?.status === 'PERMANENTLY_SUSPENDED';
   const daysRemaining = getDaysRemaining();
+  const hasPendingAppeal = latestAppeal?.status === 'PENDING';
+  const canAppeal = !hasPendingAppeal;
 
   return (
     <div className="min-h-screen bg-[#F5F8FB] flex items-center justify-center p-4">
@@ -129,7 +163,8 @@ export default function SuspendedPage() {
               <div>
                 <h1 className="text-3xl font-bold">Account Suspended</h1>
                 <p className="text-white/90 mt-1">
-                  {isPermanent ? 'Permanent Suspension' : 'Temporary Suspension'}
+                  Your ServeLink account is currently suspended
+                  {isPermanent ? ' permanently.' : '.'}
                 </p>
               </div>
             </div>
@@ -140,8 +175,8 @@ export default function SuspendedPage() {
             <div className="space-y-6">
               {/* Suspension Reason */}
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <h3 className="font-semibold text-red-900 mb-2">Reason for Suspension</h3>
-                <p className="text-red-800">
+                <h3 className="font-semibold text-red-900 mb-2">Reason</h3>
+                <p className="text-red-800 whitespace-pre-wrap">
                   {suspensionStatus?.suspensionReason || 'No reason provided'}
                 </p>
               </div>
@@ -151,24 +186,26 @@ export default function SuspendedPage() {
                 <div className="bg-gray-50 rounded-lg p-4">
                   <div className="flex items-center gap-2 text-gray-600 mb-2">
                     <Clock className="w-4 h-4" />
-                    <span className="text-sm font-medium">Suspended On</span>
+                    <span className="text-sm font-medium">Suspended on</span>
                   </div>
                   <p className="text-gray-900 font-semibold">
                     {formatDate(suspensionStatus?.suspensionStart ?? null)}
                   </p>
                 </div>
 
-                {!isPermanent && (
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <div className="flex items-center gap-2 text-gray-600 mb-2">
-                      <Clock className="w-4 h-4" />
-                      <span className="text-sm font-medium">Expires On</span>
-                    </div>
-                    <p className="text-gray-900 font-semibold">
-                      {formatDate(suspensionStatus?.suspensionUntil ?? null)}
-                    </p>
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="flex items-center gap-2 text-gray-600 mb-2">
+                    <Clock className="w-4 h-4" />
+                    <span className="text-sm font-medium">Suspended until</span>
                   </div>
-                )}
+                  <p className="text-gray-900 font-semibold">
+                    {isPermanent
+                      ? 'Permanent'
+                      : suspensionStatus?.suspensionUntil
+                        ? formatDate(suspensionStatus.suspensionUntil)
+                        : 'Lifted by an admin'}
+                  </p>
+                </div>
               </div>
 
               {/* Days Remaining */}
@@ -176,11 +213,11 @@ export default function SuspendedPage() {
                 <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="font-semibold text-orange-900">Time Remaining</h3>
+                      <h3 className="font-semibold text-orange-900">Time remaining</h3>
                       <p className="text-orange-700 text-sm">
                         {daysRemaining > 0
-                          ? `${daysRemaining} day${daysRemaining !== 1 ? 's' : ''} remaining`
-                          : 'Suspension has expired'}
+                          ? `${daysRemaining} day${daysRemaining !== 1 ? 's' : ''} remaining. Access is restored automatically.`
+                          : 'Your suspension is ending. Access will be restored on your next request.'}
                       </p>
                     </div>
                     {daysRemaining > 0 && (
@@ -192,40 +229,94 @@ export default function SuspendedPage() {
                 </div>
               )}
 
-              {/* Previous Suspensions */}
-              {(suspensionStatus?.suspensionCount ?? 0) > 1 && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                  <h3 className="font-semibold text-yellow-900 mb-1">Previous Suspensions</h3>
-                  <p className="text-yellow-800">
-                    This is your {suspensionStatus?.suspensionCount}
-                    {suspensionStatus?.suspensionCount === 2 ? 'nd' : suspensionStatus?.suspensionCount === 3 ? 'rd' : 'th'} suspension.
+              {/* Details toggle */}
+              <button
+                type="button"
+                onClick={() => setShowDetails((v) => !v)}
+                className="w-full flex items-center justify-center gap-2 rounded-lg border border-gray-200 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                <Info className="w-4 h-4" />
+                {showDetails ? 'Hide suspension details' : 'View suspension details'}
+              </button>
+
+              {showDetails && (
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700 space-y-2">
+                  <p>
+                    <span className="font-medium text-gray-900">Type:</span>{' '}
+                    {isPermanent ? 'Permanent suspension' : 'Temporary suspension'}
+                  </p>
+                  <p>
+                    <span className="font-medium text-gray-900">Suspensions on this account:</span>{' '}
+                    {suspensionStatus?.suspensionCount ?? 1}
+                  </p>
+                  <p>
+                    While suspended you cannot post, comment, react, message, host or join live sessions, or use other
+                    protected ServeLink features. You can still read this page and submit an appeal.
                   </p>
                 </div>
               )}
 
-              {/* Appeal Section */}
-              {!appealSubmitted && !showAppealForm && (
-                <div className="space-y-3">
-                  <button
-                    onClick={() => setShowAppealForm(true)}
-                    className="w-full bg-[#FFC107] hover:bg-[#FFC107]/90 text-[#043658] font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2"
-                  >
-                    <FileText className="w-5 h-5" />
-                    Appeal Suspension
-                  </button>
+              {/* Latest appeal status */}
+              {latestAppeal && (
+                <div
+                  className={`rounded-lg border p-4 ${
+                    latestAppeal.status === 'PENDING'
+                      ? 'bg-yellow-50 border-yellow-200'
+                      : latestAppeal.status === 'APPROVED'
+                        ? 'bg-green-50 border-green-200'
+                        : 'bg-gray-50 border-gray-200'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    {latestAppeal.status === 'PENDING' ? (
+                      <Clock className="w-5 h-5 text-yellow-600 mt-0.5" />
+                    ) : latestAppeal.status === 'APPROVED' ? (
+                      <CheckCircle2 className="w-5 h-5 text-green-600 mt-0.5" />
+                    ) : (
+                      <XCircle className="w-5 h-5 text-gray-500 mt-0.5" />
+                    )}
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-gray-900">
+                        {latestAppeal.status === 'PENDING'
+                          ? 'Appeal under review'
+                          : latestAppeal.status === 'APPROVED'
+                            ? 'Appeal approved'
+                            : 'Appeal rejected'}
+                      </h3>
+                      <p className="text-sm text-gray-700 mt-1">
+                        &ldquo;{latestAppeal.subject}&rdquo; &middot; submitted {formatDate(latestAppeal.createdAt)}
+                      </p>
+                      {latestAppeal.adminResponse && (
+                        <p className="text-sm text-gray-600 mt-2">
+                          <span className="font-medium">Moderation team:</span> {latestAppeal.adminResponse}
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 </div>
+              )}
+
+              {/* Appeal Section */}
+              {canAppeal && !showAppealForm && (
+                <button
+                  type="button"
+                  onClick={() => setShowAppealForm(true)}
+                  className="w-full bg-[#FFC107] hover:bg-[#FFC107]/90 text-[#043658] font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2"
+                >
+                  <FileText className="w-5 h-5" />
+                  {latestAppeal ? 'Submit another appeal' : 'Submit an appeal'}
+                </button>
               )}
 
               {/* Appeal Form */}
               {showAppealForm && (
                 <form onSubmit={handleSubmitAppeal} className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Subject
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Subject</label>
                     <input
                       type="text"
                       required
+                      maxLength={200}
                       value={appealForm.subject}
                       onChange={(e) => setAppealForm({ ...appealForm, subject: e.target.value })}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FFC107] focus:border-transparent"
@@ -233,29 +324,34 @@ export default function SuspendedPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Explanation
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Explanation</label>
                     <textarea
                       required
                       rows={5}
                       value={appealForm.explanation}
                       onChange={(e) => setAppealForm({ ...appealForm, explanation: e.target.value })}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FFC107] focus:border-transparent"
-                      placeholder="Provide a detailed explanation of why you believe your suspension should be lifted"
+                      placeholder="Explain why you believe your suspension should be lifted"
                     />
                   </div>
+                  {appealError && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-800 text-sm" role="alert">
+                      {appealError}
+                    </div>
+                  )}
                   <div className="flex gap-3">
                     <button
                       type="submit"
-                      className="flex-1 bg-[#FFC107] hover:bg-[#FFC107]/90 text-[#043658] font-semibold py-3 px-6 rounded-lg transition-colors"
+                      disabled={submitting}
+                      className="flex-1 bg-[#FFC107] hover:bg-[#FFC107]/90 text-[#043658] font-semibold py-3 px-6 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Submit Appeal
+                      {submitting ? 'Submitting...' : 'Submit Appeal'}
                     </button>
                     <button
                       type="button"
+                      disabled={submitting}
                       onClick={() => setShowAppealForm(false)}
-                      className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-3 px-6 rounded-lg transition-colors"
+                      className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-3 px-6 rounded-lg transition-colors disabled:opacity-50"
                     >
                       Cancel
                     </button>
@@ -263,26 +359,10 @@ export default function SuspendedPage() {
                 </form>
               )}
 
-              {/* Appeal Submitted */}
-              {appealSubmitted && (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="bg-green-500 p-2 rounded-full">
-                      <FileText className="w-5 h-5 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-green-900">Appeal Submitted</h3>
-                      <p className="text-green-800 text-sm">
-                        Your appeal has been sent to the moderation team for review.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {/* Logout Button */}
               <button
-                onClick={handleLogout}
+                type="button"
+                onClick={logout}
                 className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2"
               >
                 <LogOut className="w-5 h-5" />
