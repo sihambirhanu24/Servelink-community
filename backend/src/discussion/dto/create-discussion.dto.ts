@@ -1,4 +1,11 @@
-import { IsString, IsNotEmpty, IsOptional, IsArray, MaxLength, MinLength } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsArray,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 
 export class CreateDiscussionDto {
   @IsString()

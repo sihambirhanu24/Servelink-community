@@ -46,7 +46,9 @@ export class DiscussionService {
     });
 
     if (recentDuplicate) {
-      throw new BadRequestException('You recently created a discussion with this title.');
+      throw new BadRequestException(
+        'You recently created a discussion with this title.',
+      );
     }
 
     // Validate category if provided
@@ -90,7 +92,7 @@ export class DiscussionService {
 
     // Award points for discussion creation synchronously
     await this.progressService.awardDiscussionPoints(teacherId, discussion.id);
-    
+
     // Fetch updated progress
     const progress = await this.progressService.getProgress(teacherId);
 
@@ -361,7 +363,13 @@ export class DiscussionService {
       });
       // Remove points from discussion owner
       if (discussion.authorId !== teacherId) {
-        this.progressService.removeDiscussionBookmarkPoints(discussion.authorId, discussionId, teacherId).catch(() => {});
+        this.progressService
+          .removeDiscussionBookmarkPoints(
+            discussion.authorId,
+            discussionId,
+            teacherId,
+          )
+          .catch(() => {});
       }
       return { bookmarked: false };
     } else {
@@ -373,7 +381,13 @@ export class DiscussionService {
       });
       // Award points to discussion owner (not to the bookmarker)
       if (discussion.authorId !== teacherId) {
-        this.progressService.awardDiscussionBookmarkPoints(discussion.authorId, discussionId, teacherId).catch(() => {});
+        this.progressService
+          .awardDiscussionBookmarkPoints(
+            discussion.authorId,
+            discussionId,
+            teacherId,
+          )
+          .catch(() => {});
       }
       return { bookmarked: true };
     }
@@ -417,7 +431,9 @@ export class DiscussionService {
     });
 
     if (existing) {
-      throw new BadRequestException('You have already reported this discussion');
+      throw new BadRequestException(
+        'You have already reported this discussion',
+      );
     }
 
     const report = await this.prisma.discussionReport.create({
@@ -441,7 +457,9 @@ export class DiscussionService {
         select: { firstName: true, lastName: true },
       });
 
-      const reporterName = reporter ? `${reporter.firstName} ${reporter.lastName}` : 'A teacher';
+      const reporterName = reporter
+        ? `${reporter.firstName} ${reporter.lastName}`
+        : 'A teacher';
 
       await Promise.all(
         admins.map((admin) =>
@@ -453,8 +471,8 @@ export class DiscussionService {
             message: `${reporterName} reported a discussion: "${discussion.title.substring(0, 50)}..." for ${dto.reason}`,
             type: NotificationEvent.REPORT,
             referenceId: report.id,
-          })
-        )
+          }),
+        ),
       );
     }
 
@@ -531,7 +549,10 @@ export class DiscussionService {
 
   // ─── HELPERS ───────────────────────────────────────────────────────────────
 
-  private formatDiscussion(discussion: any, teacherId: string): DiscussionResponse {
+  private formatDiscussion(
+    discussion: any,
+    teacherId: string,
+  ): DiscussionResponse {
     return {
       id: discussion.id,
       title: discussion.title,

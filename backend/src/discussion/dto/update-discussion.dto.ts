@@ -1,4 +1,10 @@
-import { IsString, IsOptional, IsArray, MaxLength, MinLength } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsArray,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 
 export class UpdateDiscussionDto {
   @IsOptional()

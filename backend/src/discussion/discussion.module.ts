@@ -7,12 +7,7 @@ import { ProgressModule } from '../progress/progress.module';
 import { SuspensionModule } from '../suspension/suspension.module';
 
 @Module({
-  imports: [
-    PrismaModule,
-    NotificationModule,
-    ProgressModule,
-    SuspensionModule,
-  ],
+  imports: [PrismaModule, NotificationModule, ProgressModule, SuspensionModule],
   controllers: [DiscussionController],
   providers: [DiscussionService],
   exports: [DiscussionService],
