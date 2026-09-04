@@ -7,6 +7,7 @@ import {
   ImageIcon, Paperclip, Plus, RefreshCw,
   Search, X, Building2, Globe, CheckCircle2,
   Loader2, UploadCloud, FileDown, Trash2, MessageSquarePlus,
+  Image as ImageIconLucide, Video, FileUp,
 } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
@@ -18,6 +19,8 @@ import { getCategories, getAccessibleCommunities, getCommunities, getPosts, crea
 import { DashboardSidebar } from "@/components/layout/Sidebar";
 import Topbar from "@/components/layout/Topbar";
 import PostCard from "@/components/post/PostCard";
+import { RichTextEditor } from "@/components/common/RichTextEditor";
+import { toast } from "sonner";
 
 // ── Types ─────────────────────────────────────────────
 type SortKey = "newest" | "oldest" | "most-likes" | "most-comments";
@@ -138,15 +141,32 @@ function PostComposer({ communities, categories, onSuccess, onCancel }: Composer
 
   function addFiles(files: FileList | File[]) {
     const arr = Array.from(files);
-    const allowed = arr.filter(f => {
+    const newPending: PendingFile[] = [];
+    
+    for (const f of arr) {
       const ext = f.name.split(".").pop()?.toLowerCase() ?? "";
-      return ["jpg","jpeg","png","webp","pdf","docx"].includes(ext);
-    });
-    const newPending: PendingFile[] = allowed.map(f => {
+      const isImage = ["jpg","jpeg","png","webp"].includes(ext);
+      const isVideo = ["mp4","webm","mov"].includes(ext);
+      const isDoc = ["pdf","docx"].includes(ext);
+      
+      if (!isImage && !isVideo && !isDoc) {
+        toast.error(`Unsupported file type: ${f.name}`);
+        continue;
+      }
+      
+      // Validate file size: 50MB for video, 10MB for others
+      const maxSize = isVideo ? 50 * 1024 * 1024 : 10 * 1024 * 1024;
+      if (f.size > maxSize) {
+        const maxMB = isVideo ? 50 : 10;
+        toast.error(`${f.name} is too large. Max size: ${maxMB}MB`);
+        continue;
+      }
+      
       const id = `${Date.now()}-${Math.random()}`;
-      const preview = f.type.startsWith("image/") ? URL.createObjectURL(f) : undefined;
-      return { id, file: f, preview };
-    });
+      const preview = (isImage || isVideo) ? URL.createObjectURL(f) : undefined;
+      newPending.push({ id, file: f, preview });
+    }
+    
     setPendingFiles(prev => [...prev, ...newPending]);
   }
 
@@ -182,7 +202,8 @@ function PostComposer({ communities, categories, onSuccess, onCancel }: Composer
   }
 
   const imageFiles = pendingFiles.filter(f => f.file.type.startsWith("image/"));
-  const docFiles = pendingFiles.filter(f => !f.file.type.startsWith("image/"));
+  const videoFiles = pendingFiles.filter(f => f.file.type.startsWith("video/"));
+  const docFiles = pendingFiles.filter(f => !f.file.type.startsWith("image/") && !f.file.type.startsWith("video/"));
 
   return (
     <div className="rounded-xl border border-[#E2E8F0] bg-white shadow-md">
@@ -211,10 +232,12 @@ function PostComposer({ communities, categories, onSuccess, onCancel }: Composer
 
         {/* Description */}
         <div>
-          <textarea value={description} onChange={e => { setDescription(e.target.value); if (errors.description) setErrors(p => ({...p, description:""})); }}
+          <RichTextEditor
+            content={description}
+            onChange={setDescription}
             placeholder="Share your teaching idea, question, experience, or resource... (Optional)"
-            rows={3}
-            className={`w-full resize-none rounded-lg border bg-white px-3 py-2 text-sm text-[#043658] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#043658]/15 ${errors.description ? "border-red-400" : "border-[#E2E8F0] focus:border-[#043658]/40"}`} />
+            className="min-h-[120px]"
+          />
           {errors.description && <p className="mt-1 text-xs text-red-500">{errors.description}</p>}
         </div>
 
@@ -240,17 +263,48 @@ function PostComposer({ communities, categories, onSuccess, onCancel }: Composer
 
         {/* Attachment upload area */}
         {pendingFiles.length === 0 ? (
-          <div
-            onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
-            onDragLeave={() => setIsDragging(false)}
-            onDrop={e => { e.preventDefault(); setIsDragging(false); addFiles(e.dataTransfer.files); }}
-            className={`flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed px-3 py-4 text-center transition-colors ${isDragging ? "border-[#043658] bg-[#043658]/5" : "border-slate-200 bg-slate-50 hover:border-[#043658]/40 hover:bg-[#043658]/[0.02]"}`}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <UploadCloud className={`h-5 w-5 ${isDragging ? "text-[#043658]" : "text-slate-300"}`} />
-            <p className="text-xs font-medium text-slate-500">Add Resources</p>
-            <p className="text-[10px] text-slate-400">Drag & drop or <span className="font-semibold text-[#043658]">choose files</span></p>
-            <p className="text-[9px] text-slate-300">JPG, PNG, WEBP, PDF, DOCX • Max 5MB</p>
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                if (fileInputRef.current) {
+                  fileInputRef.current.accept = "image/*";
+                  fileInputRef.current.click();
+                }
+              }}
+              className="flex flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-slate-300 bg-slate-50 py-3 text-xs font-medium text-slate-600 transition hover:bg-slate-100"
+            >
+              <ImageIconLucide className="h-4 w-4" />
+              Image
+            </button>
+            
+            <button
+              type="button"
+              onClick={() => {
+                if (fileInputRef.current) {
+                  fileInputRef.current.accept = "video/mp4,video/webm,video/quicktime";
+                  fileInputRef.current.click();
+                }
+              }}
+              className="flex flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-slate-300 bg-slate-50 py-3 text-xs font-medium text-slate-600 transition hover:bg-slate-100"
+            >
+              <Video className="h-4 w-4" />
+              Video
+            </button>
+            
+            <button
+              type="button"
+              onClick={() => {
+                if (fileInputRef.current) {
+                  fileInputRef.current.accept = ".pdf,.docx,.doc";
+                  fileInputRef.current.click();
+                }
+              }}
+              className="flex flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-slate-300 bg-slate-50 py-3 text-xs font-medium text-slate-600 transition hover:bg-slate-100"
+            >
+              <FileUp className="h-4 w-4" />
+              Document
+            </button>
           </div>
         ) : (
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
@@ -281,6 +335,40 @@ function PostComposer({ communities, categories, onSuccess, onCancel }: Composer
                         className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-red-500 text-white opacity-0 transition group-hover:opacity-100 hover:bg-red-600 shadow-md">
                         <X className="h-3 w-3" />
                       </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Video Previews */}
+            {videoFiles.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-slate-600 mb-2">Videos ({videoFiles.length})</p>
+                <div className="space-y-2">
+                  {videoFiles.map(pf => (
+                    <div key={pf.id} className="relative group overflow-hidden rounded-lg border border-slate-200 bg-white">
+                      <video 
+                        src={pf.preview} 
+                        controls 
+                        preload="metadata"
+                        className="w-full max-h-48 rounded-t-lg bg-black"
+                      >
+                        Your browser does not support the video tag.
+                      </video>
+                      <div className="flex items-center justify-between bg-white px-3 py-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-xs font-semibold text-[#043658]">{pf.file.name}</p>
+                          <p className="text-[10px] text-slate-400">{formatBytes(pf.file.size)}</p>
+                        </div>
+                        <button 
+                          type="button" 
+                          onClick={() => removeFile(pf.id)} 
+                          aria-label="Remove video"
+                          className="ml-2 text-slate-400 transition hover:text-red-500">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -317,7 +405,7 @@ function PostComposer({ communities, categories, onSuccess, onCancel }: Composer
             </button>
           </div>
         )}
-        <input ref={fileInputRef} type="file" multiple accept=".jpg,.jpeg,.png,.webp,.pdf,.docx" className="hidden"
+        <input ref={fileInputRef} type="file" multiple accept="image/*,video/mp4,video/webm,video/quicktime,.pdf,.docx,.doc" className="hidden"
           onChange={e => { if (e.target.files) { addFiles(e.target.files); e.target.value = ""; }}} />
 
         {publishError && (
@@ -331,11 +419,30 @@ function PostComposer({ communities, categories, onSuccess, onCancel }: Composer
       {/* Composer footer */}
       <div className="flex items-center justify-between border-t border-slate-100 px-4 py-2.5">
         <div className="flex items-center gap-1.5">
-          <button type="button" onClick={() => fileInputRef.current?.click()} aria-label="Add image"
+          <button type="button" onClick={() => {
+            if (fileInputRef.current) {
+              fileInputRef.current.accept = "image/*";
+              fileInputRef.current.click();
+            }
+          }} aria-label="Add image"
             className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-slate-500 transition hover:bg-slate-100 hover:text-[#043658]">
             <ImageIcon className="h-3 w-3" /> Image
           </button>
-          <button type="button" onClick={() => fileInputRef.current?.click()} aria-label="Add file"
+          <button type="button" onClick={() => {
+            if (fileInputRef.current) {
+              fileInputRef.current.accept = "video/mp4,video/webm,video/quicktime";
+              fileInputRef.current.click();
+            }
+          }} aria-label="Add video"
+            className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-slate-500 transition hover:bg-slate-100 hover:text-[#043658]">
+            <Video className="h-3 w-3" /> Video
+          </button>
+          <button type="button" onClick={() => {
+            if (fileInputRef.current) {
+              fileInputRef.current.accept = ".pdf,.docx,.doc";
+              fileInputRef.current.click();
+            }
+          }} aria-label="Add file"
             className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-slate-500 transition hover:bg-slate-100 hover:text-[#043658]">
             <Paperclip className="h-3 w-3" /> File
           </button>

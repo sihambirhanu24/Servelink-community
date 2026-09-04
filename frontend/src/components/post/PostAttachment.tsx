@@ -21,7 +21,8 @@ export function PostAttachment({ attachments, onImageClick }: PostAttachmentProp
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   const imageAttachments = attachments.filter((a) => a.type === "IMAGE");
-  const documentAttachments = attachments.filter((a) => a.type !== "IMAGE");
+  const videoAttachments = attachments.filter((a) => a.type === "VIDEO");
+  const documentAttachments = attachments.filter((a) => a.type !== "IMAGE" && a.type !== "VIDEO");
 
   const handleImageClick = (url: string) => {
     setSelectedImage(url);
@@ -75,6 +76,36 @@ export function PostAttachment({ attachments, onImageClick }: PostAttachmentProp
                       </div>
                     )}
                   </button>
+                );
+              })}
+            </div>
+          )}
+
+          {videoAttachments.length > 0 && (
+            <div className="space-y-3">
+              {videoAttachments.map((attachment) => {
+                const url = getMediaUrl(attachment.url);
+                return (
+                  <div key={attachment.id} className="overflow-hidden rounded-xl border border-slate-200">
+                    <video
+                      controls
+                      className="w-full max-h-[500px] bg-black"
+                      preload="metadata"
+                    >
+                      <source src={url} type="video/mp4" />
+                      <source src={url} type="video/webm" />
+                      <source src={url} type="video/quicktime" />
+                      Your browser does not support the video tag.
+                    </video>
+                    {attachment.fileName && (
+                      <div className="bg-slate-50 px-4 py-2 border-t border-slate-200">
+                        <p className="text-xs font-medium text-slate-700">{attachment.fileName}</p>
+                        {attachment.fileSize && (
+                          <p className="text-[10px] text-slate-500 mt-0.5">{formatFileSize(attachment.fileSize)}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 );
               })}
             </div>

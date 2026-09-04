@@ -9,98 +9,71 @@ import {
   Query,
   Req,
   UseGuards,
-} from "@nestjs/common";
+} from '@nestjs/common';
 
-import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
-import { VerifiedTeacherGuard } from "../verification/guards/verified-teacher.guard";
-import { PostService } from "../post/post.service";
-import { CreatePostDto } from "../community/dto/create-post.dto";
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { VerifiedTeacherGuard } from '../verification/guards/verified-teacher.guard';
+import { PostService } from '../post/post.service';
+import { CreatePostDto } from '../community/dto/create-post.dto';
 
-@Controller("posts")
+@Controller('posts')
 export class PostController {
-  constructor(
-    private readonly postService: PostService,
-  ) {}
+  constructor(private readonly postService: PostService) {}
 
   @UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
   @Post()
-  createPost(
-    @Req() req,
-    @Body() dto: CreatePostDto,
-  ) {
-    return this.postService.createPost(
-      req.user.sub,
-      dto,
-    );
+  createPost(@Req() req, @Body() dto: CreatePostDto) {
+    return this.postService.createPost(req.user.sub, dto);
   }
 
   @Get()
   getPosts(
     @Req() req,
-    @Query("search") search?: string,
-    @Query("communityId") communityId?: string,
-    @Query("categoryId") categoryId?: string,
-    @Query("page") page = "1",
-    @Query("limit") limit = "10",
+    @Query('search') search?: string,
+    @Query('communityId') communityId?: string,
+    @Query('categoryId') categoryId?: string,
+    @Query('page') page = '1',
+    @Query('limit') limit = '10',
   ) {
-    return this.postService.getPosts(
-      req.user?.sub,
-      {
-        search,
-        communityId,
-        categoryId,
-        page: Number(page),
-        limit: Number(limit),
-      },
-    );
+    return this.postService.getPosts(req.user?.sub, {
+      search,
+      communityId,
+      categoryId,
+      page: Number(page),
+      limit: Number(limit),
+    });
   }
 
-  @Get(":id")
-  getPost(
-    @Param("id") id: string,
-  ) {
-    return this.postService.getPostById(id);
+  @Get(':id')
+  getPost(@Param('id') id: string, @Req() req) {
+    return this.postService.getPostById(id, req.user?.sub);
   }
 
   @UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
-  @Patch(":id")
-  updatePost(
-    @Param("id") id: string,
-    @Req() req,
-    @Body() dto: CreatePostDto,
-  ) {
-    return this.postService.updatePost(
-      id,
-      req.user.sub,
-      dto,
-    );
+  @Patch(':id')
+  updatePost(@Param('id') id: string, @Req() req, @Body() dto: CreatePostDto) {
+    return this.postService.updatePost(id, req.user.sub, dto);
   }
 
   @UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
-  @Delete(":id")
-  deletePost(
-    @Param("id") id: string,
-    @Req() req,
-  ) {
-    return this.postService.deletePost(
-      id,
-      req.user.sub,
-    );
+  @Delete(':id')
+  deletePost(@Param('id') id: string, @Req() req) {
+    return this.postService.deletePost(id, req.user.sub);
   }
 
-  @Get("trending")
+  @Get('trending')
   trending() {
     return this.postService.getTrendingPosts();
   }
 
   @UseGuards(JwtAuthGuard)
-  @Get("saved")
+  @Get('saved')
   getSavedPosts(@Req() req) {
     return this.postService.getSavedPosts(req.user.sub);
   }
 
   @UseGuards(JwtAuthGuard)
-  @Get("my-communities")
+  @Get('my-communities')
   getMyCommunitiesPosts(@Req() req) {
     return this.postService.getMyCommunitiesPosts(req.user.sub);
   }

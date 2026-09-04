@@ -2,12 +2,16 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
-} from "@nestjs/common";
-import { PrismaService } from "../prisma/prisma.service";
-import { TeacherProgressService } from "../progress/teacher-progress.service";
-import { CreatePostDto } from "../community/dto/create-post.dto";
-import { AttachmentType } from "@prisma/client";
-import { getPagination } from "../shared/utils/pagination";
+} from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { TeacherProgressService } from '../progress/teacher-progress.service';
+import { CreatePostDto } from '../community/dto/create-post.dto';
+import { AttachmentType } from '@prisma/client';
+import { getPagination } from '../shared/utils/pagination';
+import {
+  isPostPubliclyVisible,
+  publiclyVisiblePostWhere,
+} from '../common/post-visibility';
 
 @Injectable()
 export class PostService {
@@ -16,14 +20,26 @@ export class PostService {
     private readonly progressService: TeacherProgressService,
   ) {}
 
-  async createPost(
-    teacherId: string,
-    dto: CreatePostDto,
-  ) {
+  async createPost(teacherId: string, dto: CreatePostDto) {
+    // Verify teacher is a member of the community with APPROVED status
+    const membership = await this.prisma.communityMember.findFirst({
+      where: {
+        teacherId,
+        communityId: dto.communityId,
+        status: 'APPROVED',
+      },
+    });
+
+    if (!membership) {
+      throw new ForbiddenException(
+        'You must be an approved member of this community to create posts.',
+      );
+    }
+
     // Limit to 3 posts per day
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
-    
+
     const postCountToday = await this.prisma.communityPost.count({
       where: {
         teacherId,
@@ -34,7 +50,9 @@ export class PostService {
     });
 
     if (postCountToday >= 3) {
-      throw new ForbiddenException('You have reached your daily limit of 3 posts.');
+      throw new ForbiddenException(
+        'You have reached your daily limit of 3 posts.',
+      );
     }
 
     // Create the post first
@@ -55,11 +73,9 @@ export class PostService {
 
     // After successful post creation, award progression points
     // This happens asynchronously and won't block the post creation response
-    this.progressService
-      .awardPostPoints(teacherId, post.id)
-      .catch((err) => {
-        console.error(`Failed to award post points: ${err.message}`);
-      });
+    this.progressService.awardPostPoints(teacherId, post.id).catch((err) => {
+      console.error(`Failed to award post points: ${err.message}`);
+    });
 
     return post;
   }
@@ -74,25 +90,23 @@ export class PostService {
       limit: number;
     },
   ) {
-    const { skip, take } = getPagination(
-  filters.page,
-  filters.limit,
-);
+    const { skip, take } = getPagination(filters.page, filters.limit);
 
     const posts = await this.prisma.communityPost.findMany({
       where: {
+        ...publiclyVisiblePostWhere,
         ...(filters.search && {
           OR: [
             {
               title: {
                 contains: filters.search,
-                mode: "insensitive",
+                mode: 'insensitive',
               },
             },
             {
               description: {
                 contains: filters.search,
-                mode: "insensitive",
+                mode: 'insensitive',
               },
             },
           ],
@@ -117,7 +131,7 @@ export class PostService {
       },
 
       orderBy: {
-        createdAt: "desc",
+        createdAt: 'desc',
       },
 
       skip,
@@ -128,13 +142,11 @@ export class PostService {
       ...post,
       likesCount: post.communityLikes.length,
       commentsCount: post.comments.length,
-      liked: post.communityLikes.some(
-        (like) => like.teacherId === teacherId,
-      ),
+      liked: post.communityLikes.some((like) => like.teacherId === teacherId),
     }));
   }
 
-  async getPostById(id: string) {
+  async getPostById(id: string, viewerId?: string) {
     const post = await this.prisma.communityPost.findUnique({
       where: { id },
 
@@ -157,30 +169,29 @@ export class PostService {
       },
     });
 
-    if (!post) {
-      throw new NotFoundException("Post not found");
+    // Hidden/removed posts stay reachable only by their author (who was notified).
+    if (
+      !post ||
+      (!isPostPubliclyVisible(post.moderationStatus) &&
+        post.teacherId !== viewerId)
+    ) {
+      throw new NotFoundException('Post not found');
     }
 
     return post;
   }
 
-  async updatePost(
-    id: string,
-    teacherId: string,
-    dto: CreatePostDto,
-  ) {
+  async updatePost(id: string, teacherId: string, dto: CreatePostDto) {
     const post = await this.prisma.communityPost.findUnique({
       where: { id },
     });
 
     if (!post) {
-      throw new NotFoundException("Post not found");
+      throw new NotFoundException('Post not found');
     }
 
     if (post.teacherId !== teacherId) {
-      throw new ForbiddenException(
-        "You can only update your own posts.",
-      );
+      throw new ForbiddenException('You can only update your own posts.');
     }
 
     return this.prisma.communityPost.update({
@@ -195,22 +206,17 @@ export class PostService {
     });
   }
 
-  async deletePost(
-    id: string,
-    teacherId: string,
-  ) {
+  async deletePost(id: string, teacherId: string) {
     const post = await this.prisma.communityPost.findUnique({
       where: { id },
     });
 
     if (!post) {
-      throw new NotFoundException("Post not found");
+      throw new NotFoundException('Post not found');
     }
 
     if (post.teacherId !== teacherId) {
-      throw new ForbiddenException(
-        "You can only delete your own posts.",
-      );
+      throw new ForbiddenException('You can only delete your own posts.');
     }
 
     return this.prisma.$transaction(async (tx) => {
@@ -246,6 +252,7 @@ export class PostService {
 
   async getTrendingPosts() {
     return this.prisma.communityPost.findMany({
+      where: publiclyVisiblePostWhere,
       include: {
         teacher: true,
         comments: true,
@@ -255,12 +262,12 @@ export class PostService {
       orderBy: [
         {
           communityLikes: {
-            _count: "desc",
+            _count: 'desc',
           },
         },
         {
           comments: {
-            _count: "desc",
+            _count: 'desc',
           },
         },
       ],
@@ -271,7 +278,7 @@ export class PostService {
 
   async getSavedPosts(teacherId: string) {
     const bookmarks = await this.prisma.communityBookmark.findMany({
-      where: { teacherId },
+      where: { teacherId, post: publiclyVisiblePostWhere },
       include: {
         post: {
           include: {
@@ -293,14 +300,16 @@ export class PostService {
       ...bookmark.post,
       likesCount: bookmark.post.communityLikes.length,
       commentsCount: bookmark.post.comments.length,
-      liked: bookmark.post.communityLikes.some((like) => like.teacherId === teacherId),
+      liked: bookmark.post.communityLikes.some(
+        (like) => like.teacherId === teacherId,
+      ),
       bookmarked: true,
     }));
   }
 
   async getMyCommunitiesPosts(teacherId: string) {
     const memberships = await this.prisma.communityMember.findMany({
-      where: { 
+      where: {
         teacherId,
         status: 'APPROVED',
       },
@@ -316,6 +325,7 @@ export class PostService {
     const posts = await this.prisma.communityPost.findMany({
       where: {
         communityId: { in: communityIds },
+        ...publiclyVisiblePostWhere,
       },
       include: {
         teacher: true,
@@ -339,28 +349,27 @@ export class PostService {
     }));
   }
 
-  async uploadAttachment(
-    file: Express.Multer.File,
-    postId: string,
-  ) {
+  async uploadAttachment(file: Express.Multer.File, postId: string) {
     let type: AttachmentType;
 
-    if (file.mimetype.startsWith("image/")) {
+    if (file.mimetype.startsWith('image/')) {
       type = AttachmentType.IMAGE;
-    } else if (file.mimetype === "application/pdf") {
+    } else if (file.mimetype === 'application/pdf') {
       type = AttachmentType.PDF;
-    } else if (file.mimetype.startsWith("video/")) {
+    } else if (file.mimetype.startsWith('video/')) {
       type = AttachmentType.VIDEO;
     } else {
       type = AttachmentType.DOCX;
     }
 
-    const normalizedUrl = file.path.replace(/\\/g, "/");
+    const normalizedUrl = file.path.replace(/\\/g, '/');
 
     return this.prisma.attachment.create({
       data: {
         fileName: file.originalname,
-        url: normalizedUrl.startsWith("uploads/") ? `/${normalizedUrl}` : normalizedUrl,
+        url: normalizedUrl.startsWith('uploads/')
+          ? `/${normalizedUrl}`
+          : normalizedUrl,
         fileSize: file.size,
         type,
         postId,
