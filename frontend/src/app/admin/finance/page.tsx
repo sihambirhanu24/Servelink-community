@@ -200,6 +200,49 @@ export default function AdminFinancePage() {
           </Card>
         </div>
 
+        {dashboard?.cancelledPaidSessions?.length > 0 && (
+          <Card className="mb-8">
+            <h2 className="text-lg font-semibold mb-4">Cancelled Paid Sessions</h2>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="text-xs uppercase text-slate-500">
+                  <tr>
+                    <th className="py-2">Session</th>
+                    <th className="py-2">Host</th>
+                    <th className="py-2">Price</th>
+                    <th className="py-2">Paid</th>
+                    <th className="py-2">Collected</th>
+                    <th className="py-2">Cancelled</th>
+                    <th className="py-2">Refunded</th>
+                    <th className="py-2">Pending</th>
+                    <th className="py-2">Failed</th>
+                    <th className="py-2">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dashboard.cancelledPaidSessions.map((session: any) => (
+                    <tr key={session.id} className="border-t">
+                      <td className="py-2 font-medium">{session.topic}</td>
+                      <td className="py-2">{session.host?.firstName} {session.host?.lastName}</td>
+                      <td className="py-2">{Number(session.price || 0).toFixed(2)} ETB</td>
+                      <td className="py-2">{session.paidParticipants}</td>
+                      <td className="py-2">{Number(session.totalCollected).toFixed(2)}</td>
+                      <td className="py-2">{session.cancelledAt ? new Date(session.cancelledAt).toLocaleDateString() : '—'}</td>
+                      <td className="py-2">{Number(session.refundedAmount).toFixed(2)}</td>
+                      <td className="py-2">{Number(session.pendingAmount).toFixed(2)}</td>
+                      <td className="py-2">{Number(session.failedAmount).toFixed(2)}</td>
+                      <td className="py-2">{session.refundStatus}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-3 text-xs text-slate-500">
+              Pending refunds require Chapa confirmation or admin retry. Failed refunds need admin review. Do not treat pending amounts as returned to students.
+            </p>
+          </Card>
+        )}
+
         {/* Payout Management */}
         <Card className="mb-8">
           <div className="flex items-center justify-between mb-4">

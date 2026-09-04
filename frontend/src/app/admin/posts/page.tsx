@@ -1,642 +1,1022 @@
 'use client';
 
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Search, Filter, ChevronLeft, ChevronRight, MoreVertical, FileText, Eye, EyeOff, MessageCircle, Heart, Bookmark, Trash2, AlertTriangle, TrendingUp, Calendar, User, RotateCcw } from 'lucide-react';
-import AdminLayout from '@/components/admin/layout';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { adminApi } from '@/lib/axios';
+import {
+  AlertTriangle,
+  Bookmark,
+  Building2,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  EyeOff,
+  Flag,
+  Heart,
+  Loader2,
+  MessageCircle,
+  Paperclip,
+  RotateCcw,
+  RotateCw,
+  Search,
+  ShieldAlert,
+  Trash2,
+  User,
+  X,
+} from 'lucide-react';
+import AdminLayout from '@/components/admin/layout';
+import { PostActionMenu, type PostMenuItem } from '@/components/admin/posts/PostActionMenu';
+import { ModerationDialog, type ModerationDialogTarget } from '@/components/admin/posts/ModerationDialog';
+import { PostReportsModal } from '@/components/admin/posts/PostReportsModal';
+import {
+  ACTION_LABELS,
+  allowedActions,
+  apiErrorMessage,
+  formatAdminDate,
+  fullName,
+  initials,
+  REPORT_FILTER_LABELS,
+  SORT_LABELS,
+  STATUS_BADGE,
+  STATUS_LABELS,
+  teacherLevelLabel,
+  TYPE_BADGE,
+  TYPE_LABELS,
+} from '@/components/admin/posts/moderation-ui';
+import {
+  MODERATION_STATUSES,
+  POST_SORTS,
+  POST_TYPES,
+  REPORT_FILTERS,
+  useAdminPostStats,
+  useAdminPostsList,
+  useBulkModeratePosts,
+  useCommunityOptions,
+  useModeratePost,
+  type AdminPostRow,
+  type AdminPostsQuery,
+  type ModerationAction,
+  type ModerationStatus,
+  type PostSort,
+  type PostType,
+  type ReportFilter,
+} from '@/services/admin-posts';
 
-const ITEMS_PER_PAGE = 10;
+const PAGE_SIZE = 20;
+const SEARCH_DEBOUNCE_MS = 400;
 
-interface PostStats {
-  total: number;
-  todayPosts: number;
-  reported: number;
-  underReview: number;
-  removed: number;
-  hidden: number;
+interface Filters {
+  search: string;
+  postType: PostType | '';
+  communityId: string;
+  moderationStatus: ModerationStatus | '';
+  reportStatus: ReportFilter | '';
+  dateFrom: string;
+  dateTo: string;
+  sortBy: PostSort;
 }
 
-interface Post {
-  id: string;
-  title: string;
-  description: string;
-  postType: string;
-  moderationStatus: string;
-  createdAt: string;
-  views: number;
-  teacher: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-    level: string;
-    verified: boolean;
-    status: string;
-    profileImage?: string;
-  };
-  community: {
-    id: string;
-    name: string;
-    type: string;
-    school?: string;
-    woreda?: string;
-    zone?: string;
-    region?: string;
-  };
-  category: {
-    id: string;
-    name: string;
-  };
-  _count: {
-    communityLikes: number;
-    comments: number;
-    communityBookmarks: number;
-    communityReports: number;
-  };
-}
+const EMPTY_FILTERS: Filters = {
+  search: '',
+  postType: '',
+  communityId: '',
+  moderationStatus: '',
+  reportStatus: '',
+  dateFrom: '',
+  dateTo: '',
+  sortBy: 'newest',
+};
+
+const isOneOf = <T extends string>(values: readonly T[], value: string | null): value is T =>
+  value !== null && (values as readonly string[]).includes(value);
 
 export default function AdminPostsPage() {
-  const queryClient = useQueryClient();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCommunityType, setSelectedCommunityType] = useState('all');
-  const [selectedTeacherLevel, setSelectedTeacherLevel] = useState('all');
-  const [selectedModerationStatus, setSelectedModerationStatus] = useState('all');
-  const [selectedPostType, setSelectedPostType] = useState('all');
-  const [selectedCategoryId, setSelectedCategoryId] = useState('all');
-  const [selectedReportStatus, setSelectedReportStatus] = useState('all');
-  const [selectedDateFilter, setSelectedDateFilter] = useState('all');
-  const [currentPage, setCurrentPage] = useState(1);
+  return (
+    <AdminLayout>
+      <Suspense fallback={<PageSkeleton />}>
+        <PostsModerationCenter />
+      </Suspense>
+    </AdminLayout>
+  );
+}
 
-  // Fetch categories
-  const { data: categoriesData } = useQuery({
-    queryKey: ['admin-categories'],
-    queryFn: async () => {
-      const response = await adminApi.get('/community/categories');
-      return response.data;
-    },
-  });
-  const categories = categoriesData || [];
+function PostsModerationCenter() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
-  // Fetch post stats
-  const { data: statsData, isLoading: isLoadingStats } = useQuery({
-    queryKey: ['admin-post-stats'],
-    queryFn: async () => {
-      const response = await adminApi.get('/admin/posts/stats');
-      return response.data;
-    },
-  });
-  const stats = statsData || {
-    total: 0,
-    todayPosts: 0,
-    reported: 0,
-    underReview: 0,
-    removed: 0,
-    hidden: 0,
+  const [filters, setFilters] = useState<Filters>(() => ({
+    ...EMPTY_FILTERS,
+    // Deep links: /admin/posts?reportStatus=UNRESOLVED, ?communityId=…, ?moderationStatus=…
+    reportStatus: isOneOf(REPORT_FILTERS, searchParams.get('reportStatus')) ? searchParams.get('reportStatus') as ReportFilter : '',
+    moderationStatus: isOneOf(MODERATION_STATUSES, searchParams.get('moderationStatus')) ? searchParams.get('moderationStatus') as ModerationStatus : '',
+    communityId: searchParams.get('communityId') ?? '',
+  }));
+  const [searchInput, setSearchInput] = useState('');
+  const [page, setPage] = useState(1);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [dialogTarget, setDialogTarget] = useState<ModerationDialogTarget | null>(null);
+  const [reportsFor, setReportsFor] = useState<AdminPostRow | null>(null);
+
+  // Debounce the search box into the server query.
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      setFilters((current) => (current.search === searchInput ? current : { ...current, search: searchInput }));
+      setPage(1);
+    }, SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(handle);
+  }, [searchInput]);
+
+  const query = useMemo<AdminPostsQuery>(
+    () => ({
+      page,
+      pageSize: PAGE_SIZE,
+      sortBy: filters.sortBy,
+      search: filters.search || undefined,
+      postType: filters.postType || undefined,
+      communityId: filters.communityId || undefined,
+      moderationStatus: filters.moderationStatus || undefined,
+      reportStatus: filters.reportStatus || undefined,
+      dateFrom: filters.dateFrom || undefined,
+      dateTo: filters.dateTo || undefined,
+    }),
+    [filters, page],
+  );
+
+  const stats = useAdminPostStats();
+  const posts = useAdminPostsList(query);
+  const communities = useCommunityOptions();
+  const moderate = useModeratePost();
+  const bulkModerate = useBulkModeratePosts();
+
+  const rows = posts.data?.data ?? [];
+  const meta = posts.data?.meta;
+  const filtersActive = Object.entries(filters).some(
+    ([key, value]) => key !== 'sortBy' && value !== '',
+  );
+
+  const updateFilter = <K extends keyof Filters>(key: K, value: Filters[K]) => {
+    setFilters((current) => ({ ...current, [key]: value }));
+    setPage(1);
+    setSelected(new Set());
   };
 
-  const moderateMutation = useMutation({
-    mutationFn: async ({ id, action, reason }: { id: string; action: string; reason?: string }) => {
-      const response = await adminApi.patch(`/admin/posts/${id}/moderate`, { action, reason });
-      return response.data;
-    },
-    onSuccess: () => {
-      toast.success('Post updated successfully');
-      queryClient.invalidateQueries({ queryKey: ['admin-posts'] });
-      queryClient.invalidateQueries({ queryKey: ['admin-post-stats'] });
-    },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Failed to update post');
-    },
-  });
-
-  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
-
-  // Fetch posts from API
-  const { data: postsData, isLoading, refetch } = useQuery({
-    queryKey: ['admin-posts', selectedCommunityType, selectedTeacherLevel, selectedModerationStatus, selectedPostType, selectedCategoryId, selectedReportStatus, selectedDateFilter, searchQuery, currentPage],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      if (searchQuery) params.append('search', searchQuery);
-      if (selectedCommunityType !== 'all') params.append('communityType', selectedCommunityType);
-      if (selectedTeacherLevel !== 'all') params.append('teacherLevel', selectedTeacherLevel);
-      if (selectedModerationStatus !== 'all') params.append('moderationStatus', selectedModerationStatus);
-      if (selectedPostType !== 'all') params.append('postType', selectedPostType);
-      if (selectedCategoryId !== 'all') params.append('categoryId', selectedCategoryId);
-      if (selectedReportStatus !== 'all') params.append('reportStatus', selectedReportStatus);
-
-      // Date filtering
-      if (selectedDateFilter !== 'all') {
-        const today = new Date();
-        let dateFrom = new Date();
-        
-        if (selectedDateFilter === 'today') {
-          dateFrom.setHours(0, 0, 0, 0);
-        } else if (selectedDateFilter === '7days') {
-          dateFrom.setDate(today.getDate() - 7);
-        } else if (selectedDateFilter === '30days') {
-          dateFrom.setDate(today.getDate() - 30);
-        }
-        
-        params.append('dateFrom', dateFrom.toISOString());
-      }
-
-      params.append('page', currentPage.toString());
-      params.append('pageSize', ITEMS_PER_PAGE.toString());
-
-      const response = await adminApi.get(`/admin/posts?${params.toString()}`);
-      return response.data;
-    },
-  });
-
-  const posts = postsData?.data || [];
-  const totalPosts = postsData?.meta?.total || 0;
-
-  const getModerationStatusColor = (status: string) => {
-    const colors: Record<string, string> = {
-      ACTIVE: 'bg-green-100 text-green-700',
-      REPORTED: 'bg-red-100 text-red-700',
-      UNDER_REVIEW: 'bg-yellow-100 text-yellow-700',
-      REMOVED: 'bg-slate-100 text-slate-700',
-      HIDDEN: 'bg-purple-100 text-purple-700',
-    };
-    return colors[status] || 'bg-slate-100 text-slate-700';
+  const resetFilters = () => {
+    setFilters(EMPTY_FILTERS);
+    setSearchInput('');
+    setPage(1);
+    setSelected(new Set());
+    router.replace('/admin/posts');
   };
 
-  const getPostTypeColor = (type: string) => {
-    const colors: Record<string, string> = {
-      QUESTION: 'bg-blue-100 text-blue-700',
-      DISCUSSION: 'bg-purple-100 text-purple-700',
-      RESOURCE: 'bg-amber-100 text-amber-700',
-      ANNOUNCEMENT: 'bg-red-100 text-red-700',
-    };
-    return colors[type] || 'bg-slate-100 text-slate-700';
+  const goToPage = (next: number) => {
+    setPage(next);
+    setSelected(new Set());
   };
 
-  const getCommunityTypeColor = (type: string) => {
-    const colors: Record<string, string> = {
-      NETWORK: 'bg-indigo-100 text-indigo-700',
-      NATIONAL: 'bg-blue-100 text-blue-700',
-      REGION: 'bg-purple-100 text-purple-700',
-      ZONE: 'bg-amber-100 text-amber-700',
-      WOREDA: 'bg-green-100 text-green-700',
-      SCHOOL: 'bg-red-100 text-red-700',
-    };
-    return colors[type] || 'bg-slate-100 text-slate-700';
+  const reviewReports = () => {
+    setFilters({ ...EMPTY_FILTERS, reportStatus: 'UNRESOLVED', sortBy: 'most_reported' });
+    setSearchInput('');
+    setPage(1);
+    setSelected(new Set());
   };
 
-  if (isLoadingStats) {
-    return (
-      <AdminLayout>
-        <div className="flex items-center justify-center h-96">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[#043658] border-r-transparent"></div>
+  // ── Selection ────────────────────────────────────────────────────────────
+  const pageIds = rows.map((r) => r.id);
+  const allOnPageSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
+  const someOnPageSelected = pageIds.some((id) => selected.has(id));
+
+  const toggleAll = () => {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (allOnPageSelected) pageIds.forEach((id) => next.delete(id));
+      else pageIds.forEach((id) => next.add(id));
+      return next;
+    });
+  };
+
+  const toggleOne = (id: string) => {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectedRows = rows.filter((r) => selected.has(r.id));
+  const bulkEligible = (action: ModerationAction) =>
+    selectedRows.filter((r) => allowedActions(r.moderationStatus).includes(action)).map((r) => r.id);
+
+  // ── Mutations ────────────────────────────────────────────────────────────
+  const openDialog = (action: ModerationAction, post: AdminPostRow) =>
+    setDialogTarget({ action, postIds: [post.id], postTitle: post.title });
+
+  const openBulkDialog = (action: ModerationAction) => {
+    const ids = bulkEligible(action);
+    if (ids.length === 0) {
+      toast.info(`None of the selected posts can be ${ACTION_LABELS[action].toLowerCase()}d in their current state.`);
+      return;
+    }
+    setDialogTarget({ action, postIds: ids });
+  };
+
+  const closeDialog = useCallback(() => setDialogTarget(null), []);
+
+  const confirmDialog = (reason?: string) => {
+    if (!dialogTarget) return;
+    const { action, postIds } = dialogTarget;
+    const past = { HIDDEN: 'hidden', REMOVE: 'deleted', RESTORE: 'restored' }[action];
+
+    if (postIds.length === 1) {
+      moderate.mutate(
+        { postId: postIds[0], action, reason },
+        {
+          onSuccess: () => {
+            toast.success(`Post ${past}`);
+            setDialogTarget(null);
+            setSelected((current) => {
+              const next = new Set(current);
+              next.delete(postIds[0]);
+              return next;
+            });
+            if (reportsFor?.id === postIds[0] && action !== 'RESTORE') setReportsFor(null);
+          },
+          onError: (error) => toast.error(apiErrorMessage(error, `Failed to ${ACTION_LABELS[action].toLowerCase()} post`)),
+        },
+      );
+      return;
+    }
+
+    bulkModerate.mutate(
+      { ids: postIds, action, reason },
+      {
+        onSuccess: (result) => {
+          const skipped = result.skipped.length;
+          toast.success(
+            `${result.updated.length} post${result.updated.length === 1 ? '' : 's'} ${past}` +
+              (skipped ? ` · ${skipped} skipped` : ''),
+          );
+          setDialogTarget(null);
+          setSelected(new Set());
+        },
+        onError: (error) => toast.error(apiErrorMessage(error, 'Bulk action failed')),
+      },
+    );
+  };
+
+  const isMutating = moderate.isPending || bulkModerate.isPending;
+
+  const menuItemsFor = (post: AdminPostRow): PostMenuItem[] => {
+    const actions = allowedActions(post.moderationStatus);
+    const items: PostMenuItem[] = [
+      { key: 'view', label: 'View Post', icon: Eye, onSelect: () => router.push(`/admin/posts/${post.id}`) },
+      {
+        key: 'author',
+        label: 'View Author',
+        icon: User,
+        onSelect: () => router.push(`/admin/teachers?search=${encodeURIComponent(post.teacher.email)}`),
+      },
+      {
+        key: 'community',
+        label: 'View Community',
+        icon: Building2,
+        onSelect: () => router.push(`/admin/communities/${post.community.id}`),
+      },
+    ];
+    if (post._count.communityReports > 0) {
+      items.push({ key: 'reports', label: 'View Reports', icon: Flag, onSelect: () => setReportsFor(post) });
+    }
+    if (actions.includes('HIDDEN')) {
+      items.push({ key: 'hide', label: 'Hide Post', icon: EyeOff, onSelect: () => openDialog('HIDDEN', post) });
+    }
+    if (actions.includes('RESTORE')) {
+      items.push({ key: 'restore', label: 'Restore Post', icon: RotateCcw, onSelect: () => openDialog('RESTORE', post) });
+    }
+    if (actions.includes('REMOVE')) {
+      items.push({ key: 'delete', label: 'Delete Post', icon: Trash2, destructive: true, onSelect: () => openDialog('REMOVE', post) });
+    }
+    return items;
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-3xl font-bold text-[#043658]">Posts Management</h1>
+        <p className="mt-1 text-sm text-[#6B7C93]">
+          Review, moderate, and manage community content across ServeLink.
+        </p>
+      </div>
+
+      {/* Statistics */}
+      <StatsSection
+        stats={stats.data}
+        isLoading={stats.isLoading}
+        isError={stats.isError}
+        onRetry={() => stats.refetch()}
+        onSelectStatus={(status) => updateFilter('moderationStatus', status)}
+        onSelectType={(type) => updateFilter('postType', type)}
+        onSelectReported={reviewReports}
+      />
+
+      {/* Reported content alert */}
+      {stats.data && stats.data.postsWithPendingReports > 0 && (
+        <div
+          role="status"
+          className="flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50 px-5 py-4 sm:flex-row sm:items-center"
+        >
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600">
+            <ShieldAlert className="h-5 w-5" />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-bold text-red-800">
+              {stats.data.postsWithPendingReports} post{stats.data.postsWithPendingReports === 1 ? '' : 's'} require
+              {stats.data.postsWithPendingReports === 1 ? 's' : ''} moderation.
+            </p>
+            <p className="text-xs text-red-700">
+              {stats.data.pendingReports} unresolved report{stats.data.pendingReports === 1 ? '' : 's'} submitted by
+              teachers are waiting for review.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={reviewReports}
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700"
+          >
+            <Flag className="h-4 w-4" />
+            Review Reports
+          </button>
         </div>
-      </AdminLayout>
+      )}
+
+      {/* Search & filters */}
+      <div className="rounded-xl border border-[#D9E2EC] bg-white p-4 shadow-sm sm:p-6">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <label className="flex flex-1 items-center gap-2 rounded-lg border border-[#D9E2EC] bg-white px-3 py-2.5 focus-within:border-[#043658] focus-within:ring-2 focus-within:ring-[#043658]/15">
+            <Search className="h-4 w-4 shrink-0 text-[#6B7C93]" />
+            <input
+              type="search"
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              placeholder="Search title, content, author name or email, community…"
+              aria-label="Search posts"
+              className="flex-1 bg-transparent text-sm text-[#043658] outline-none placeholder:text-[#6B7C93]"
+            />
+            {searchInput && (
+              <button
+                type="button"
+                onClick={() => setSearchInput('')}
+                aria-label="Clear search"
+                className="text-[#6B7C93] hover:text-[#043658]"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </label>
+          <label className="flex items-center gap-2 text-sm text-[#6B7C93]">
+            <span className="whitespace-nowrap font-semibold">Sort</span>
+            <select
+              value={filters.sortBy}
+              onChange={(event) => updateFilter('sortBy', event.target.value as PostSort)}
+              className="rounded-lg border border-[#D9E2EC] bg-white px-3 py-2.5 text-sm text-[#043658] outline-none hover:border-[#043658]/40 focus:border-[#043658]"
+            >
+              {POST_SORTS.map((sort) => (
+                <option key={sort} value={sort}>
+                  {SORT_LABELS[sort]}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
+          <FilterSelect
+            label="Post Type"
+            value={filters.postType}
+            onChange={(value) => updateFilter('postType', value as PostType | '')}
+            placeholder="All types"
+            options={POST_TYPES.map((type) => ({ value: type, label: TYPE_LABELS[type] }))}
+          />
+          <FilterSelect
+            label="Community"
+            value={filters.communityId}
+            onChange={(value) => updateFilter('communityId', value)}
+            placeholder={communities.isLoading ? 'Loading…' : 'All communities'}
+            disabled={communities.isLoading}
+            options={(communities.data ?? []).map((c) => ({ value: c.id, label: c.name }))}
+          />
+          <FilterSelect
+            label="Status"
+            value={filters.moderationStatus}
+            onChange={(value) => updateFilter('moderationStatus', value as ModerationStatus | '')}
+            placeholder="All statuses"
+            options={MODERATION_STATUSES.map((status) => ({ value: status, label: STATUS_LABELS[status] }))}
+          />
+          <FilterSelect
+            label="Report Status"
+            value={filters.reportStatus}
+            onChange={(value) => updateFilter('reportStatus', value as ReportFilter | '')}
+            placeholder="Any"
+            options={REPORT_FILTERS.map((filter) => ({ value: filter, label: REPORT_FILTER_LABELS[filter] }))}
+          />
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[#6B7C93]">From</span>
+            <input
+              type="date"
+              value={filters.dateFrom}
+              max={filters.dateTo || undefined}
+              onChange={(event) => updateFilter('dateFrom', event.target.value)}
+              className="w-full rounded-lg border border-[#D9E2EC] bg-white px-3 py-2.5 text-sm text-[#043658] outline-none hover:border-[#043658]/40 focus:border-[#043658]"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[#6B7C93]">To</span>
+            <input
+              type="date"
+              value={filters.dateTo}
+              min={filters.dateFrom || undefined}
+              onChange={(event) => updateFilter('dateTo', event.target.value)}
+              className="w-full rounded-lg border border-[#D9E2EC] bg-white px-3 py-2.5 text-sm text-[#043658] outline-none hover:border-[#043658]/40 focus:border-[#043658]"
+            />
+          </label>
+        </div>
+
+        {filtersActive && (
+          <div className="mt-4 flex items-center justify-between gap-3 border-t border-[#E8EEF3] pt-3">
+            <p className="text-xs text-[#6B7C93]">
+              {meta ? `${meta.total} post${meta.total === 1 ? '' : 's'} match the current filters.` : 'Filters applied.'}
+            </p>
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[#D9E2EC] px-3 py-1.5 text-xs font-semibold text-[#043658] transition-colors hover:bg-[#F8FAFC]"
+            >
+              <RotateCw className="h-3.5 w-3.5" />
+              Reset Filters
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Table */}
+      <div className="overflow-hidden rounded-xl border border-[#D9E2EC] bg-white shadow-sm">
+        <div className="flex flex-col gap-2 border-b border-[#E8EEF3] bg-[#F8FAFC] px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          {selected.size > 0 ? (
+            <>
+              <p className="text-sm font-semibold text-[#043658]">
+                {selected.size} post{selected.size === 1 ? '' : 's'} selected
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => openBulkDialog('HIDDEN')}
+                  disabled={isMutating}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-purple-200 bg-purple-50 px-3 py-1.5 text-xs font-semibold text-purple-700 transition-colors hover:bg-purple-100 disabled:opacity-50"
+                >
+                  <EyeOff className="h-3.5 w-3.5" />
+                  Hide Selected
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openBulkDialog('RESTORE')}
+                  disabled={isMutating}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-[#D9E2EC] bg-white px-3 py-1.5 text-xs font-semibold text-[#043658] transition-colors hover:bg-[#F8FAFC] disabled:opacity-50"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  Restore Selected
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openBulkDialog('REMOVE')}
+                  disabled={isMutating}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Delete Selected
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelected(new Set())}
+                  className="rounded-lg px-2 py-1.5 text-xs font-semibold text-[#6B7C93] hover:text-[#043658]"
+                >
+                  Clear
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <h2 className="text-sm font-semibold text-[#043658]">
+                Posts
+                {meta && <span className="ml-2 font-normal text-[#6B7C93]">{meta.total.toLocaleString()} total</span>}
+              </h2>
+              <div className="flex items-center gap-2 text-xs text-[#6B7C93]">
+                {posts.isFetching && !posts.isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                {meta && meta.total > 0 && (
+                  <span>
+                    Showing {(meta.page - 1) * meta.pageSize + 1}–{Math.min(meta.page * meta.pageSize, meta.total)}
+                  </span>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1080px] text-sm">
+            <thead>
+              <tr className="border-b border-[#E8EEF3] bg-[#F8FAFC]">
+                <th scope="col" className="w-12 px-4 py-3">
+                  <input
+                    type="checkbox"
+                    aria-label="Select all posts on this page"
+                    checked={allOnPageSelected}
+                    ref={(el) => {
+                      if (el) el.indeterminate = !allOnPageSelected && someOnPageSelected;
+                    }}
+                    onChange={toggleAll}
+                    disabled={rows.length === 0}
+                    className="h-4 w-4 rounded border-[#D9E2EC] text-[#043658] accent-[#043658]"
+                  />
+                </th>
+                {['Post', 'Author', 'Community', 'Type', 'Engagement', 'Reports', 'Status', 'Created'].map((heading) => (
+                  <th
+                    key={heading}
+                    scope="col"
+                    className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[#6B7C93]"
+                  >
+                    {heading}
+                  </th>
+                ))}
+                <th scope="col" className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-[#6B7C93]">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {posts.isLoading ? (
+                <TableSkeleton />
+              ) : posts.isError ? (
+                <TableMessage
+                  icon={<AlertTriangle className="h-8 w-8 text-red-500" />}
+                  title="Unable to load posts."
+                  description={apiErrorMessage(posts.error, 'The server did not return the post list.')}
+                  action={
+                    <button
+                      type="button"
+                      onClick={() => posts.refetch()}
+                      className="rounded-lg bg-[#043658] px-4 py-2 text-sm font-semibold text-white hover:bg-[#05456F]"
+                    >
+                      Retry
+                    </button>
+                  }
+                />
+              ) : rows.length === 0 ? (
+                <TableMessage
+                  icon={<Search className="h-8 w-8 text-[#6B7C93]" />}
+                  title={filtersActive ? 'No posts match your filters.' : 'No posts found.'}
+                  description={
+                    filtersActive
+                      ? 'Try widening the date range or clearing a filter.'
+                      : 'Posts created by teachers will appear here.'
+                  }
+                  action={
+                    filtersActive ? (
+                      <button
+                        type="button"
+                        onClick={resetFilters}
+                        className="rounded-lg border border-[#D9E2EC] px-4 py-2 text-sm font-semibold text-[#043658] hover:bg-[#F8FAFC]"
+                      >
+                        Reset Filters
+                      </button>
+                    ) : undefined
+                  }
+                />
+              ) : (
+                rows.map((post) => (
+                  <PostRow
+                    key={post.id}
+                    post={post}
+                    selected={selected.has(post.id)}
+                    onToggle={() => toggleOne(post.id)}
+                    onOpenReports={() => setReportsFor(post)}
+                    menuItems={menuItemsFor(post)}
+                    disabled={isMutating}
+                  />
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {meta && meta.totalPages > 1 && (
+          <Pagination page={meta.page} totalPages={meta.totalPages} onChange={goToPage} />
+        )}
+      </div>
+
+      <ModerationDialog
+        target={dialogTarget}
+        isPending={isMutating}
+        onCancel={closeDialog}
+        onConfirm={confirmDialog}
+      />
+
+      <PostReportsModal
+        post={reportsFor}
+        onClose={() => setReportsFor(null)}
+        onHidePost={(post) => openDialog('HIDDEN', post)}
+      />
+    </div>
+  );
+}
+
+// ─── Statistics ──────────────────────────────────────────────────────────────
+
+interface StatsSectionProps {
+  stats: ReturnType<typeof useAdminPostStats>['data'];
+  isLoading: boolean;
+  isError: boolean;
+  onRetry: () => void;
+  onSelectStatus: (status: ModerationStatus) => void;
+  onSelectType: (type: PostType) => void;
+  onSelectReported: () => void;
+}
+
+function StatsSection({ stats, isLoading, isError, onRetry, onSelectStatus, onSelectType, onSelectReported }: StatsSectionProps) {
+  if (isError) {
+    return (
+      <div className="flex items-center justify-between gap-3 rounded-lg border border-[#D9E2EC] bg-white px-4 py-3 text-sm">
+        <span className="flex items-center gap-2 text-[#043658]">
+          <AlertTriangle className="h-4 w-4 text-red-500" />
+          Unable to load statistics.
+        </span>
+        <button type="button" onClick={onRetry} className="font-semibold text-[#043658] underline-offset-2 hover:underline">
+          Retry
+        </button>
+      </div>
     );
   }
 
+  const primary: { label: string; value?: number; hint: string; onClick?: () => void; accent?: string }[] = [
+    { label: 'Total Posts', value: stats?.total, hint: 'All posts in the database' },
+    { label: 'Published', value: stats?.published, hint: 'Visible to teachers', onClick: () => onSelectStatus('ACTIVE'), accent: 'text-green-700' },
+    { label: 'Pending Review', value: stats?.pendingReview, hint: 'Reported or under review', onClick: () => onSelectStatus('REPORTED'), accent: 'text-yellow-700' },
+    { label: 'Reported', value: stats?.postsWithPendingReports, hint: 'With unresolved reports', onClick: onSelectReported, accent: 'text-red-700' },
+    { label: 'Hidden', value: stats?.hidden, hint: 'Hidden by an admin', onClick: () => onSelectStatus('HIDDEN'), accent: 'text-purple-700' },
+  ];
+
   return (
-    <AdminLayout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-[#043658]">Post Management</h1>
-            <p className="mt-1 text-sm text-[#6B7C93]">Manage and moderate community discussions across the platform.</p>
-          </div>
-          <button className="flex items-center gap-2 rounded-lg bg-[#043658] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#05456F] transition-colors">
-            <FileText className="h-4 w-4" />
-            Export
-          </button>
-        </div>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-2 gap-3 sm:grid.cols-5">
-          <div className="rounded-lg border border-[#D9E2EC] bg-white p-4">
-            <div className="text-xs font-semibold uppercase tracking-wide text-[#6B7C93] mb-1">Total Posts</div>
-            <p className="text-2xl font-bold text-[#043658]">{stats.total}</p>
-          </div>
-          <div className="rounded-lg border border-[#D9E2EC] bg-white p-4">
-            <div className="text-xs font-semibold uppercase tracking-wide text-[#6B7C93] mb-1">Today</div>
-            <p className="text-2xl font-bold text-[#043658]">{stats.todayPosts}</p>
-          </div>
-          <div className="rounded-lg border border-[#D9E2EC] bg-white p-4">
-            <div className="text-xs font-semibold uppercase tracking-wide text-[#6B7C93] mb-1">Reported</div>
-            <p className="text-2xl font-bold text-[#043658]">{stats.reported}</p>
-          </div>
-          <div className="rounded-lg border border-[#D9E2EC] bg-white p-4">
-            <div className="text-xs font-semibold uppercase tracking-wide text-[#6B7C93] mb-1">Under Review</div>
-            <p className="text-2xl font-bold text-[#043658]">{stats.underReview}</p>
-          </div>
-          <div className="rounded-lg border border-[#D9E2EC] bg-white p-4">
-            <div className="text-xs font-semibold uppercase tracking-wide text-[#6B7C93] mb-1">Removed</div>
-            <p className="text-2xl font-bold text-[#043658]">{stats.removed}</p>
-          </div>
-        </div>
-
-        {/* Filters Card */}
-        <div className="rounded-xl border border-[#D9E2EC] bg-white p-6 shadow-sm">
-          <div className="space-y-4">
-            {/* Search */}
-            <div>
-              <label className="text-sm font-semibold text-[#043658] mb-2 block">Search Posts</label>
-              <div className="flex items-center gap-2 rounded-lg border border-[#D9E2EC] bg-white px-3 py-2.5">
-                <Search className="h-4 w-4 text-[#6B7C93]" />
-                <input
-                  type="text"
-                  placeholder="Search authors, content, or communities..."
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="flex-1 bg-transparent text-sm text-[#043658] placeholder:text-[#6B7C93] outline-none"
-                />
-              </div>
-            </div>
-
-            {/* Filter Row 1 */}
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-              {/* Community Type */}
-              <div>
-                <label className="text-sm font-semibold text-[#043658] mb-2 block">Community Type</label>
-                <select
-                  value={selectedCommunityType}
-                  onChange={(e) => {
-                    setSelectedCommunityType(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="w-full rounded-lg border border-[#D9E2EC] bg-white px-3 py-2.5 text-sm text-[#043658] outline-none hover:border-[#043658]/40"
-                >
-                  <option value="all">All Communities</option>
-                  <option value="NETWORK">Network Community</option>
-                  <option value="NATIONAL">National Community</option>
-                  <option value="REGION">Regional Community</option>
-                  <option value="ZONE">Zone Community</option>
-                  <option value="WOREDA">Woreda Community</option>
-                  <option value="SCHOOL">School Community</option>
-                </select>
-              </div>
-
-              {/* Status */}
-              <div>
-                <label className="text-sm font-semibold text-[#043658] mb-2 block">Status</label>
-                <select
-                  value={selectedModerationStatus}
-                  onChange={(e) => {
-                    setSelectedModerationStatus(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="w-full rounded-lg border border-[#D9E2EC] bg-white px-3 py-2.5 text-sm text-[#043658] outline-none hover:border-[#043658]/40"
-                >
-                  <option value="all">All Statuses</option>
-                  <option value="ACTIVE">Published</option>
-                  <option value="HIDDEN">Hidden</option>
-                  <option value="REMOVED">Deleted</option>
-                  <option value="REPORTED">Reported</option>
-                  <option value="UNDER_REVIEW">Under Review</option>
-                </select>
-              </div>
-
-              {/* Category */}
-              <div>
-                <label className="text-sm font-semibold text-[#043658] mb-2 block">Category</label>
-                <select
-                  value={selectedCategoryId}
-                  onChange={(e) => {
-                    setSelectedCategoryId(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="w-full rounded-lg border border-[#D9E2EC] bg-white px-3 py-2.5 text-sm text-[#043658] outline-none hover:border-[#043658]/40"
-                >
-                  <option value="all">All Categories</option>
-                  {categories.map((cat: any) => (
-                    <option key={cat.id} value={cat.id}>{cat.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Date Filter */}
-              <div>
-                <label className="text-sm font-semibold text-[#043658] mb-2 block">Date Filter</label>
-                <select
-                  value={selectedDateFilter}
-                  onChange={(e) => {
-                    setSelectedDateFilter(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="w-full rounded-lg border border-[#D9E2EC] bg-white px-3 py-2.5 text-sm text-[#043658] outline-none hover:border-[#043658]/40"
-                >
-                  <option value="all">All time</option>
-                  <option value="today">Today</option>
-                  <option value="7days">Last 7 days</option>
-                  <option value="30days">Last 30 days</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Filter Row 2 */}
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-4 items-end">
-              {/* Report Filter */}
-              <div>
-                <label className="text-sm font-semibold text-[#043658] mb-2 block">Report Status</label>
-                <select
-                  value={selectedReportStatus}
-                  onChange={(e) => {
-                    setSelectedReportStatus(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="w-full rounded-lg border border-[#D9E2EC] bg-white px-3 py-2.5 text-sm text-[#043658] outline-none hover:border-[#043658]/40"
-                >
-                  <option value="all">All</option>
-                  <option value="NO_REPORTS">No reports</option>
-                  <option value="REPORTED">Reported</option>
-                  <option value="UNRESOLVED">Unresolved reports</option>
-                  <option value="RESOLVED">Resolved reports</option>
-                </select>
-              </div>
-
-              {/* Post Type */}
-              <div>
-                <label className="text-sm font-semibold text-[#043658] mb-2 block">Post Type</label>
-                <select
-                  value={selectedPostType}
-                  onChange={(e) => {
-                    setSelectedPostType(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="w-full rounded-lg border border-[#D9E2EC] bg-white px-3 py-2.5 text-sm text-[#043658] outline-none hover:border-[#043658]/40"
-                >
-                  <option value="all">All Types</option>
-                  <option value="QUESTION">Question</option>
-                  <option value="DISCUSSION">Discussion</option>
-                  <option value="RESOURCE">Resource</option>
-                  <option value="ANNOUNCEMENT">Announcement</option>
-                </select>
-              </div>
-
-              {/* Teacher Level */}
-              <div>
-                <label className="text-sm font-semibold text-[#043658] mb-2 block">Teacher Level</label>
-                <select
-                  value={selectedTeacherLevel}
-                  onChange={(e) => {
-                    setSelectedTeacherLevel(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="w-full rounded-lg border border-[#D9E2EC] bg-white px-3 py-2.5 text-sm text-[#043658] outline-none hover:border-[#043658]/40"
-                >
-                  <option value="all">All Levels</option>
-                  <option value="LEVEL_1">Level 1</option>
-                  <option value="LEVEL_2">Level 2</option>
-                  <option value="LEVEL_3">Level 3</option>
-                  <option value="LEVEL_4">Level 4</option>
-                  <option value="LEVEL_5">Level 5</option>
-                </select>
-              </div>
-
-              {/* Clear Filters */}
-              <div>
-                <button
-                  onClick={() => {
-                    setSearchQuery('');
-                    setSelectedCommunityType('all');
-                    setSelectedTeacherLevel('all');
-                    setSelectedModerationStatus('all');
-                    setSelectedPostType('all');
-                    setSelectedCategoryId('all');
-                    setSelectedReportStatus('all');
-                    setSelectedDateFilter('all');
-                    setCurrentPage(1);
-                  }}
-                  className="w-full rounded-lg bg-gray-100 hover:bg-gray-200 text-[#043658] font-semibold px-4 py-2.5 transition-colors text-sm border border-[#D9E2EC]"
-                >
-                  Clear Filters
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Posts Table Card */}
-        <div className="rounded-xl border border-[#D9E2EC] bg-white shadow-sm overflow-hidden">
-          {/* Table Header */}
-          <div className="border-b border-[#E8EEF3] bg-[#F8FAFC] px-6 py-3">
-            <p className="text-sm font-semibold text-[#043658]">
-              Showing {posts.length === 0 ? 0 : (currentPage - 1) * ITEMS_PER_PAGE + 1} to {Math.min(currentPage * ITEMS_PER_PAGE, totalPosts)} of {totalPosts} posts
-            </p>
-          </div>
-
-          {/* Table Body */}
-          {isLoading ? (
-            <div className="flex items-center justify-center py-20">
-              <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[#043658] border-r-transparent"></div>
-            </div>
-          ) : posts.length === 0 ? (
-            <div className="p-12 text-center">
-              <Filter className="mx-auto h-12 w-12 text-[#D9E2EC] mb-4" />
-              <p className="text-sm font-semibold text-[#043658]">No posts found</p>
-              <p className="text-xs text-[#6B7C93] mt-1">Try adjusting your search or filters</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-[#E8EEF3] bg-white">
-                    <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[#6B7C93]">Author & Content</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[#6B7C93]">Community</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[#6B7C93]">Type</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[#6B7C93]">Engagement</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[#6B7C93]">Reports</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[#6B7C93]">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[#6B7C93]">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {posts.map((post: Post) => (
-                    <tr key={post.id} className="border-b border-[#E8EEF3] hover:bg-[#F8FAFC] transition-colors">
-                      {/* Author & Content */}
-                      <td className="px-6 py-4">
-                        <div className="flex items-start gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#043658]/10 text-sm font-bold text-[#043658] shrink-0">
-                            {post.teacher.firstName?.[0]?.toUpperCase() || 'A'}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm font-semibold text-[#043658]">
-                                {post.teacher.firstName} {post.teacher.lastName}
-                              </p>
-                              {post.teacher.status === 'SUSPENDED' && (
-                                <AlertTriangle className="h-3 w-3 text-red-600" />
-                              )}
-                            </div>
-                            <p className="text-xs text-[#6B7C93]">@{post.teacher.email?.split('@')[0]}</p>
-                            <p className="text-sm text-[#043658] font-medium mt-1 line-clamp-1">{post.title}</p>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Community */}
-                      <td className="px-6 py-4">
-                        <p className="text-sm font-medium text-[#043658]">{post.community.name}</p>
-                        <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-bold mt-1 ${getCommunityTypeColor(post.community.type)}`}>
-                          {post.community.type}
-                        </span>
-                      </td>
-
-                      {/* Type */}
-                      <td className="px-6 py-4">
-                        <span className={`inline-block rounded-full px-3 py-1 text-xs font-bold ${getPostTypeColor(post.postType)}`}>
-                          {post.postType}
-                        </span>
-                      </td>
-
-                      {/* Engagement */}
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-4 text-sm">
-                          <div className="flex items-center gap-1 text-[#043658]" title="Views">
-                            <Eye className="h-4 w-4 text-[#6B7C93]" />
-                            <span className="font-medium">{post.views || 0}</span>
-                          </div>
-                          <div className="flex items-center gap-1 text-[#043658]" title="Likes">
-                            <Heart className="h-4 w-4 text-[#6B7C93]" />
-                            <span className="font-medium">{post._count.communityLikes || 0}</span>
-                          </div>
-                          <div className="flex items-center gap-1 text-[#043658]" title="Comments">
-                            <MessageCircle className="h-4 w-4 text-[#6B7C93]" />
-                            <span className="font-medium">{post._count.comments || 0}</span>
-                          </div>
-                          <div className="flex items-center gap-1 text-[#043658]" title="Bookmarks">
-                            <Bookmark className="h-4 w-4 text-[#6B7C93]" />
-                            <span className="font-medium">{post._count.communityBookmarks || 0}</span>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Reports */}
-                      <td className="px-6 py-4">
-                        {post._count.communityReports > 0 ? (
-                          <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-700">
-                            <AlertTriangle className="h-3 w-3" />
-                            {post._count.communityReports}
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 rounded-full bg-[#E8EEF3] px-3 py-1 text-xs font-bold text-[#6B7C93]">
-                            0
-                          </span>
-                        )}
-                      </td>
-
-                      {/* Status */}
-                      <td className="px-6 py-4">
-                        <span className={`inline-block rounded-full px-3 py-1 text-xs font-bold ${getModerationStatusColor(post.moderationStatus)}`}>
-                          {post.moderationStatus}
-                        </span>
-                      </td>
-
-                      {/* Actions */}
-                      <td className="px-6 py-4">
-                        <div className="relative">
-                          <button
-                            onClick={() => setOpenDropdownId(openDropdownId === post.id ? null : post.id)}
-                            className="p-1 rounded hover:bg-gray-100 transition-colors"
-                          >
-                            <MoreVertical className="h-5 w-5 text-gray-500" />
-                          </button>
-                          
-                          {openDropdownId === post.id && (
-                            <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
-                              <div className="py-1" role="menu">
-                                <button
-                                  onClick={() => { window.location.href = `/admin/posts/${post.id}`; setOpenDropdownId(null); }}
-                                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-                                >
-                                  <FileText className="h-4 w-4" /> Review Post
-                                </button>
-                                {post.moderationStatus !== 'HIDDEN' && (
-                                  <button
-                                    onClick={() => { moderateMutation.mutate({ id: post.id, action: 'HIDE' }); setOpenDropdownId(null); }}
-                                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-                                  >
-                                    <EyeOff className="h-4 w-4" /> Hide
-                                  </button>
-                                )}
-                                {(post.moderationStatus === 'HIDDEN' || post.moderationStatus === 'REMOVED') && (
-                                  <button
-                                    onClick={() => { moderateMutation.mutate({ id: post.id, action: 'RESTORE' }); setOpenDropdownId(null); }}
-                                    className="w-full text-left px-4 py-2 text-sm text-green-600 hover:bg-gray-100 flex items-center gap-2"
-                                  >
-                                    <RotateCcw className="h-4 w-4" /> Restore
-                                  </button>
-                                )}
-                                {post.moderationStatus !== 'REMOVED' && (
-                                  <button
-                                    onClick={() => {
-                                      if(confirm('Are you sure you want to delete this post?')) {
-                                        moderateMutation.mutate({ id: post.id, action: 'REMOVE' });
-                                      }
-                                      setOpenDropdownId(null);
-                                    }}
-                                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100 flex items-center gap-2"
-                                  >
-                                    <Trash2 className="h-4 w-4" /> Delete
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* Pagination */}
-          {Math.ceil(totalPosts / ITEMS_PER_PAGE) > 1 && (
-            <div className="border-t border-[#E8EEF3] bg-[#F8FAFC] px-6 py-4 flex items-center justify-between">
-              <button
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage(currentPage - 1)}
-                className="flex items-center gap-2 rounded-lg border border-[#D9E2EC] px-3 py-2 text-sm font-medium text-[#043658] hover:bg-white disabled:opacity-50"
-              >
-                <ChevronLeft className="h-4 w-4" />
-                Previous
-              </button>
-              <div className="flex items-center gap-2">
-                {Array.from({ length: Math.min(Math.ceil(totalPosts / ITEMS_PER_PAGE), 5) }, (_, i) => {
-                  const pageNum = i + 1;
-                  return (
-                    <button
-                      key={pageNum}
-                      onClick={() => setCurrentPage(pageNum)}
-                      className={`h-8 w-8 rounded text-sm font-semibold transition-colors ${
-                        currentPage === pageNum
-                          ? 'bg-[#043658] text-white'
-                          : 'text-[#043658] hover:bg-[#F8FAFC]'
-                      }`}
-                    >
-                      {pageNum}
-                    </button>
-                  );
-                })}
-                {Math.ceil(totalPosts / ITEMS_PER_PAGE) > 5 && <span className="text-sm text-[#6B7C93]">...</span>}
-              </div>
-              <button
-                disabled={currentPage === Math.ceil(totalPosts / ITEMS_PER_PAGE)}
-                onClick={() => setCurrentPage(currentPage + 1)}
-                className="flex items-center gap-2 rounded-lg border border-[#D9E2EC] px-3 py-2 text-sm font-medium text-[#043658] hover:bg-white disabled:opacity-50"
-              >
-                Next
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
-          )}
-        </div>
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+        {primary.map((card) => (
+          <StatCard key={card.label} {...card} isLoading={isLoading} />
+        ))}
       </div>
-    </AdminLayout>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        {POST_TYPES.map((type) => (
+          <StatCard
+            key={type}
+            label={`${TYPE_LABELS[type]}s`}
+            value={stats?.byType[type]}
+            hint={`Posts of type ${TYPE_LABELS[type].toLowerCase()}`}
+            onClick={() => onSelectType(type)}
+            isLoading={isLoading}
+            compact
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  hint,
+  onClick,
+  accent,
+  isLoading,
+  compact,
+}: {
+  label: string;
+  value?: number;
+  hint: string;
+  onClick?: () => void;
+  accent?: string;
+  isLoading: boolean;
+  compact?: boolean;
+}) {
+  const Tag = onClick ? 'button' : 'div';
+  return (
+    <Tag
+      type={onClick ? 'button' : undefined}
+      onClick={onClick}
+      title={onClick ? `Filter by ${label.toLowerCase()}` : undefined}
+      className={`rounded-lg border border-[#D9E2EC] bg-white text-left ${compact ? 'px-4 py-3' : 'p-4'} ${
+        onClick ? 'transition-colors hover:border-[#043658]/40 hover:bg-[#F8FAFC] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#043658]/30' : ''
+      }`}
+    >
+      <div className="text-xs font-semibold uppercase tracking-wide text-[#6B7C93]">{label}</div>
+      {isLoading ? (
+        <div className={`mt-2 animate-pulse rounded bg-[#E8EEF3] ${compact ? 'h-6 w-12' : 'h-8 w-16'}`} />
+      ) : (
+        <p className={`${compact ? 'text-xl' : 'text-2xl'} font-bold ${accent ?? 'text-[#043658]'}`}>
+          {value?.toLocaleString() ?? '—'}
+        </p>
+      )}
+      {!compact && <p className="mt-0.5 text-xs text-[#6B7C93]">{hint}</p>}
+    </Tag>
+  );
+}
+
+// ─── Table pieces ────────────────────────────────────────────────────────────
+
+function PostRow({
+  post,
+  selected,
+  onToggle,
+  onOpenReports,
+  menuItems,
+  disabled,
+}: {
+  post: AdminPostRow;
+  selected: boolean;
+  onToggle: () => void;
+  onOpenReports: () => void;
+  menuItems: PostMenuItem[];
+  disabled: boolean;
+}) {
+  const level = teacherLevelLabel(post.teacher.level);
+  return (
+    <tr className={`border-b border-[#E8EEF3] transition-colors hover:bg-[#F8FAFC] ${selected ? 'bg-[#FFF8E1]/60' : ''}`}>
+      <td className="px-4 py-3 align-top">
+        <input
+          type="checkbox"
+          aria-label={`Select post ${post.title}`}
+          checked={selected}
+          onChange={onToggle}
+          className="mt-1 h-4 w-4 rounded border-[#D9E2EC] accent-[#043658]"
+        />
+      </td>
+      <td className="max-w-[320px] px-4 py-3 align-top">
+        <Link
+          href={`/admin/posts/${post.id}`}
+          className="line-clamp-1 font-semibold text-[#043658] hover:underline"
+          title={post.title}
+        >
+          {post.title || 'Untitled post'}
+        </Link>
+        <p className="mt-0.5 line-clamp-2 text-xs text-[#6B7C93]" title={post.preview}>
+          {post.preview || 'No content'}
+        </p>
+        {post._count.attachments > 0 && (
+          <span className="mt-1 inline-flex items-center gap-1 text-[11px] text-[#6B7C93]">
+            <Paperclip className="h-3 w-3" />
+            {post._count.attachments} attachment{post._count.attachments === 1 ? '' : 's'}
+          </span>
+        )}
+      </td>
+      <td className="px-4 py-3 align-top">
+        <Link
+          href={`/admin/teachers?search=${encodeURIComponent(post.teacher.email)}`}
+          className="group flex items-center gap-2.5"
+        >
+          {post.teacher.profileImage ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={post.teacher.profileImage} alt="" className="h-8 w-8 shrink-0 rounded-full object-cover" />
+          ) : (
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#043658] text-[11px] font-bold text-white">
+              {initials(post.teacher)}
+            </span>
+          )}
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-medium text-[#043658] group-hover:underline">
+              {fullName(post.teacher)}
+            </span>
+            <span className="block truncate text-xs text-[#6B7C93]">
+              {level ?? post.teacher.email}
+              {post.teacher.status !== 'ACTIVE' && (
+                <span className="ml-1 rounded bg-red-100 px-1 py-0.5 text-[10px] font-bold text-red-700">
+                  {post.teacher.status.replace('_', ' ')}
+                </span>
+              )}
+            </span>
+          </span>
+        </Link>
+      </td>
+      <td className="px-4 py-3 align-top">
+        <Link href={`/admin/communities/${post.community.id}`} className="text-sm font-medium text-[#043658] hover:underline">
+          {post.community.name}
+        </Link>
+        <p className="text-xs text-[#6B7C93]">{post.community.type.charAt(0) + post.community.type.slice(1).toLowerCase()}</p>
+      </td>
+      <td className="px-4 py-3 align-top">
+        <span className={`inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-bold ${TYPE_BADGE[post.postType]}`}>
+          {TYPE_LABELS[post.postType]}
+        </span>
+      </td>
+      <td className="px-4 py-3 align-top">
+        <div className="flex items-center gap-3 text-xs text-[#6B7C93]">
+          <span className="inline-flex items-center gap-1" title="Reactions">
+            <Heart className="h-3.5 w-3.5" />
+            {post._count.communityLikes}
+          </span>
+          <span className="inline-flex items-center gap-1" title="Comments">
+            <MessageCircle className="h-3.5 w-3.5" />
+            {post._count.comments}
+          </span>
+          <span className="inline-flex items-center gap-1" title="Bookmarks">
+            <Bookmark className="h-3.5 w-3.5" />
+            {post._count.communityBookmarks}
+          </span>
+        </div>
+      </td>
+      <td className="px-4 py-3 align-top">
+        {post._count.communityReports === 0 ? (
+          <span className="text-xs text-[#6B7C93]">—</span>
+        ) : (
+          <button
+            type="button"
+            onClick={onOpenReports}
+            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold transition-colors ${
+              post.pendingReports > 0
+                ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+            title={`${post.pendingReports} unresolved of ${post._count.communityReports} total`}
+          >
+            <Flag className="h-3 w-3" />
+            {post.pendingReports}
+            <span className="font-normal opacity-70">/ {post._count.communityReports}</span>
+          </button>
+        )}
+      </td>
+      <td className="px-4 py-3 align-top">
+        <span className={`inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-bold ${STATUS_BADGE[post.moderationStatus]}`}>
+          {STATUS_LABELS[post.moderationStatus]}
+        </span>
+      </td>
+      <td className="whitespace-nowrap px-4 py-3 align-top text-xs text-[#6B7C93]">{formatAdminDate(post.createdAt)}</td>
+      <td className="px-4 py-3 text-right align-top">
+        <PostActionMenu items={menuItems} disabled={disabled} label={`Actions for ${post.title}`} />
+      </td>
+    </tr>
+  );
+}
+
+function TableSkeleton() {
+  return (
+    <>
+      {Array.from({ length: 6 }).map((_, i) => (
+        <tr key={i} className="border-b border-[#E8EEF3]" aria-hidden="true">
+          <td className="px-4 py-4">
+            <div className="h-4 w-4 animate-pulse rounded bg-[#E8EEF3]" />
+          </td>
+          <td className="px-4 py-4">
+            <div className="h-4 w-56 animate-pulse rounded bg-[#E8EEF3]" />
+            <div className="mt-2 h-3 w-72 animate-pulse rounded bg-[#F1F5F9]" />
+          </td>
+          <td className="px-4 py-4">
+            <div className="flex items-center gap-2">
+              <div className="h-8 w-8 animate-pulse rounded-full bg-[#E8EEF3]" />
+              <div className="h-4 w-24 animate-pulse rounded bg-[#E8EEF3]" />
+            </div>
+          </td>
+          {Array.from({ length: 6 }).map((__, j) => (
+            <td key={j} className="px-4 py-4">
+              <div className="h-4 w-16 animate-pulse rounded bg-[#E8EEF3]" />
+            </td>
+          ))}
+        </tr>
+      ))}
+    </>
+  );
+}
+
+function TableMessage({
+  icon,
+  title,
+  description,
+  action,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description?: string;
+  action?: React.ReactNode;
+}) {
+  return (
+    <tr>
+      <td colSpan={10} className="px-6 py-16">
+        <div className="flex flex-col items-center gap-3 text-center">
+          {icon}
+          <p className="text-sm font-semibold text-[#043658]">{title}</p>
+          {description && <p className="max-w-md text-xs text-[#6B7C93]">{description}</p>}
+          {action}
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+function Pagination({ page, totalPages, onChange }: { page: number; totalPages: number; onChange: (page: number) => void }) {
+  const pages = useMemo(() => {
+    const set = new Set<number>([1, totalPages, page - 1, page, page + 1]);
+    return [...set].filter((p) => p >= 1 && p <= totalPages).sort((a, b) => a - b);
+  }, [page, totalPages]);
+
+  return (
+    <nav aria-label="Pagination" className="flex items-center justify-between gap-3 border-t border-[#E8EEF3] bg-[#F8FAFC] px-4 py-3 sm:px-6">
+      <button
+        type="button"
+        onClick={() => onChange(page - 1)}
+        disabled={page <= 1}
+        className="inline-flex items-center gap-1 rounded-lg border border-[#D9E2EC] bg-white px-3 py-1.5 text-sm font-medium text-[#043658] transition-colors hover:bg-[#F1F5F9] disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <ChevronLeft className="h-4 w-4" />
+        Previous
+      </button>
+      <ul className="flex items-center gap-1">
+        {pages.map((p, index) => {
+          const gap = index > 0 && p - pages[index - 1] > 1;
+          return (
+            <li key={p} className="flex items-center gap-1">
+              {gap && <span className="px-1 text-xs text-[#6B7C93]">…</span>}
+              <button
+                type="button"
+                onClick={() => onChange(p)}
+                aria-current={p === page ? 'page' : undefined}
+                className={`min-w-[2.25rem] rounded-lg px-2.5 py-1.5 text-sm font-medium transition-colors ${
+                  p === page ? 'bg-[#043658] text-white' : 'text-[#043658] hover:bg-[#F1F5F9]'
+                }`}
+              >
+                {p}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      <button
+        type="button"
+        onClick={() => onChange(page + 1)}
+        disabled={page >= totalPages}
+        className="inline-flex items-center gap-1 rounded-lg border border-[#D9E2EC] bg-white px-3 py-1.5 text-sm font-medium text-[#043658] transition-colors hover:bg-[#F1F5F9] disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        Next
+        <ChevronRight className="h-4 w-4" />
+      </button>
+    </nav>
+  );
+}
+
+function FilterSelect({
+  label,
+  value,
+  onChange,
+  options,
+  placeholder,
+  disabled,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: { value: string; label: string }[];
+  placeholder: string;
+  disabled?: boolean;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[#6B7C93]">{label}</span>
+      <select
+        value={value}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value)}
+        className="w-full rounded-lg border border-[#D9E2EC] bg-white px-3 py-2.5 text-sm text-[#043658] outline-none hover:border-[#043658]/40 focus:border-[#043658] disabled:bg-slate-50"
+      >
+        <option value="">{placeholder}</option>
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function PageSkeleton() {
+  return (
+    <div className="space-y-6" aria-busy="true">
+      <div>
+        <div className="h-9 w-64 animate-pulse rounded bg-[#E8EEF3]" />
+        <div className="mt-2 h-4 w-96 animate-pulse rounded bg-[#F1F5F9]" />
+      </div>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="h-24 animate-pulse rounded-lg border border-[#D9E2EC] bg-white" />
+        ))}
+      </div>
+      <div className="h-40 animate-pulse rounded-xl border border-[#D9E2EC] bg-white" />
+      <div className="h-96 animate-pulse rounded-xl border border-[#D9E2EC] bg-white" />
+    </div>
   );
 }

@@ -1,34 +1,53 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { Search, Filter, ChevronLeft, ChevronRight, Plus, CheckCircle2, AlertCircle, Ban, MoreVertical, Eye, Clock, FileText, UserCheck } from 'lucide-react';
+import { useState, useMemo, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { Search, Filter, ChevronLeft, ChevronRight, CheckCircle2, AlertCircle, Ban, MoreVertical, Eye, Clock, FileText, UserCheck } from 'lucide-react';
 import AdminLayout from '@/components/admin/layout';
 import { useTeachers } from '@/hooks/useTeachers';
-import { suspendTeacher, activateTeacher } from '@/services/admin';
+import { activateTeacher } from '@/services/admin';
+import type { Teacher, TeachersResponse } from '@/types/admin';
+import { getErrorMessage } from '@/lib/error-message';
 import SuspendTeacherModal from '@/components/admin/SuspendTeacherModal';
-import SuspensionHistory from '@/components/admin/SuspensionHistory';
+import SuspensionHistory, { suspensionHistoryQueryKey } from '@/components/admin/SuspensionHistory';
 
 const ITEMS_PER_PAGE = 10;
 
 export default function AdminTeachersPage() {
-  const { data: teachersData, isLoading, error, refetch } = useTeachers();
-  const [searchQuery, setSearchQuery] = useState('');
+  return (
+    <Suspense fallback={null}>
+      <AdminTeachersPageContent />
+    </Suspense>
+  );
+}
+
+function AdminTeachersPageContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const { data: teachersData, isLoading, error } = useTeachers();
+  // Other admin pages (e.g. post moderation "View author") deep-link here with ?search=<email>.
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('search') ?? '');
   const [selectedLevel, setSelectedLevel] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [selectedVerification, setSelectedVerification] = useState('approved'); // Show only approved teachers
   const [currentPage, setCurrentPage] = useState(1);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [suspendModalOpen, setSuspendModalOpen] = useState(false);
-  const [selectedTeacher, setSelectedTeacher] = useState<any>(null);
+  const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
   const [actionMenuOpen, setActionMenuOpen] = useState<string | null>(null);
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
+  // Snapshot of "now" for the remaining-time labels (day granularity, so a per-mount value is accurate).
+  const [renderedAt] = useState(() => Date.now());
 
   // Use real data from API
-  const teachers = (teachersData?.data || []) as any[];
+  const teachers = useMemo<Teacher[]>(() => teachersData?.data ?? [], [teachersData]);
 
   // Filter teachers - only show APPROVED by default
   const filteredTeachers = useMemo(() => {
-    const filtered = teachers.filter((teacher: any) => {
+    const filtered = teachers.filter((teacher) => {
       const matchesSearch =
         (teacher.firstName?.toLowerCase().includes(searchQuery.toLowerCase()) || false) ||
         (teacher.lastName?.toLowerCase().includes(searchQuery.toLowerCase()) || false) ||
@@ -78,22 +97,38 @@ export default function AdminTeachersPage() {
     return <span className="h-2 w-2 rounded-full bg-gray-500" />;
   };
 
-  const getSuspensionInfo = (teacher: any) => {
+  // Display-only: the backend is the source of truth and has already expired
+  // any finished temporary suspension before returning this list.
+  const getSuspensionInfo = (teacher: Teacher) => {
     if (teacher.status !== 'SUSPENDED' && teacher.status !== 'PERMANENTLY_SUSPENDED') return null;
-    
+
     const isPermanent = teacher.status === 'PERMANENTLY_SUSPENDED';
     const suspensionUntil = teacher.suspensionUntil ? new Date(teacher.suspensionUntil) : null;
-    const now = new Date();
-    const daysRemaining = suspensionUntil ? Math.ceil((suspensionUntil.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null;
+    const remainingMs = suspensionUntil ? suspensionUntil.getTime() - renderedAt : null;
+
+    let remainingLabel: string | null = null;
+    if (!isPermanent) {
+      if (remainingMs === null) {
+        remainingLabel = 'Until lifted by an admin';
+      } else if (remainingMs <= 0) {
+        remainingLabel = 'Expiring…';
+      } else {
+        const hours = Math.ceil(remainingMs / (1000 * 60 * 60));
+        remainingLabel =
+          hours < 24
+            ? `${hours} hour${hours !== 1 ? 's' : ''} left`
+            : `${Math.ceil(hours / 24)} day${Math.ceil(hours / 24) !== 1 ? 's' : ''} left`;
+      }
+    }
 
     return {
       isPermanent,
-      daysRemaining: daysRemaining && daysRemaining > 0 ? daysRemaining : 0,
-      reason: teacher.suspensionReason,
+      remainingLabel,
+      reason: teacher.suspensionReason ?? null,
     };
   };
 
-  const getVerificationBadge = (teacher: any) => {
+  const getVerificationBadge = (teacher: Teacher) => {
     if (teacher.verificationStatus === 'APPROVED') {
       return (
         <div className="flex items-center gap-1 text-xs font-medium text-green-700">
@@ -149,17 +184,30 @@ export default function AdminTeachersPage() {
     );
   }
 
-  const handleToggleStatus = async (teacherId: string, currentStatus: string) => {
+  /** Patch the cached row so the table updates instantly, then refetch for truth. */
+  const applyTeacherUpdate = (updated: Teacher) => {
+    queryClient.setQueriesData<TeachersResponse | undefined>({ queryKey: ['teachers'] }, (old) => {
+      if (!old?.data) return old;
+      return {
+        ...old,
+        data: old.data.map((t) => (t.id === updated.id ? { ...t, ...updated } : t)),
+      };
+    });
+    queryClient.invalidateQueries({ queryKey: ['teachers'] });
+    queryClient.invalidateQueries({ queryKey: suspensionHistoryQueryKey(updated.id) });
+  };
+
+  const handleUnsuspend = async (teacher: Teacher) => {
+    if (actionLoading) return;
     try {
-      setActionLoading(teacherId);
-      if (currentStatus === 'ACTIVE') {
-        await suspendTeacher(teacherId);
-      } else {
-        await activateTeacher(teacherId);
-      }
-      refetch();
+      setActionLoading(teacher.id);
+      const updated = await activateTeacher(teacher.id);
+      applyTeacherUpdate(updated);
+      toast.success('Teacher unsuspended successfully.', {
+        description: `${teacher.firstName} ${teacher.lastName} can access ServeLink again.`,
+      });
     } catch (err) {
-      console.error('Error updating teacher status:', err);
+      toast.error(getErrorMessage(err, 'Failed to unsuspend teacher'));
     } finally {
       setActionLoading(null);
     }
@@ -281,7 +329,7 @@ export default function AdminTeachersPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedTeachers.map((teacher: any) => (
+                  {paginatedTeachers.map((teacher) => (
                     <tr key={teacher.id} className="border-b border-[#E8EEF3] hover:bg-[#F8FAFC] transition-colors">
                       {/* Teacher */}
                       <td className="px-6 py-4">
@@ -331,11 +379,11 @@ export default function AdminTeachersPage() {
                             const suspensionInfo = getSuspensionInfo(teacher);
                             if (!suspensionInfo) return null;
                             return (
-                              <div className="text-xs text-gray-500">
+                              <div className="text-xs text-gray-500" title={suspensionInfo.reason ?? undefined}>
                                 {suspensionInfo.isPermanent ? (
                                   <span>Permanent</span>
                                 ) : (
-                                  <span>{suspensionInfo.daysRemaining} day{suspensionInfo.daysRemaining !== 1 ? 's' : ''} left</span>
+                                  <span>{suspensionInfo.remainingLabel}</span>
                                 )}
                               </div>
                             );
@@ -382,41 +430,40 @@ export default function AdminTeachersPage() {
                                   Suspend Teacher
                                 </button>
                               ) : (
-                                <>
-                                  <button
-                                    onClick={() => {
-                                      setActionMenuOpen(null);
-                                      handleToggleStatus(teacher.id, teacher.status);
-                                    }}
-                                    disabled={actionLoading === teacher.id}
-                                    className="w-full text-left px-4 py-2 text-sm text-green-600 hover:bg-green-50 flex items-center gap-2 disabled:opacity-50"
-                                  >
-                                    <UserCheck className="h-4 w-4" />
-                                    Unsuspend
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      setActionMenuOpen(null);
-                                      setHistoryModalOpen(true);
-                                    }}
-                                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                                  >
-                                    <Clock className="h-4 w-4" />
-                                    Suspension History
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      setActionMenuOpen(null);
-                                      // Navigate to appeals
-                                      window.location.href = `/admin/appeals`;
-                                    }}
-                                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                                  >
-                                    <FileText className="h-4 w-4" />
-                                    View Appeals
-                                  </button>
-                                </>
+                                <button
+                                  onClick={() => {
+                                    setActionMenuOpen(null);
+                                    handleUnsuspend(teacher);
+                                  }}
+                                  disabled={actionLoading === teacher.id}
+                                  className="w-full text-left px-4 py-2 text-sm text-green-600 hover:bg-green-50 flex items-center gap-2 disabled:opacity-50"
+                                >
+                                  <UserCheck className="h-4 w-4" />
+                                  {actionLoading === teacher.id ? 'Unsuspending...' : 'Unsuspend'}
+                                </button>
                               )}
+                              {/* History and appeals persist after unsuspension, so they are available for every teacher. */}
+                              <button
+                                onClick={() => {
+                                  setActionMenuOpen(null);
+                                  setSelectedTeacher(teacher);
+                                  setHistoryModalOpen(true);
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                              >
+                                <Clock className="h-4 w-4" />
+                                Suspension History
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setActionMenuOpen(null);
+                                  router.push(`/admin/appeals?teacherId=${encodeURIComponent(teacher.id)}`);
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                              >
+                                <FileText className="h-4 w-4" />
+                                View Appeals
+                              </button>
                             </div>
                           )}
                         </div>
@@ -483,8 +530,27 @@ export default function AdminTeachersPage() {
           }}
           teacherId={selectedTeacher.id}
           teacherName={`${selectedTeacher.firstName} ${selectedTeacher.lastName}`}
-          onSuccess={() => {
-            refetch();
+          onSuccess={(updated, suspensionType) => {
+            applyTeacherUpdate(updated);
+            const name = `${selectedTeacher.firstName} ${selectedTeacher.lastName}`;
+            if (suspensionType === 'WARNING') {
+              toast.success('Warning sent.', { description: `${name} has been notified.` });
+            } else {
+              toast.success('Teacher suspended successfully.', {
+                description:
+                  suspensionType === 'PERMANENT'
+                    ? `${name} has been permanently suspended.`
+                    : `${name} has lost access until ${
+                        updated.suspensionUntil
+                          ? new Date(updated.suspensionUntil).toLocaleDateString('en-US', {
+                              month: 'long',
+                              day: 'numeric',
+                              year: 'numeric',
+                            })
+                          : 'lifted by an admin'
+                      }.`,
+              });
+            }
           }}
         />
       )}

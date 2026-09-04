@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Search, Filter, Eye, Check, X, Clock, AlertTriangle } from 'lucide-react';
 import axios from 'axios';
 
@@ -29,7 +29,18 @@ interface Appeal {
 }
 
 export default function AppealsPage() {
+  return (
+    <Suspense fallback={null}>
+      <AppealsPageContent />
+    </Suspense>
+  );
+}
+
+function AppealsPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // /admin/teachers "View Appeals" deep-links here with ?teacherId=<id>.
+  const teacherIdFilter = searchParams.get('teacherId');
   const [appeals, setAppeals] = useState<Appeal[]>([]);
   const [filteredAppeals, setFilteredAppeals] = useState<Appeal[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,7 +51,8 @@ export default function AppealsPage() {
 
   useEffect(() => {
     fetchAppeals();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teacherIdFilter]);
 
   useEffect(() => {
     filterAppeals();
@@ -56,7 +68,10 @@ export default function AppealsPage() {
 
       const response = await axios.get(`${API_URL}/admin/suspension/appeals`, {
         headers: { Authorization: `Bearer ${token}` },
-        params: statusFilter !== 'ALL' ? { status: statusFilter } : {},
+        params: {
+          ...(statusFilter !== 'ALL' ? { status: statusFilter } : {}),
+          ...(teacherIdFilter ? { teacherId: teacherIdFilter } : {}),
+        },
       });
 
       setAppeals(response.data);
@@ -142,6 +157,16 @@ export default function AppealsPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Suspension Appeals</h1>
           <p className="text-gray-600 mt-1">Review and manage teacher suspension appeals</p>
+          {teacherIdFilter && (
+            <button
+              type="button"
+              onClick={() => router.push('/admin/appeals')}
+              className="mt-2 inline-flex items-center gap-1 rounded-full border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Showing one teacher&apos;s appeals
+              <X className="h-3 w-3" />
+            </button>
+          )}
         </div>
       </div>
 

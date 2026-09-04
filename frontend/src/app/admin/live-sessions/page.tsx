@@ -1,13 +1,15 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useLiveSessions, useApproveLiveSession, useRejectLiveSession, useRescheduleLiveSession, LiveSession } from '@/services/live-sessions';
+import { useLiveSessions, useApproveLiveSession, useRejectLiveSession, useRescheduleLiveSession, useArchiveLiveSession, useCancelLiveSession, LiveSession } from '@/services/live-sessions';
+import { CancelSessionModal } from '@/components/live-sessions/CancelSessionModal';
+import AdminLayout from '@/components/admin/layout';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
-import Badge from '@/components/ui/Badge';
-import { Calendar, Clock, User, Check, X, CalendarClock } from 'lucide-react';
+import { Calendar, Clock, User, Check, X, CalendarClock, Video } from 'lucide-react';
 import { format } from 'date-fns';
 import { useRouter } from 'next/navigation';
+import { getSessionStatus } from '@/hooks/useSessionStatus';
 
 export default function AdminLiveSessionsPage() {
   const { data: sessions, isLoading } = useLiveSessions(true);
@@ -16,6 +18,9 @@ export default function AdminLiveSessionsPage() {
   const approveMutation = useApproveLiveSession();
   const rejectMutation = useRejectLiveSession();
   const rescheduleMutation = useRescheduleLiveSession();
+  const archiveMutation = useArchiveLiveSession();
+  const cancelMutation = useCancelLiveSession(true);
+  const [cancelTarget, setCancelTarget] = useState<LiveSession | null>(null);
 
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
@@ -51,12 +56,19 @@ export default function AdminLiveSessionsPage() {
       case 'REQUESTED': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
       case 'LIVE': return 'bg-red-100 text-red-800 border-red-200 animate-pulse';
       case 'REJECTED': return 'bg-red-50 text-red-600 border-red-100';
+      case 'CANCELLED': return 'bg-red-50 text-red-700 border-red-200';
       case 'COMPLETED': return 'bg-gray-100 text-gray-800 border-gray-200';
       default: return 'bg-blue-100 text-blue-800 border-blue-200';
     }
   };
 
+  // Get real-time status for display
+  const getRealTimeStatus = (session: LiveSession) => {
+    return getSessionStatus(session.scheduledStart, session.duration);
+  };
+
   return (
+    <AdminLayout>
     <div className="container max-w-6xl mx-auto py-8 px-4">
       <div className="mb-8">
         <h1 className="text-3xl font-bold tracking-tight">Live Session Management</h1>
@@ -67,7 +79,7 @@ export default function AdminLiveSessionsPage() {
         <div className="text-center py-12">Loading sessions...</div>
       ) : (
         <div className="grid gap-6">
-          {['REQUESTED', 'RESCHEDULED', 'APPROVED', 'LIVE', 'COMPLETED'].map(sectionStatus => {
+                  {['REQUESTED', 'RESCHEDULED', 'APPROVED', 'LIVE', 'COMPLETED', 'CANCELLED'].map(sectionStatus => {
             const sectionSessions = sessions?.filter(s => 
               sectionStatus === 'REQUESTED' 
                 ? (s.status === 'REQUESTED' || s.status === 'RESCHEDULED') 
@@ -87,14 +99,30 @@ export default function AdminLiveSessionsPage() {
                    <div className="p-8 text-center bg-muted/20 border rounded-lg text-muted-foreground">No pending requests.</div>
                 )}
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {sectionSessions.map(session => (
-                    <Card key={session.id} className="overflow-hidden p-0">
-                      <div className="p-4 border-b bg-muted/10">
-                        <div className="flex justify-between items-start gap-2">
-                          <h3 className="text-lg font-semibold line-clamp-1">{session.topic}</h3>
-                          <span className={`px-2 py-1 text-xs rounded-full border ${getStatusColor(session.status)}`}>{session.status}</span>
+                  {sectionSessions.map(session => {
+                    const realTimeStatus = getRealTimeStatus(session);
+                    return (
+                      <Card key={session.id} className="overflow-hidden p-0">
+                        <div className="p-4 border-b bg-muted/10">
+                          <div className="flex justify-between items-start gap-2">
+                            <div className="flex-1 min-w-0">
+                              <h3 className="text-lg font-semibold line-clamp-1">{session.topic}</h3>
+                              {session.provider === 'GOOGLE_MEET' && (
+                                <span className="inline-flex items-center gap-1 text-xs text-blue-600 mt-1">
+                                  <Video className="h-3 w-3" /> Google Meet
+                                </span>
+                              )}
+                            </div>
+                            <span className={`px-2 py-1 text-xs rounded-full border ${getStatusColor(session.status)}`}>{session.status}</span>
+                          </div>
+                          {/* Show real-time status badge if different from stored status */}
+                          {realTimeStatus === 'ENDED' && session.status !== 'COMPLETED' && (
+                            <span className="inline-block mt-1 text-xs text-gray-500">• Actually ended</span>
+                          )}
+                          {realTimeStatus === 'LIVE' && session.status !== 'LIVE' && (
+                            <span className="inline-block mt-1 text-xs text-red-500 font-semibold">• LIVE NOW</span>
+                          )}
                         </div>
-                      </div>
                       <div className="p-4 space-y-4">
                         <div className="flex items-center gap-3">
                           <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center overflow-hidden shrink-0">
@@ -143,18 +171,63 @@ export default function AdminLiveSessionsPage() {
                             </div>
                           )}
 
-                          {['APPROVED', 'LIVE'].includes(session.status) && (
-                            <Button 
-                              className="w-full flex justify-center text-center" 
-                              onClick={() => router.push(`/live-sessions/${session.id}`)}
+                          {session.status === 'CANCELLED' && (session as any).hostActions && (
+                            <div className="text-xs text-slate-500 space-y-1">
+                              <p>Paid participants: {(session as any).hostActions.paidParticipants}</p>
+                              <p>Collected: {(session as any).hostActions.totalCollected.toFixed(2)} ETB</p>
+                              {session.cancelledAt && <p>Cancelled: {format(new Date(session.cancelledAt), 'PPP')}</p>}
+                            </div>
+                          )}
+
+                          {session.status === 'CANCELLED' && (
+                            <Button
+                              variant="secondary"
+                              className="w-full flex justify-center text-center"
+                              onClick={() => archiveMutation.mutateAsync(session.id)}
                             >
-                              View Session
+                              Archive
                             </Button>
+                          )}
+                          {session.hostActions?.canCancel && (
+                            <Button
+                              variant="secondary"
+                              className="w-full flex justify-center text-center text-red-600"
+                              onClick={() => setCancelTarget(session)}
+                            >
+                              Cancel Session
+                            </Button>
+                          )}
+                          {['APPROVED', 'LIVE'].includes(session.status) && (
+                            <>
+                              {session.provider === 'GOOGLE_MEET' && session.meetingUrl ? (
+                                <Button
+                                  className="w-full flex justify-center text-center"
+                                  onClick={() => window.open(session.meetingUrl, '_blank', 'noopener,noreferrer')}
+                                >
+                                  <Video className="h-4 w-4 mr-1" /> Open Google Meet
+                                </Button>
+                              ) : (
+                                <Button
+                                  className="w-full flex justify-center text-center"
+                                  onClick={() => router.push(`/admin/live-sessions/${session.id}/room`)}
+                                >
+                                  <Video className="h-4 w-4 mr-1" /> Open Live Studio
+                                </Button>
+                              )}
+                              <Button
+                                variant="secondary"
+                                className="w-full flex justify-center text-center"
+                                onClick={() => router.push(`/live-sessions/${session.id}?role=admin`)}
+                              >
+                                View Session
+                              </Button>
+                            </>
                           )}
                         </div>
                       </div>
                     </Card>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             );
@@ -218,6 +291,22 @@ export default function AdminLiveSessionsPage() {
           </Card>
         </div>
       )}
+      {cancelTarget && (
+        <CancelSessionModal
+          open={!!cancelTarget}
+          topic={cancelTarget.topic}
+          paidParticipants={cancelTarget.hostActions?.paidParticipants || 0}
+          totalCollected={cancelTarget.hostActions?.totalCollected || 0}
+          refundDisclaimer="Refunds are requested through Chapa and are only marked refunded after Chapa confirms them."
+          isPending={cancelMutation.isPending}
+          onKeep={() => setCancelTarget(null)}
+          onConfirm={async () => {
+            await cancelMutation.mutateAsync(cancelTarget.id);
+            setCancelTarget(null);
+          }}
+        />
+      )}
     </div>
+    </AdminLayout>
   );
 }
