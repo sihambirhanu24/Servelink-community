@@ -13,6 +13,7 @@ import { ConfigService } from '@nestjs/config';
 import { Logger } from '@nestjs/common';
 import { ChatService } from './chat.service';
 import { SendMessageDto } from './dto/send-message.dto';
+import { SuspensionService } from '../suspension/suspension.service';
 
 @WebSocketGateway({
   cors: {
@@ -51,7 +52,37 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly chatService: ChatService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly suspensionService: SuspensionService,
   ) {}
+
+  /**
+   * WebSocket events bypass the HTTP `JwtAuthGuard`, so suspension is re-checked
+   * here against the database: on connect and before every write event. A
+   * suspended teacher gets an `ACCOUNT_SUSPENDED` error and is disconnected, so
+   * an already-open socket cannot outlive the suspension.
+   */
+  private async assertNotSuspended(
+    client: Socket,
+    teacherId: string,
+  ): Promise<boolean> {
+    let allowed = false;
+    try {
+      allowed =
+        await this.suspensionService.checkSuspensionExpiration(teacherId);
+    } catch (err) {
+      this.logger.warn(
+        `Suspension check failed for teacher=${teacherId}: ${err.message}`,
+      );
+    }
+    if (!allowed) {
+      client.emit('error', {
+        code: 'ACCOUNT_SUSPENDED',
+        message: 'Your account is suspended',
+      });
+      client.disconnect();
+    }
+    return allowed;
+  }
 
   // ─────────────────────────────────────────────────────────────────────────
   // LIFECYCLE
@@ -64,7 +95,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         client.handshake.headers?.authorization?.replace('Bearer ', '');
 
       if (!token) {
-        client.emit('error', { code: 'UNAUTHORIZED', message: 'No token provided' });
+        client.emit('error', {
+          code: 'UNAUTHORIZED',
+          message: 'No token provided',
+        });
         client.disconnect();
         return;
       }
@@ -77,7 +111,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const payload = this.jwtService.verify(token, { secret });
       const teacherId: string = payload.sub;
 
+      if (
+        payload.isAdmin !== true &&
+        !(await this.assertNotSuspended(client, teacherId))
+      ) {
+        return;
+      }
+
       client.data.teacherId = teacherId;
+      client.data.isAdmin = payload.isAdmin === true;
       this.socketTeacher.set(client.id, teacherId);
 
       if (!this.teacherSockets.has(teacherId)) {
@@ -166,13 +208,19 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     const teacherId = client.data.teacherId;
     if (!teacherId) {
-      client.emit('error', { code: 'UNAUTHORIZED', message: 'Not authenticated' });
+      client.emit('error', {
+        code: 'UNAUTHORIZED',
+        message: 'Not authenticated',
+      });
       return;
     }
 
     const { communityId } = data ?? {};
     if (!communityId) {
-      client.emit('error', { code: 'BAD_REQUEST', message: 'communityId required' });
+      client.emit('error', {
+        code: 'BAD_REQUEST',
+        message: 'communityId required',
+      });
       return;
     }
 
@@ -186,8 +234,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         client.leave(`community:${prevCommunity}`);
         this.socketRoom.delete(client.id);
         // Remove presence only if no other sockets from same teacher in that room
-        const otherSocketsInPrev = [...(this.teacherSockets.get(teacherId) ?? [])].filter(
-          (sid) => sid !== client.id && this.socketRoom.get(sid) === prevCommunity,
+        const otherSocketsInPrev = [
+          ...(this.teacherSockets.get(teacherId) ?? []),
+        ].filter(
+          (sid) =>
+            sid !== client.id && this.socketRoom.get(sid) === prevCommunity,
         );
         if (otherSocketsInPrev.length === 0) {
           this.removePresence(prevCommunity, teacherId);
@@ -197,7 +248,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       // ③ Ensure chat room exists and get/load messages
       const chatRoom = await this.chatService.getOrCreateChatRoom(communityId);
-      const messages = await this.chatService.getRecentMessages(chatRoom.id, 50, teacherId);
+      const messages = await this.chatService.getRecentMessages(
+        chatRoom.id,
+        50,
+        teacherId,
+      );
 
       // ④ Join room, update maps
       client.join(`community:${communityId}`);
@@ -217,8 +272,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       this.logger.debug(`Teacher ${teacherId} joined community:${communityId}`);
     } catch (err) {
-      this.logger.warn(`Join failed teacher=${teacherId} community=${communityId}: ${err.message}`);
-      client.emit('error', { code: err.status === 403 ? 'FORBIDDEN' : 'ERROR', message: err.message });
+      this.logger.warn(
+        `Join failed teacher=${teacherId} community=${communityId}: ${err.message}`,
+      );
+      client.emit('error', {
+        code: err.status === 403 ? 'FORBIDDEN' : 'ERROR',
+        message: err.message,
+      });
     }
   }
 
@@ -238,7 +298,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.socketRoom.delete(client.id);
 
     if (teacherId) {
-      const otherSocketsInRoom = [...(this.teacherSockets.get(teacherId) ?? [])].filter(
+      const otherSocketsInRoom = [
+        ...(this.teacherSockets.get(teacherId) ?? []),
+      ].filter(
         (sid) => sid !== client.id && this.socketRoom.get(sid) === communityId,
       );
       if (otherSocketsInRoom.length === 0) {
@@ -263,7 +325,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('message:send')
   async handleSendMessage(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: {
+    @MessageBody()
+    data: {
       communityId: string;
       content: string;
       replyToId?: string;
@@ -272,16 +335,24 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     const teacherId = client.data.teacherId;
     if (!teacherId) {
-      client.emit('error', { code: 'UNAUTHORIZED', message: 'Not authenticated' });
+      client.emit('error', {
+        code: 'UNAUTHORIZED',
+        message: 'Not authenticated',
+      });
       return;
     }
 
     const { communityId, content, replyToId, attachmentUrls } = data ?? {};
 
     if (!communityId || !content?.trim()) {
-      client.emit('error', { code: 'BAD_REQUEST', message: 'communityId and content are required' });
+      client.emit('error', {
+        code: 'BAD_REQUEST',
+        message: 'communityId and content are required',
+      });
       return;
     }
+
+    if (!(await this.assertNotSuspended(client, teacherId))) return;
 
     try {
       // ① Authorization check (throws if not allowed)
@@ -290,7 +361,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // ② Ensure the socket is actually in this room (they must have joined first)
       const currentRoom = this.socketRoom.get(client.id);
       if (currentRoom !== communityId) {
-        client.emit('error', { code: 'FORBIDDEN', message: 'You must join the community room first' });
+        client.emit('error', {
+          code: 'FORBIDDEN',
+          message: 'You must join the community room first',
+        });
         return;
       }
 
@@ -298,7 +372,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const chatRoom = await this.chatService.getOrCreateChatRoom(communityId);
 
       // ④ Persist to PostgreSQL FIRST, then broadcast
-      const dto: SendMessageDto = { content: content.trim(), replyToId, attachmentUrls };
+      const dto: SendMessageDto = {
+        content: content.trim(),
+        replyToId,
+        attachmentUrls,
+      };
       const message = await this.chatService.saveMessageWithAttachments(
         chatRoom.id,
         teacherId,
@@ -314,7 +392,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       );
     } catch (err) {
       this.logger.error(`message:send error: ${err.message}`);
-      client.emit('error', { code: err.status === 403 ? 'FORBIDDEN' : 'ERROR', message: err.message });
+      client.emit('error', {
+        code: err.status === 403 ? 'FORBIDDEN' : 'ERROR',
+        message: err.message,
+      });
     }
   }
 
@@ -322,15 +403,22 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('message:edit')
   async handleEditMessage(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { messageId: string; communityId: string; content: string },
+    @MessageBody()
+    data: { messageId: string; communityId: string; content: string },
   ) {
     const teacherId = client.data.teacherId;
     if (!teacherId) return;
+    if (!(await this.assertNotSuspended(client, teacherId))) return;
     try {
       const updated = await this.chatService.editMessage(
-        data.messageId, data.communityId, teacherId, { content: data.content },
+        data.messageId,
+        data.communityId,
+        teacherId,
+        { content: data.content },
       );
-      this.server.to(`community:${data.communityId}`).emit('message:updated', updated);
+      this.server
+        .to(`community:${data.communityId}`)
+        .emit('message:updated', updated);
     } catch (err) {
       client.emit('error', { code: 'ERROR', message: err.message });
     }
@@ -344,9 +432,16 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     const teacherId = client.data.teacherId;
     if (!teacherId) return;
+    if (!(await this.assertNotSuspended(client, teacherId))) return;
     try {
-      await this.chatService.deleteMessage(data.messageId, data.communityId, teacherId);
-      this.server.to(`community:${data.communityId}`).emit('message:deleted', { messageId: data.messageId });
+      await this.chatService.deleteMessage(
+        data.messageId,
+        data.communityId,
+        teacherId,
+      );
+      this.server
+        .to(`community:${data.communityId}`)
+        .emit('message:deleted', { messageId: data.messageId });
     } catch (err) {
       client.emit('error', { code: 'ERROR', message: err.message });
     }
@@ -356,17 +451,26 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('message:reaction:add')
   async handleAddReaction(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { messageId: string; communityId: string; reaction: string },
+    @MessageBody()
+    data: { messageId: string; communityId: string; reaction: string },
   ) {
     const teacherId = client.data.teacherId;
     if (!teacherId) return;
+    if (!(await this.assertNotSuspended(client, teacherId))) return;
     try {
-      await this.chatService.addReaction(data.messageId, data.communityId, teacherId, { reaction: data.reaction });
-      this.server.to(`community:${data.communityId}`).emit('message:reaction:added', {
-        messageId: data.messageId,
-        reaction: data.reaction,
+      await this.chatService.addReaction(
+        data.messageId,
+        data.communityId,
         teacherId,
-      });
+        { reaction: data.reaction },
+      );
+      this.server
+        .to(`community:${data.communityId}`)
+        .emit('message:reaction:added', {
+          messageId: data.messageId,
+          reaction: data.reaction,
+          teacherId,
+        });
     } catch (err) {
       client.emit('error', { code: 'ERROR', message: err.message });
     }
@@ -376,17 +480,26 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('message:reaction:remove')
   async handleRemoveReaction(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { messageId: string; communityId: string; reaction: string },
+    @MessageBody()
+    data: { messageId: string; communityId: string; reaction: string },
   ) {
     const teacherId = client.data.teacherId;
     if (!teacherId) return;
+    if (!(await this.assertNotSuspended(client, teacherId))) return;
     try {
-      await this.chatService.removeReaction(data.messageId, data.communityId, teacherId, data.reaction);
-      this.server.to(`community:${data.communityId}`).emit('message:reaction:removed', {
-        messageId: data.messageId,
-        reaction: data.reaction,
+      await this.chatService.removeReaction(
+        data.messageId,
+        data.communityId,
         teacherId,
-      });
+        data.reaction,
+      );
+      this.server
+        .to(`community:${data.communityId}`)
+        .emit('message:reaction:removed', {
+          messageId: data.messageId,
+          reaction: data.reaction,
+          teacherId,
+        });
     } catch (err) {
       client.emit('error', { code: 'ERROR', message: err.message });
     }
@@ -401,15 +514,27 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const teacherId = client.data.teacherId;
     if (!teacherId) return;
     try {
-      await this.chatService.markMessagesAsRead(data.messageIds, data.communityId, teacherId);
-      const count = await this.chatService.getUnreadCount(data.communityId, teacherId);
-      client.emit('unread-count:update', { communityId: data.communityId, count });
-      
-      this.server.to(`community:${data.communityId}`).emit('messages_read_update', {
-        messageIds: data.messageIds,
-        readBy: teacherId,
+      await this.chatService.markMessagesAsRead(
+        data.messageIds,
+        data.communityId,
+        teacherId,
+      );
+      const count = await this.chatService.getUnreadCount(
+        data.communityId,
+        teacherId,
+      );
+      client.emit('unread-count:update', {
         communityId: data.communityId,
+        count,
       });
+
+      this.server
+        .to(`community:${data.communityId}`)
+        .emit('messages_read_update', {
+          messageIds: data.messageIds,
+          readBy: teacherId,
+          communityId: data.communityId,
+        });
     } catch (err) {
       client.emit('error', { code: 'ERROR', message: err.message });
     }
@@ -423,9 +548,16 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     const teacherId = client.data.teacherId;
     if (!teacherId) return;
+    if (!(await this.assertNotSuspended(client, teacherId))) return;
     try {
-      await this.chatService.pinMessage(data.messageId, data.communityId, teacherId);
-      this.server.to(`community:${data.communityId}`).emit('message:pinned', { messageId: data.messageId });
+      await this.chatService.pinMessage(
+        data.messageId,
+        data.communityId,
+        teacherId,
+      );
+      this.server
+        .to(`community:${data.communityId}`)
+        .emit('message:pinned', { messageId: data.messageId });
     } catch (err) {
       client.emit('error', { code: 'ERROR', message: err.message });
     }
@@ -439,9 +571,16 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     const teacherId = client.data.teacherId;
     if (!teacherId) return;
+    if (!(await this.assertNotSuspended(client, teacherId))) return;
     try {
-      await this.chatService.unpinMessage(data.messageId, data.communityId, teacherId);
-      this.server.to(`community:${data.communityId}`).emit('message:unpinned', { messageId: data.messageId });
+      await this.chatService.unpinMessage(
+        data.messageId,
+        data.communityId,
+        teacherId,
+      );
+      this.server
+        .to(`community:${data.communityId}`)
+        .emit('message:unpinned', { messageId: data.messageId });
     } catch (err) {
       client.emit('error', { code: 'ERROR', message: err.message });
     }
@@ -458,7 +597,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     const teacherId = client.data.teacherId;
     if (!teacherId || !data?.communityId) return;
-    client.to(`community:${data.communityId}`).emit('typing:started', { teacherId });
+    client
+      .to(`community:${data.communityId}`)
+      .emit('typing:started', { teacherId });
   }
 
   @SubscribeMessage('typing:stop')
@@ -468,7 +609,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     const teacherId = client.data.teacherId;
     if (!teacherId || !data?.communityId) return;
-    client.to(`community:${data.communityId}`).emit('typing:stopped', { teacherId });
+    client
+      .to(`community:${data.communityId}`)
+      .emit('typing:stopped', { teacherId });
   }
 
   @SubscribeMessage('ping')
@@ -491,16 +634,34 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() data: { discussionPostId: string },
   ) {
     const teacherId = client.data.teacherId;
-    if (!teacherId) { client.emit('error', { code: 'UNAUTHORIZED', message: 'Not authenticated' }); return; }
+    if (!teacherId) {
+      client.emit('error', {
+        code: 'UNAUTHORIZED',
+        message: 'Not authenticated',
+      });
+      return;
+    }
     const { discussionPostId } = data ?? {};
-    if (!discussionPostId) { client.emit('error', { code: 'BAD_REQUEST', message: 'discussionPostId required' }); return; }
+    if (!discussionPostId) {
+      client.emit('error', {
+        code: 'BAD_REQUEST',
+        message: 'discussionPostId required',
+      });
+      return;
+    }
 
     try {
       const room = `discussion:${discussionPostId}`;
       client.join(room);
       this.addPresence(discussionPostId, teacherId);
 
-      const { messages, hasMore } = await this.chatService.getDiscussionMessages(discussionPostId, 50, undefined, teacherId);
+      const { messages, hasMore } =
+        await this.chatService.getDiscussionMessages(
+          discussionPostId,
+          50,
+          undefined,
+          teacherId,
+        );
       client.emit('discussion:joined', {
         discussionPostId,
         messages,
@@ -513,7 +674,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         onlineCount: this.getOnlineCount(discussionPostId),
       });
 
-      this.logger.debug(`Teacher ${teacherId} joined discussion:${discussionPostId}`);
+      this.logger.debug(
+        `Teacher ${teacherId} joined discussion:${discussionPostId}`,
+      );
     } catch (err) {
       this.logger.warn(`discussion:join failed: ${err.message}`);
       client.emit('error', { code: 'ERROR', message: err.message });
@@ -533,10 +696,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     client.leave(`discussion:${discussionPostId}`);
     if (teacherId) {
       this.removePresence(discussionPostId, teacherId);
-      this.server.to(`discussion:${discussionPostId}`).emit('discussion:presence', {
-        discussionPostId,
-        onlineCount: this.getOnlineCount(discussionPostId),
-      });
+      this.server
+        .to(`discussion:${discussionPostId}`)
+        .emit('discussion:presence', {
+          discussionPostId,
+          onlineCount: this.getOnlineCount(discussionPostId),
+        });
     }
   }
 
@@ -547,37 +712,66 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('discussion:message:send')
   async handleDiscussionSend(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { discussionPostId: string; content: string; replyToId?: string },
+    @MessageBody()
+    data: { discussionPostId: string; content: string; replyToId?: string },
   ) {
     const teacherId = client.data.teacherId;
-    if (!teacherId) { client.emit('error', { code: 'UNAUTHORIZED', message: 'Not authenticated' }); return; }
+    if (!teacherId) {
+      client.emit('error', {
+        code: 'UNAUTHORIZED',
+        message: 'Not authenticated',
+      });
+      return;
+    }
     const { discussionPostId, content, replyToId } = data ?? {};
     if (!discussionPostId || !content?.trim()) {
-      client.emit('error', { code: 'BAD_REQUEST', message: 'discussionPostId and content required' });
+      client.emit('error', {
+        code: 'BAD_REQUEST',
+        message: 'discussionPostId and content required',
+      });
       return;
     }
 
+    if (!(await this.assertNotSuspended(client, teacherId))) return;
+
     try {
-      const message = await this.chatService.saveDiscussionMessage(discussionPostId, teacherId, content, replyToId);
-      this.server.to(`discussion:${discussionPostId}`).emit('discussion:message:new', message);
-      this.logger.debug(`Discussion message saved: teacher=${teacherId} discussion=${discussionPostId}`);
-      
+      const message = await this.chatService.saveDiscussionMessage(
+        discussionPostId,
+        teacherId,
+        content,
+        replyToId,
+      );
+      this.server
+        .to(`discussion:${discussionPostId}`)
+        .emit('discussion:message:new', message);
+      this.logger.debug(
+        `Discussion message saved: teacher=${teacherId} discussion=${discussionPostId}`,
+      );
+
       // Update discussion reply count and notify (async, don't block the response)
-      this.updateDiscussionMetrics(discussionPostId, teacherId, message).catch(err => {
-        this.logger.error(`Failed to update discussion metrics: ${err.message}`);
-      });
+      this.updateDiscussionMetrics(discussionPostId, teacherId, message).catch(
+        (err) => {
+          this.logger.error(
+            `Failed to update discussion metrics: ${err.message}`,
+          );
+        },
+      );
     } catch (err) {
       this.logger.error(`discussion:message:send error: ${err.message}`);
       client.emit('error', { code: 'ERROR', message: err.message });
     }
   }
 
-  private async updateDiscussionMetrics(discussionPostId: string, teacherId: string, message: any) {
+  private async updateDiscussionMetrics(
+    discussionPostId: string,
+    teacherId: string,
+    message: any,
+  ) {
     try {
       // Dynamic import to avoid circular dependency
       const { PrismaClient } = await import('@prisma/client');
       const prisma = new PrismaClient();
-      
+
       // Increment reply count and update lastActiveAt
       await prisma.discussion.update({
         where: { id: discussionPostId },
@@ -618,13 +812,21 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('discussion:message:edit')
   async handleDiscussionEdit(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { messageId: string; discussionPostId: string; content: string },
+    @MessageBody()
+    data: { messageId: string; discussionPostId: string; content: string },
   ) {
     const teacherId = client.data.teacherId;
     if (!teacherId) return;
+    if (!(await this.assertNotSuspended(client, teacherId))) return;
     try {
-      const updated = await this.chatService.editDiscussionMessage(data.messageId, teacherId, data.content);
-      this.server.to(`discussion:${data.discussionPostId}`).emit('discussion:message:updated', updated);
+      const updated = await this.chatService.editDiscussionMessage(
+        data.messageId,
+        teacherId,
+        data.content,
+      );
+      this.server
+        .to(`discussion:${data.discussionPostId}`)
+        .emit('discussion:message:updated', updated);
     } catch (err) {
       client.emit('error', { code: 'ERROR', message: err.message });
     }
@@ -638,15 +840,25 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     const teacherId = client.data.teacherId;
     if (!teacherId) return;
+    if (!(await this.assertNotSuspended(client, teacherId))) return;
     try {
-      const result = await this.chatService.deleteDiscussionMessage(data.messageId, teacherId);
-      this.server.to(`discussion:${data.discussionPostId}`).emit('discussion:message:deleted', { messageId: data.messageId });
-      
+      const result = await this.chatService.deleteDiscussionMessage(
+        data.messageId,
+        teacherId,
+      );
+      this.server
+        .to(`discussion:${data.discussionPostId}`)
+        .emit('discussion:message:deleted', { messageId: data.messageId });
+
       // Decrement reply count
       if (result.discussionPostId) {
-        this.decrementDiscussionReplyCount(result.discussionPostId).catch(err => {
-          this.logger.error(`Failed to decrement reply count: ${err.message}`);
-        });
+        this.decrementDiscussionReplyCount(result.discussionPostId).catch(
+          (err) => {
+            this.logger.error(
+              `Failed to decrement reply count: ${err.message}`,
+            );
+          },
+        );
       }
     } catch (err) {
       client.emit('error', { code: 'ERROR', message: err.message });
@@ -675,15 +887,21 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     const teacherId = client.data.teacherId;
     if (!teacherId) return;
+    if (!(await this.assertNotSuspended(client, teacherId))) return;
     try {
-      const result = await this.chatService.toggleDiscussionHelpful(data.messageId, teacherId);
-      this.server.to(`discussion:${data.discussionPostId}`).emit('discussion:message:reaction', {
-        messageId: data.messageId,
-        reaction: '👍',
-        marked: result.marked,
-        count: result.count,
+      const result = await this.chatService.toggleDiscussionHelpful(
+        data.messageId,
         teacherId,
-      });
+      );
+      this.server
+        .to(`discussion:${data.discussionPostId}`)
+        .emit('discussion:message:reaction', {
+          messageId: data.messageId,
+          reaction: '👍',
+          marked: result.marked,
+          count: result.count,
+          teacherId,
+        });
     } catch (err) {
       client.emit('error', { code: 'ERROR', message: err.message });
     }
@@ -697,10 +915,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     const teacherId = client.data.teacherId;
     if (!teacherId || !data?.discussionPostId) return;
-    client.to(`discussion:${data.discussionPostId}`).emit('discussion:typing:started', {
-      teacherId,
-      senderName: data.senderName,
-    });
+    client
+      .to(`discussion:${data.discussionPostId}`)
+      .emit('discussion:typing:started', {
+        teacherId,
+        senderName: data.senderName,
+      });
   }
 
   @SubscribeMessage('discussion:typing:stop')
@@ -710,7 +930,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     const teacherId = client.data.teacherId;
     if (!teacherId || !data?.discussionPostId) return;
-    client.to(`discussion:${data.discussionPostId}`).emit('discussion:typing:stopped', { teacherId });
+    client
+      .to(`discussion:${data.discussionPostId}`)
+      .emit('discussion:typing:stopped', { teacherId });
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -728,30 +950,40 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     const teacherId = client.data.teacherId;
     if (!teacherId) {
-      client.emit('error', { code: 'UNAUTHORIZED', message: 'Not authenticated' });
+      client.emit('error', {
+        code: 'UNAUTHORIZED',
+        message: 'Not authenticated',
+      });
       return;
     }
 
     const { chatRoomId } = data ?? {};
     if (!chatRoomId) {
-      client.emit('error', { code: 'BAD_REQUEST', message: 'chatRoomId required' });
+      client.emit('error', {
+        code: 'BAD_REQUEST',
+        message: 'chatRoomId required',
+      });
       return;
     }
 
     try {
       // Verify the teacher is a participant in this direct conversation
-      await this.chatService.verifyDirectConversationAccess(chatRoomId, teacherId);
+      await this.chatService.verifyDirectConversationAccess(
+        chatRoomId,
+        teacherId,
+      );
 
       const room = `direct:${chatRoomId}`;
       client.join(room);
       this.addPresence(chatRoomId, teacherId);
 
-      const { messages, hasMore } = await this.chatService.getDirectConversationMessages(
-        chatRoomId,
-        teacherId,
-        undefined,
-        50,
-      );
+      const { messages, hasMore } =
+        await this.chatService.getDirectConversationMessages(
+          chatRoomId,
+          teacherId,
+          undefined,
+          50,
+        );
 
       client.emit('direct:joined', {
         chatRoomId,
@@ -768,7 +1000,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.logger.debug(`Teacher ${teacherId} joined direct:${chatRoomId}`);
     } catch (err) {
       this.logger.warn(`direct:join failed: ${err.message}`);
-      client.emit('error', { code: err.status === 403 ? 'FORBIDDEN' : 'ERROR', message: err.message });
+      client.emit('error', {
+        code: err.status === 403 ? 'FORBIDDEN' : 'ERROR',
+        message: err.message,
+      });
     }
   }
 
@@ -801,35 +1036,58 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('direct:message:send')
   async handleDirectSend(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { chatRoomId: string; content: string; replyToId?: string },
+    @MessageBody()
+    data: { chatRoomId: string; content: string; replyToId?: string },
   ) {
     const teacherId = client.data.teacherId;
     if (!teacherId) {
-      client.emit('error', { code: 'UNAUTHORIZED', message: 'Not authenticated' });
+      client.emit('error', {
+        code: 'UNAUTHORIZED',
+        message: 'Not authenticated',
+      });
       return;
     }
 
     const { chatRoomId, content, replyToId } = data ?? {};
     if (!chatRoomId || !content?.trim()) {
-      client.emit('error', { code: 'BAD_REQUEST', message: 'chatRoomId and content are required' });
+      client.emit('error', {
+        code: 'BAD_REQUEST',
+        message: 'chatRoomId and content are required',
+      });
       return;
     }
 
+    if (!(await this.assertNotSuspended(client, teacherId))) return;
+
     try {
       // Verify the teacher is a participant
-      await this.chatService.verifyDirectConversationAccess(chatRoomId, teacherId);
+      await this.chatService.verifyDirectConversationAccess(
+        chatRoomId,
+        teacherId,
+      );
 
       // Persist to PostgreSQL
       const dto: SendMessageDto = { content: content.trim(), replyToId };
-      const message = await this.chatService.sendDirectMessage(chatRoomId, teacherId, dto);
+      const message = await this.chatService.sendDirectMessage(
+        chatRoomId,
+        teacherId,
+        dto,
+      );
 
       // Broadcast to the direct conversation room
-      this.server.to(`direct:${chatRoomId}`).emit('direct:message:new', message);
+      this.server
+        .to(`direct:${chatRoomId}`)
+        .emit('direct:message:new', message);
 
-      this.logger.debug(`Direct message saved: teacher=${teacherId} chatRoom=${chatRoomId}`);
+      this.logger.debug(
+        `Direct message saved: teacher=${teacherId} chatRoom=${chatRoomId}`,
+      );
     } catch (err) {
       this.logger.error(`direct:message:send error: ${err.message}`);
-      client.emit('error', { code: err.status === 403 ? 'FORBIDDEN' : 'ERROR', message: err.message });
+      client.emit('error', {
+        code: err.status === 403 ? 'FORBIDDEN' : 'ERROR',
+        message: err.message,
+      });
     }
   }
 
@@ -843,7 +1101,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     const teacherId = client.data.teacherId;
     if (!teacherId || !data?.chatRoomId) return;
-    client.to(`direct:${data.chatRoomId}`).emit('direct:typing:started', { teacherId });
+    client
+      .to(`direct:${data.chatRoomId}`)
+      .emit('direct:typing:started', { teacherId });
   }
 
   @SubscribeMessage('direct:typing:stop')
@@ -853,6 +1113,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     const teacherId = client.data.teacherId;
     if (!teacherId || !data?.chatRoomId) return;
-    client.to(`direct:${data.chatRoomId}`).emit('direct:typing:stopped', { teacherId });
+    client
+      .to(`direct:${data.chatRoomId}`)
+      .emit('direct:typing:stopped', { teacherId });
   }
 }

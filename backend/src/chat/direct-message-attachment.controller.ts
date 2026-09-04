@@ -39,7 +39,10 @@ export class DirectMessageAttachmentController {
     this.attachmentService.validateFile(file);
 
     // File is already saved by Multer, just need to return the URL
-    const url = `${file.destination}/${file.filename}`.replace(process.cwd(), '');
+    const url = `${file.destination}/${file.filename}`.replace(
+      process.cwd(),
+      '',
+    );
     const type = this.attachmentService.getAttachmentType(file.originalname);
 
     return {

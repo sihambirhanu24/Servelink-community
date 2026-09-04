@@ -36,7 +36,9 @@ export class ChatGroupsController {
   async getAccessibleChatGroups(@CurrentUser() user: any) {
     // user.sub is the teacher id from JWT payload
     const teacherId = user.sub ?? user.id;
-    return { groups: await this.chatService.getAccessibleChatGroups(teacherId) };
+    return {
+      groups: await this.chatService.getAccessibleChatGroups(teacherId),
+    };
   }
 }
 
@@ -60,12 +62,22 @@ export class ChatController {
     @CurrentUser() user: any,
     @Query('limit', new DefaultValuePipe(50), ParseIntPipe) limit: number,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
-  ): Promise<{ messages: ChatMessageResponseDto[]; total: number; page: number; limit: number }> {
+  ): Promise<{
+    messages: ChatMessageResponseDto[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
     const teacherId = user.sub ?? user.id;
     await this.chatService.verifyAndGetCommunity(communityId, teacherId);
     const chatRoom = await this.chatService.getOrCreateChatRoom(communityId);
     const offset = (page - 1) * limit;
-    const { messages, total } = await this.chatService.getMessageHistory(chatRoom.id, limit, offset, teacherId);
+    const { messages, total } = await this.chatService.getMessageHistory(
+      chatRoom.id,
+      limit,
+      offset,
+      teacherId,
+    );
     return { messages, total, page, limit };
   }
 
@@ -79,7 +91,10 @@ export class ChatController {
     @CurrentUser() user: any,
   ) {
     const teacherId = user.sub ?? user.id;
-    const community = await this.chatService.verifyAndGetCommunity(communityId, teacherId);
+    const community = await this.chatService.verifyAndGetCommunity(
+      communityId,
+      teacherId,
+    );
     const chatRoom = await this.chatService.getOrCreateChatRoom(communityId);
     return { community, chatRoomId: chatRoom.id };
   }
@@ -101,7 +116,9 @@ export class ChatController {
     @CurrentUser() user: any,
   ): Promise<{ count: number }> {
     const teacherId = user.sub ?? user.id;
-    return { count: await this.chatService.getUnreadCount(communityId, teacherId) };
+    return {
+      count: await this.chatService.getUnreadCount(communityId, teacherId),
+    };
   }
 
   /** GET /api/community/:communityId/chat/search?query=&limit=20 */
@@ -114,7 +131,13 @@ export class ChatController {
   ) {
     const teacherId = user.sub ?? user.id;
     const chatRoom = await this.chatService.getOrCreateChatRoom(communityId);
-    return this.chatService.searchMessages(chatRoom.id, communityId, teacherId, query ?? '', limit);
+    return this.chatService.searchMessages(
+      chatRoom.id,
+      communityId,
+      teacherId,
+      query ?? '',
+      limit,
+    );
   }
 
   /** POST /api/community/:communityId/chat/:messageId/react */
@@ -140,7 +163,12 @@ export class ChatController {
     @CurrentUser() user: any,
   ) {
     const teacherId = user.sub ?? user.id;
-    return this.chatService.removeReaction(messageId, communityId, teacherId, decodeURIComponent(reaction));
+    return this.chatService.removeReaction(
+      messageId,
+      communityId,
+      teacherId,
+      decodeURIComponent(reaction),
+    );
   }
 
   /** PUT /api/community/:communityId/chat/:messageId */
@@ -177,7 +205,11 @@ export class ChatController {
     @Body() body: { messageIds: string[] },
   ) {
     const teacherId = user.sub ?? user.id;
-    return this.chatService.markMessagesAsRead(body.messageIds, communityId, teacherId);
+    return this.chatService.markMessagesAsRead(
+      body.messageIds,
+      communityId,
+      teacherId,
+    );
   }
 
   /** POST /api/community/:communityId/chat/:messageId/pin */
@@ -239,7 +271,8 @@ export class DirectMessagesController {
   @Get('conversations')
   async getDirectConversations(@CurrentUser() user: any) {
     const teacherId = user.sub ?? user.id;
-    const conversations = await this.chatService.getDirectConversations(teacherId);
+    const conversations =
+      await this.chatService.getDirectConversations(teacherId);
     return { conversations };
   }
 

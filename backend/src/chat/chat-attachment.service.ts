@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs/promises';
@@ -52,7 +56,10 @@ export class ChatAttachmentService {
     const mimeMap: Record<string, string[]> = {
       image: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
       pdf: ['application/pdf'],
-      docx: ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/msword'],
+      docx: [
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/msword',
+      ],
       video: ['video/mp4', 'video/webm', 'video/quicktime'],
     };
 

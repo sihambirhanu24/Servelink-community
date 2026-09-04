@@ -56,7 +56,10 @@ interface TeacherProfile {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Case-insensitive string equality — null/undefined never matches */
-function ci(a: string | null | undefined, b: string | null | undefined): boolean {
+function ci(
+  a: string | null | undefined,
+  b: string | null | undefined,
+): boolean {
   return !!a && !!b && a.trim().toLowerCase() === b.trim().toLowerCase();
 }
 
@@ -96,13 +99,14 @@ export class ChatService {
     region?: string | null;
     department?: string | null;
   }): Promise<{ communityId: string; chatRoomId: string }> {
-    const { type, subtype, name, school, woreda, zone, region, department } = params;
+    const { type, subtype, name, school, woreda, zone, region, department } =
+      params;
 
     const geoFilter = {
-      school:     school     ?? null,
-      woreda:     woreda     ?? null,
-      zone:       zone       ?? null,
-      region:     region     ?? null,
+      school: school ?? null,
+      woreda: woreda ?? null,
+      zone: zone ?? null,
+      region: region ?? null,
       department: department ?? null,
     };
 
@@ -181,7 +185,7 @@ export class ChatService {
       const type = RANK_TO_TYPE[rank];
       if (!type) return;
       const geoFields = this.geoFieldsForRank(rank, teacher);
-      const geoLabel  = this.geoLabelForRank(rank, teacher);
+      const geoLabel = this.geoLabelForRank(rank, teacher);
 
       // COMMON community (all teachers at this level/scope)
       ops.push(
@@ -241,13 +245,16 @@ export class ChatService {
     });
     if (!teacher) throw new NotFoundException('Teacher not found');
 
-    console.log(`[ChatService] getAccessibleChatGroups for teacher ${teacherId}:`, {
-      level: teacher.level,
-      department: teacher.department,
-      zone: teacher.zone,
-      woreda: teacher.woreda,
-      region: teacher.region,
-    });
+    console.log(
+      `[ChatService] getAccessibleChatGroups for teacher ${teacherId}:`,
+      {
+        level: teacher.level,
+        department: teacher.department,
+        zone: teacher.zone,
+        woreda: teacher.woreda,
+        region: teacher.region,
+      },
+    );
 
     // Provision communities this teacher is entitled to (idempotent)
     await this.ensureTeacherCommunities(teacher);
@@ -265,7 +272,9 @@ export class ChatService {
               where: { deletedAt: null },
               orderBy: { createdAt: 'desc' },
               take: 1,
-              include: { sender: { select: { firstName: true, lastName: true } } },
+              include: {
+                sender: { select: { firstName: true, lastName: true } },
+              },
             },
             unreadCounts: {
               where: { teacherId },
@@ -280,32 +289,34 @@ export class ChatService {
 
     console.log(`[ChatService] Found ${communities.length} communities:`);
     communities.forEach((c) => {
-      console.log(`  - ${c.name} (${c.type}/${c.subtype}, dept: ${c.department})`);
+      console.log(
+        `  - ${c.name} (${c.type}/${c.subtype}, dept: ${c.department})`,
+      );
     });
 
     return communities.map((c) => {
-      const last   = c.chatRoom?.messages[0] ?? null;
+      const last = c.chatRoom?.messages[0] ?? null;
       const unread = c.chatRoom?.unreadCounts[0]?.count ?? 0;
       return {
-        id:          c.id,
-        name:        c.name,
-        type:        c.type,
-        subtype:     c.subtype,
-        department:  c.department,
+        id: c.id,
+        name: c.name,
+        type: c.type,
+        subtype: c.subtype,
+        department: c.department,
         description: c.description,
-        school:      c.school,
-        woreda:      c.woreda,
-        zone:        c.zone,
-        region:      c.region,
-        isActive:    c.isActive,
-        chatRoomId:  c.chatRoom?.id ?? null,
+        school: c.school,
+        woreda: c.woreda,
+        zone: c.zone,
+        region: c.region,
+        isActive: c.isActive,
+        chatRoomId: c.chatRoom?.id ?? null,
         memberCount: c._count.communityMembers,
         unreadCount: unread,
         lastMessage: last
           ? {
-              content:    last.content.substring(0, 100),
+              content: last.content.substring(0, 100),
               senderName: `${last.sender.firstName} ${last.sender.lastName}`,
-              createdAt:  last.createdAt,
+              createdAt: last.createdAt,
             }
           : null,
       };
@@ -331,9 +342,9 @@ export class ChatService {
     if (rank === 1) {
       if (teacher.school) {
         clauses.push({
-          type:    CommunityType.SCHOOL,
+          type: CommunityType.SCHOOL,
           subtype: CommunitySubtype.COMMON,
-          school:  { equals: teacher.school, mode: 'insensitive' as const },
+          school: { equals: teacher.school, mode: 'insensitive' as const },
         });
       }
       return clauses;
@@ -350,9 +361,12 @@ export class ChatService {
     if (teacher.department) {
       clauses.push({
         type,
-        subtype:    CommunitySubtype.DEPARTMENT,
+        subtype: CommunitySubtype.DEPARTMENT,
         ...geoClause,
-        department: { equals: teacher.department, mode: 'insensitive' as const },
+        department: {
+          equals: teacher.department,
+          mode: 'insensitive' as const,
+        },
       });
     }
 
@@ -382,18 +396,18 @@ export class ChatService {
       this.prisma.teacher.findUnique({
         where: { id: teacherId },
         select: {
-          level:      true,
-          school:     true,
-          woreda:     true,
-          zone:       true,
-          region:     true,
+          level: true,
+          school: true,
+          woreda: true,
+          zone: true,
+          region: true,
           department: true,
         },
       }),
     ]);
 
     if (!community) throw new NotFoundException('Community not found');
-    if (!teacher)   throw new NotFoundException('Teacher not found');
+    if (!teacher) throw new NotFoundException('Teacher not found');
     if (!community.isActive) {
       throw new ForbiddenException('This community is currently inactive.');
     }
@@ -402,7 +416,11 @@ export class ChatService {
 
     // Map community type back to its required rank
     const typeToRank: Record<string, number> = {
-      SCHOOL: 1, WOREDA: 2, ZONE: 3, REGION: 4, NATIONAL: 5,
+      SCHOOL: 1,
+      WOREDA: 2,
+      ZONE: 3,
+      REGION: 4,
+      NATIONAL: 5,
     };
     const communityRank = typeToRank[community.type] ?? 99;
 
@@ -427,12 +445,14 @@ export class ChatService {
     // Rule 3 — department (DEPARTMENT subtype only)
     if (community.subtype === CommunitySubtype.DEPARTMENT) {
       if (!community.department) {
-        throw new ForbiddenException('This department community has no department configured.');
+        throw new ForbiddenException(
+          'This department community has no department configured.',
+        );
       }
       if (!ci(community.department, teacher.department)) {
         throw new ForbiddenException(
           `This community is for the ${community.department} department. ` +
-          `Your department (${teacher.department ?? 'none'}) does not match.`,
+            `Your department (${teacher.department ?? 'none'}) does not match.`,
         );
       }
     }
@@ -441,16 +461,33 @@ export class ChatService {
   }
 
   private inGeographicScope(
-    c: { type: string; school?: string | null; woreda?: string | null; zone?: string | null; region?: string | null },
-    t: { school?: string | null; woreda?: string | null; zone?: string | null; region?: string | null },
+    c: {
+      type: string;
+      school?: string | null;
+      woreda?: string | null;
+      zone?: string | null;
+      region?: string | null;
+    },
+    t: {
+      school?: string | null;
+      woreda?: string | null;
+      zone?: string | null;
+      region?: string | null;
+    },
   ): boolean {
     switch (c.type) {
-      case 'SCHOOL':   return ci(c.school,  t.school);
-      case 'WOREDA':   return ci(c.woreda,  t.woreda);
-      case 'ZONE':     return ci(c.zone,    t.zone);
-      case 'REGION':   return ci(c.region,  t.region);
-      case 'NATIONAL': return true;
-      default:         return false;
+      case 'SCHOOL':
+        return ci(c.school, t.school);
+      case 'WOREDA':
+        return ci(c.woreda, t.woreda);
+      case 'ZONE':
+        return ci(c.zone, t.zone);
+      case 'REGION':
+        return ci(c.region, t.region);
+      case 'NATIONAL':
+        return true;
+      default:
+        return false;
     }
   }
 
@@ -459,21 +496,31 @@ export class ChatService {
   // ───────────────────────────────────────────────────────────────────────────
 
   async getOrCreateChatRoom(communityId: string) {
-    const existing = await this.prisma.chatRoom.findFirst({ where: { communityId } });
+    const existing = await this.prisma.chatRoom.findFirst({
+      where: { communityId },
+    });
     if (existing) return existing;
-    return this.prisma.chatRoom.create({ data: { communityId } } as any);
+    return this.prisma.chatRoom.create({ data: { communityId } });
   }
 
   /** Get or create a ChatRoom that belongs to a specific Discussion (CommunityPost). */
-  async getOrCreateDiscussionChatRoom(discussionPostId: string): Promise<{ id: string; discussionPostId?: string | null }> {
+  async getOrCreateDiscussionChatRoom(
+    discussionPostId: string,
+  ): Promise<{ id: string; discussionPostId?: string | null }> {
     // Use findFirst + cast until Prisma client reflects the schema change
-    const existing = await (this.prisma.chatRoom as any).findFirst({ where: { discussionPostId } });
+    const existing = await (this.prisma.chatRoom as any).findFirst({
+      where: { discussionPostId },
+    });
     if (existing) return existing;
     try {
-      return await (this.prisma.chatRoom as any).create({ data: { discussionPostId } });
+      return await (this.prisma.chatRoom as any).create({
+        data: { discussionPostId },
+      });
     } catch (e: any) {
       if (e.code === 'P2002') {
-        const retry = await (this.prisma.chatRoom as any).findFirst({ where: { discussionPostId } });
+        const retry = await (this.prisma.chatRoom as any).findFirst({
+          where: { discussionPostId },
+        });
         if (!retry) throw e;
         return retry;
       }
@@ -482,14 +529,31 @@ export class ChatService {
   }
 
   /** Get recent messages for a discussion chat room by discussionPostId */
-  async getDiscussionMessages(discussionPostId: string, limit = 50, cursor?: string, currentTeacherId?: string): Promise<{ messages: any[]; hasMore: boolean }> {
-    const room = await (this.prisma.chatRoom as any).findFirst({ where: { discussionPostId } });
+  async getDiscussionMessages(
+    discussionPostId: string,
+    limit = 50,
+    cursor?: string,
+    currentTeacherId?: string,
+  ): Promise<{ messages: any[]; hasMore: boolean }> {
+    const room = await (this.prisma.chatRoom as any).findFirst({
+      where: { discussionPostId },
+    });
     if (!room) return { messages: [], hasMore: false };
 
     const rows = await this.prisma.chatMessage.findMany({
       where: { chatRoomId: room.id, deletedAt: null },
       include: {
-        sender: { select: { id: true, firstName: true, lastName: true, level: true, profileImage: true, verified: true, subject: true } },
+        sender: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            level: true,
+            profileImage: true,
+            verified: true,
+            subject: true,
+          },
+        },
         reactions: true,
         pinnedMessage: true,
         readBy: { select: { teacherId: true, readAt: true } },
@@ -505,11 +569,22 @@ export class ChatService {
     });
 
     const hasMore = rows.length > limit;
-    const messages = rows.slice(0, limit).reverse().map((m) => this.formatDiscussionMessage(m, m.sender, currentTeacherId));
+    const messages = rows
+      .slice(0, limit)
+      .reverse()
+      .map((m) => this.formatDiscussionMessage(m, m.sender, currentTeacherId));
     return { messages, hasMore };
   }
 
-  formatDiscussionMessage(message: any, sender: any, currentTeacherId?: string): ChatMessageResponseDto & { replyTo?: { id: string; content: string; senderName: string } | null; senderVerified?: boolean; senderSubject?: string | null } {
+  formatDiscussionMessage(
+    message: any,
+    sender: any,
+    currentTeacherId?: string,
+  ): ChatMessageResponseDto & {
+    replyTo?: { id: string; content: string; senderName: string } | null;
+    senderVerified?: boolean;
+    senderSubject?: string | null;
+  } {
     const base = this.formatMessage(message, sender, currentTeacherId);
     return {
       ...base,
@@ -526,21 +601,42 @@ export class ChatService {
   }
 
   /** Save a discussion message — NO geographic/level check; only requires the discussion to exist */
-  async saveDiscussionMessage(discussionPostId: string, senderId: string, content: string, replyToId?: string): Promise<ChatMessageResponseDto & { replyTo?: any; discussionPostId: string }> {
+  async saveDiscussionMessage(
+    discussionPostId: string,
+    senderId: string,
+    content: string,
+    replyToId?: string,
+  ): Promise<
+    ChatMessageResponseDto & { replyTo?: any; discussionPostId: string }
+  > {
     const sender = await this.prisma.teacher.findUnique({
       where: { id: senderId },
-      select: { id: true, firstName: true, lastName: true, level: true, profileImage: true, verified: true, subject: true },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        level: true,
+        profileImage: true,
+        verified: true,
+        subject: true,
+      },
     });
     if (!sender) throw new NotFoundException('Sender not found');
 
     if (!this.checkRateLimit(senderId)) {
-      throw new BadRequestException('Message rate limit exceeded. Please wait a moment.');
+      throw new BadRequestException(
+        'Message rate limit exceeded. Please wait a moment.',
+      );
     }
 
     // Auto-create chat room for this discussion
     const room = await this.getOrCreateDiscussionChatRoom(discussionPostId);
 
-    const createData: any = { chatRoomId: room.id, senderId, content: content.trim() };
+    const createData: any = {
+      chatRoomId: room.id,
+      senderId,
+      content: content.trim(),
+    };
     if (replyToId) createData.replyToId = replyToId;
 
     const message = await this.prisma.chatMessage.create({
@@ -549,66 +645,114 @@ export class ChatService {
         reactions: true,
         pinnedMessage: true,
         replyTo: {
-          include: { sender: { select: { id: true, firstName: true, lastName: true } } },
+          include: {
+            sender: { select: { id: true, firstName: true, lastName: true } },
+          },
         },
       },
     });
 
-    return { ...this.formatDiscussionMessage(message, sender, senderId), discussionPostId };
+    return {
+      ...this.formatDiscussionMessage(message, sender, senderId),
+      discussionPostId,
+    };
   }
 
   /** Edit a discussion message — only the sender may edit */
-  async editDiscussionMessage(messageId: string, teacherId: string, content: string) {
-    const message = await this.prisma.chatMessage.findUnique({ where: { id: messageId } });
+  async editDiscussionMessage(
+    messageId: string,
+    teacherId: string,
+    content: string,
+  ) {
+    const message = await this.prisma.chatMessage.findUnique({
+      where: { id: messageId },
+    });
     if (!message) throw new NotFoundException('Message not found');
-    if (message.deletedAt) throw new BadRequestException('Cannot edit a deleted message');
-    if (message.senderId !== teacherId) throw new ForbiddenException('You can only edit your own messages');
+    if (message.deletedAt)
+      throw new BadRequestException('Cannot edit a deleted message');
+    if (message.senderId !== teacherId)
+      throw new ForbiddenException('You can only edit your own messages');
 
     const updated = await this.prisma.chatMessage.update({
       where: { id: messageId },
       data: { content, editedAt: new Date() },
       include: {
-        sender: { select: { id: true, firstName: true, lastName: true, level: true, profileImage: true, verified: true, subject: true } },
+        sender: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            level: true,
+            profileImage: true,
+            verified: true,
+            subject: true,
+          },
+        },
         reactions: true,
         pinnedMessage: true,
-        replyTo: { include: { sender: { select: { id: true, firstName: true, lastName: true } } } },
+        replyTo: {
+          include: {
+            sender: { select: { id: true, firstName: true, lastName: true } },
+          },
+        },
       },
     });
     return this.formatDiscussionMessage(updated, updated.sender, teacherId);
   }
 
   /** Soft-delete a discussion message */
-  async deleteDiscussionMessage(messageId: string, teacherId: string): Promise<{ discussionPostId?: string }> {
-    const message = await this.prisma.chatMessage.findUnique({ 
+  async deleteDiscussionMessage(
+    messageId: string,
+    teacherId: string,
+  ): Promise<{ discussionPostId?: string }> {
+    const message = await this.prisma.chatMessage.findUnique({
       where: { id: messageId },
       include: { chatRoom: true },
     });
     if (!message) throw new NotFoundException('Message not found');
-    if (message.senderId !== teacherId) throw new ForbiddenException('You can only delete your own messages');
-    
-    await this.prisma.chatMessage.update({ where: { id: messageId }, data: { deletedAt: new Date() } });
+    if (message.senderId !== teacherId)
+      throw new ForbiddenException('You can only delete your own messages');
 
-    return { discussionPostId: message.chatRoom?.discussionPostId || undefined };
+    await this.prisma.chatMessage.update({
+      where: { id: messageId },
+      data: { deletedAt: new Date() },
+    });
+
+    return {
+      discussionPostId: message.chatRoom?.discussionPostId || undefined,
+    };
   }
 
   /** Toggle a 👍 helpful reaction on a discussion message */
-  async toggleDiscussionHelpful(messageId: string, teacherId: string): Promise<{ marked: boolean; count: number }> {
-    const message = await this.prisma.chatMessage.findUnique({ where: { id: messageId } });
+  async toggleDiscussionHelpful(
+    messageId: string,
+    teacherId: string,
+  ): Promise<{ marked: boolean; count: number }> {
+    const message = await this.prisma.chatMessage.findUnique({
+      where: { id: messageId },
+    });
     if (!message) throw new NotFoundException('Message not found');
-    if (message.senderId === teacherId) throw new ForbiddenException('You cannot react to your own message');
+    if (message.senderId === teacherId)
+      throw new ForbiddenException('You cannot react to your own message');
 
     const reaction = '👍';
     const existing = await this.prisma.chatReaction.findUnique({
-      where: { messageId_teacherId_reaction: { messageId, teacherId, reaction } },
+      where: {
+        messageId_teacherId_reaction: { messageId, teacherId, reaction },
+      },
     });
 
     if (existing) {
       await this.prisma.chatReaction.delete({ where: { id: existing.id } });
     } else {
-      await this.prisma.chatReaction.create({ data: { messageId, teacherId, reaction } });
+      await this.prisma.chatReaction.create({
+        data: { messageId, teacherId, reaction },
+      });
     }
 
-    const count = await this.prisma.chatReaction.count({ where: { messageId, reaction } });
+    const count = await this.prisma.chatReaction.count({
+      where: { messageId, reaction },
+    });
     return { marked: !existing, count };
   }
 
@@ -638,7 +782,15 @@ export class ChatService {
       this.prisma.chatMessage.findMany({
         where: { chatRoomId, deletedAt: null },
         include: {
-          sender: { select: { id: true, firstName: true, lastName: true, level: true, profileImage: true } },
+          sender: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              level: true,
+              profileImage: true,
+            },
+          },
           reactions: true,
           pinnedMessage: true,
           readBy: { select: { teacherId: true, readAt: true } },
@@ -649,14 +801,31 @@ export class ChatService {
       }),
       this.prisma.chatMessage.count({ where: { chatRoomId, deletedAt: null } }),
     ]);
-    return { messages: rows.map((m) => this.formatMessage(m, m.sender, currentTeacherId)), total };
+    return {
+      messages: rows.map((m) =>
+        this.formatMessage(m, m.sender, currentTeacherId),
+      ),
+      total,
+    };
   }
 
-  async getRecentMessages(chatRoomId: string, limit = 50, currentTeacherId?: string): Promise<ChatMessageResponseDto[]> {
+  async getRecentMessages(
+    chatRoomId: string,
+    limit = 50,
+    currentTeacherId?: string,
+  ): Promise<ChatMessageResponseDto[]> {
     const rows = await this.prisma.chatMessage.findMany({
       where: { chatRoomId, deletedAt: null },
       include: {
-        sender: { select: { id: true, firstName: true, lastName: true, level: true, profileImage: true } },
+        sender: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            level: true,
+            profileImage: true,
+          },
+        },
         reactions: true,
         pinnedMessage: true,
         readBy: { select: { teacherId: true, readAt: true } },
@@ -664,7 +833,9 @@ export class ChatService {
       orderBy: { createdAt: 'desc' },
       take: limit,
     });
-    return rows.reverse().map((m) => this.formatMessage(m, m.sender, currentTeacherId));
+    return rows
+      .reverse()
+      .map((m) => this.formatMessage(m, m.sender, currentTeacherId));
   }
 
   async saveMessageWithAttachments(
@@ -675,12 +846,20 @@ export class ChatService {
   ): Promise<ChatMessageResponseDto> {
     const sender = await this.prisma.teacher.findUnique({
       where: { id: senderId },
-      select: { id: true, firstName: true, lastName: true, level: true, profileImage: true },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        level: true,
+        profileImage: true,
+      },
     });
     if (!sender) throw new NotFoundException('Sender not found');
 
     if (!this.checkRateLimit(senderId)) {
-      throw new BadRequestException('Message rate limit exceeded. Please wait a moment.');
+      throw new BadRequestException(
+        'Message rate limit exceeded. Please wait a moment.',
+      );
     }
 
     const createData: any = { chatRoomId, senderId, content: dto.content };
@@ -688,7 +867,11 @@ export class ChatService {
 
     const message = await this.prisma.chatMessage.create({
       data: createData,
-      include: { reactions: true, pinnedMessage: true, readBy: { select: { teacherId: true, readAt: true } } },
+      include: {
+        reactions: true,
+        pinnedMessage: true,
+        readBy: { select: { teacherId: true, readAt: true } },
+      },
     });
 
     if (attachmentUrls?.length) {
@@ -722,7 +905,8 @@ export class ChatService {
 
   private getAttachmentType(url: string): any {
     const ext = url.split('.').pop()?.toLowerCase();
-    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext ?? '')) return 'IMAGE';
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext ?? ''))
+      return 'IMAGE';
     if (ext === 'pdf') return 'PDF';
     if (['docx', 'doc'].includes(ext ?? '')) return 'DOCX';
     if (['mp4', 'webm', 'mov'].includes(ext ?? '')) return 'VIDEO';
@@ -733,7 +917,12 @@ export class ChatService {
   // REACTIONS, EDIT, DELETE, PIN
   // ───────────────────────────────────────────────────────────────────────────
 
-  async addReaction(messageId: string, communityId: string, teacherId: string, dto: AddReactionDto) {
+  async addReaction(
+    messageId: string,
+    communityId: string,
+    teacherId: string,
+    dto: AddReactionDto,
+  ) {
     await this.verifyAndGetCommunity(communityId, teacherId);
     if (!ALLOWED_REACTIONS.includes(dto.reaction)) {
       throw new BadRequestException('Invalid reaction emoji');
@@ -741,34 +930,66 @@ export class ChatService {
     const message = await this.prisma.chatMessage.findFirst({
       where: { id: messageId, chatRoom: { communityId } },
     });
-    if (!message) throw new NotFoundException('Message not found in this community');
-    if (message.deletedAt) throw new BadRequestException('Cannot react to a deleted message');
+    if (!message)
+      throw new NotFoundException('Message not found in this community');
+    if (message.deletedAt)
+      throw new BadRequestException('Cannot react to a deleted message');
     return this.prisma.chatReaction.upsert({
-      where: { messageId_teacherId_reaction: { messageId, teacherId, reaction: dto.reaction } },
+      where: {
+        messageId_teacherId_reaction: {
+          messageId,
+          teacherId,
+          reaction: dto.reaction,
+        },
+      },
       update: { createdAt: new Date() },
       create: { messageId, teacherId, reaction: dto.reaction },
-      include: { teacher: { select: { id: true, firstName: true, lastName: true } } },
+      include: {
+        teacher: { select: { id: true, firstName: true, lastName: true } },
+      },
     });
   }
 
-  async removeReaction(messageId: string, communityId: string, teacherId: string, reaction: string) {
+  async removeReaction(
+    messageId: string,
+    communityId: string,
+    teacherId: string,
+    reaction: string,
+  ) {
     await this.verifyAndGetCommunity(communityId, teacherId);
-    await this.prisma.chatReaction.deleteMany({ where: { messageId, teacherId, reaction } });
+    await this.prisma.chatReaction.deleteMany({
+      where: { messageId, teacherId, reaction },
+    });
   }
 
-  async editMessage(messageId: string, communityId: string, teacherId: string, dto: EditMessageDto) {
+  async editMessage(
+    messageId: string,
+    communityId: string,
+    teacherId: string,
+    dto: EditMessageDto,
+  ) {
     await this.verifyAndGetCommunity(communityId, teacherId);
     const message = await this.prisma.chatMessage.findFirst({
       where: { id: messageId, chatRoom: { communityId } },
     });
     if (!message) throw new NotFoundException('Message not found');
-    if (message.deletedAt) throw new BadRequestException('Cannot edit a deleted message');
-    if (message.senderId !== teacherId) throw new ForbiddenException('You can only edit your own messages');
+    if (message.deletedAt)
+      throw new BadRequestException('Cannot edit a deleted message');
+    if (message.senderId !== teacherId)
+      throw new ForbiddenException('You can only edit your own messages');
     const updated = await this.prisma.chatMessage.update({
       where: { id: messageId },
       data: { content: dto.content, editedAt: new Date() },
       include: {
-        sender: { select: { id: true, firstName: true, lastName: true, level: true, profileImage: true } },
+        sender: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            level: true,
+            profileImage: true,
+          },
+        },
         reactions: true,
         pinnedMessage: true,
       },
@@ -776,21 +997,33 @@ export class ChatService {
     return this.formatMessage(updated, updated.sender, teacherId);
   }
 
-  async deleteMessage(messageId: string, communityId: string, teacherId: string) {
+  async deleteMessage(
+    messageId: string,
+    communityId: string,
+    teacherId: string,
+  ) {
     await this.verifyAndGetCommunity(communityId, teacherId);
     const message = await this.prisma.chatMessage.findFirst({
       where: { id: messageId, chatRoom: { communityId } },
     });
     if (!message) throw new NotFoundException('Message not found');
-    if (message.senderId !== teacherId) throw new ForbiddenException('You can only delete your own messages');
-    await this.prisma.chatMessage.update({ where: { id: messageId }, data: { deletedAt: new Date() } });
+    if (message.senderId !== teacherId)
+      throw new ForbiddenException('You can only delete your own messages');
+    await this.prisma.chatMessage.update({
+      where: { id: messageId },
+      data: { deletedAt: new Date() },
+    });
   }
 
   async pinMessage(messageId: string, communityId: string, teacherId: string) {
     await this.verifyAndGetCommunity(communityId, teacherId);
-    const chatRoom = await this.prisma.chatRoom.findFirst({ where: { communityId } });
+    const chatRoom = await this.prisma.chatRoom.findFirst({
+      where: { communityId },
+    });
     if (!chatRoom) throw new NotFoundException('Chat room not found');
-    const msg = await this.prisma.chatMessage.findFirst({ where: { id: messageId, chatRoomId: chatRoom.id } });
+    const msg = await this.prisma.chatMessage.findFirst({
+      where: { id: messageId, chatRoomId: chatRoom.id },
+    });
     if (!msg) throw new NotFoundException('Message not found');
     return this.prisma.pinnedMessage.upsert({
       where: { messageId },
@@ -799,19 +1032,33 @@ export class ChatService {
     });
   }
 
-  async unpinMessage(messageId: string, communityId: string, teacherId: string) {
+  async unpinMessage(
+    messageId: string,
+    communityId: string,
+    teacherId: string,
+  ) {
     await this.verifyAndGetCommunity(communityId, teacherId);
     await this.prisma.pinnedMessage.deleteMany({ where: { messageId } });
   }
 
   async getPinnedMessages(communityId: string, teacherId: string) {
     await this.verifyAndGetCommunity(communityId, teacherId);
-    const chatRoom = await this.prisma.chatRoom.findFirst({ where: { communityId } });
+    const chatRoom = await this.prisma.chatRoom.findFirst({
+      where: { communityId },
+    });
     if (!chatRoom) return [];
     const rows = await this.prisma.chatMessage.findMany({
       where: { chatRoomId: chatRoom.id, pinnedMessage: { isNot: null } },
       include: {
-        sender: { select: { id: true, firstName: true, lastName: true, level: true, profileImage: true } },
+        sender: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            level: true,
+            profileImage: true,
+          },
+        },
         reactions: true,
         pinnedMessage: true,
         readBy: { select: { teacherId: true, readAt: true } },
@@ -821,12 +1068,30 @@ export class ChatService {
     return rows.map((m) => this.formatMessage(m, m.sender, teacherId));
   }
 
-  async searchMessages(chatRoomId: string, communityId: string, teacherId: string, query: string, limit = 20) {
+  async searchMessages(
+    chatRoomId: string,
+    communityId: string,
+    teacherId: string,
+    query: string,
+    limit = 20,
+  ) {
     await this.verifyAndGetCommunity(communityId, teacherId);
     const rows = await this.prisma.chatMessage.findMany({
-      where: { chatRoomId, content: { contains: query, mode: 'insensitive' }, deletedAt: null },
+      where: {
+        chatRoomId,
+        content: { contains: query, mode: 'insensitive' },
+        deletedAt: null,
+      },
       include: {
-        sender: { select: { id: true, firstName: true, lastName: true, level: true, profileImage: true } },
+        sender: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            level: true,
+            profileImage: true,
+          },
+        },
         reactions: true,
         pinnedMessage: true,
         readBy: { select: { teacherId: true, readAt: true } },
@@ -841,13 +1106,19 @@ export class ChatService {
   // UNREAD
   // ───────────────────────────────────────────────────────────────────────────
 
-  async markMessagesAsRead(messageIds: string[], communityId: string, teacherId: string) {
+  async markMessagesAsRead(
+    messageIds: string[],
+    communityId: string,
+    teacherId: string,
+  ) {
     await this.verifyAndGetCommunity(communityId, teacherId);
     const messages = await this.prisma.chatMessage.findMany({
       where: { id: { in: messageIds }, chatRoom: { communityId } },
     });
     if (messages.length !== messageIds.length) {
-      throw new BadRequestException('Some messages not found in this community');
+      throw new BadRequestException(
+        'Some messages not found in this community',
+      );
     }
     await Promise.all(
       messageIds.map((messageId) =>
@@ -858,7 +1129,9 @@ export class ChatService {
         }),
       ),
     );
-    const chatRoom = await this.prisma.chatRoom.findFirst({ where: { communityId } });
+    const chatRoom = await this.prisma.chatRoom.findFirst({
+      where: { communityId },
+    });
     if (chatRoom) {
       // Calculate unread count: total messages - messages read by this teacher
       const [totalCount, readCount] = await Promise.all([
@@ -866,7 +1139,7 @@ export class ChatService {
           where: { chatRoomId: chatRoom.id, deletedAt: null },
         }),
         this.prisma.chatMessageRead.count({
-          where: { 
+          where: {
             teacherId,
             message: { chatRoomId: chatRoom.id, deletedAt: null },
           },
@@ -881,9 +1154,14 @@ export class ChatService {
     }
   }
 
-  async getUnreadCount(communityId: string, teacherId: string): Promise<number> {
+  async getUnreadCount(
+    communityId: string,
+    teacherId: string,
+  ): Promise<number> {
     await this.verifyAndGetCommunity(communityId, teacherId);
-    const chatRoom = await this.prisma.chatRoom.findFirst({ where: { communityId } });
+    const chatRoom = await this.prisma.chatRoom.findFirst({
+      where: { communityId },
+    });
     if (!chatRoom) return 0;
     const record = await this.prisma.chatUnreadCount.findUnique({
       where: { chatRoomId_teacherId: { chatRoomId: chatRoom.id, teacherId } },
@@ -907,35 +1185,64 @@ export class ChatService {
   private geoFieldsForRank(
     rank: number,
     t: TeacherProfile,
-  ): { school?: null; woreda?: string | null; zone?: string | null; region?: string | null } {
+  ): {
+    school?: null;
+    woreda?: string | null;
+    zone?: string | null;
+    region?: string | null;
+  } {
     switch (rank) {
-      case 2: return { woreda: t.woreda };
-      case 3: return { zone:   t.zone   };
-      case 4: return { region: t.region };
-      case 5: return {};
-      default: return {};
+      case 2:
+        return { woreda: t.woreda };
+      case 3:
+        return { zone: t.zone };
+      case 4:
+        return { region: t.region };
+      case 5:
+        return {};
+      default:
+        return {};
     }
   }
 
   /** Prisma WHERE clause for geographic matching at a given level rank */
-  private geoClauseForRank(rank: number, t: TeacherProfile): Record<string, any> {
+  private geoClauseForRank(
+    rank: number,
+    t: TeacherProfile,
+  ): Record<string, any> {
     switch (rank) {
-      case 2: return t.woreda ? { woreda: { equals: t.woreda, mode: 'insensitive' as const } } : {};
-      case 3: return t.zone   ? { zone:   { equals: t.zone,   mode: 'insensitive' as const } } : {};
-      case 4: return t.region ? { region: { equals: t.region, mode: 'insensitive' as const } } : {};
-      case 5: return {};
-      default: return {};
+      case 2:
+        return t.woreda
+          ? { woreda: { equals: t.woreda, mode: 'insensitive' as const } }
+          : {};
+      case 3:
+        return t.zone
+          ? { zone: { equals: t.zone, mode: 'insensitive' as const } }
+          : {};
+      case 4:
+        return t.region
+          ? { region: { equals: t.region, mode: 'insensitive' as const } }
+          : {};
+      case 5:
+        return {};
+      default:
+        return {};
     }
   }
 
   /** Human-readable label for the community scope */
   private geoLabelForRank(rank: number, t: TeacherProfile): string {
     switch (rank) {
-      case 2: return t.woreda ?? 'Woreda';
-      case 3: return t.zone   ?? 'Zone';
-      case 4: return t.region ?? 'Region';
-      case 5: return 'National';
-      default: return 'Unknown';
+      case 2:
+        return t.woreda ?? 'Woreda';
+      case 3:
+        return t.zone ?? 'Zone';
+      case 4:
+        return t.region ?? 'Region';
+      case 5:
+        return 'National';
+      default:
+        return 'Unknown';
     }
   }
 
@@ -943,7 +1250,11 @@ export class ChatService {
   // FORMAT HELPERS
   // ───────────────────────────────────────────────────────────────────────────
 
-  formatMessage(message: any, sender: any, currentTeacherId?: string): ChatMessageResponseDto {
+  formatMessage(
+    message: any,
+    sender: any,
+    currentTeacherId?: string,
+  ): ChatMessageResponseDto {
     const reactions: Record<string, number> = {};
     if (message.reactions) {
       for (const r of message.reactions) {
@@ -965,7 +1276,9 @@ export class ChatService {
           isRead = message.readBy.some((r: any) => r.teacherId !== sender.id);
         } else {
           // Recipient viewing message: check if they have read it
-          isRead = message.readBy.some((r: any) => r.teacherId === currentTeacherId);
+          isRead = message.readBy.some(
+            (r: any) => r.teacherId === currentTeacherId,
+          );
         }
       } else {
         // Fallback: mark as read if anyone other than sender has read it
@@ -974,22 +1287,22 @@ export class ChatService {
     }
 
     return {
-      id:                 message.id,
-      chatRoomId:         message.chatRoomId,
-      senderId:           sender.id,
-      senderName:         `${sender.firstName} ${sender.lastName}`,
+      id: message.id,
+      chatRoomId: message.chatRoomId,
+      senderId: sender.id,
+      senderName: `${sender.firstName} ${sender.lastName}`,
       senderProfileImage: sender.profileImage ?? null,
-      senderLevel:        sender.level,
-      content:            message.content,
-      replyToId:          message.replyToId   ?? undefined,
-      editedAt:           message.editedAt    ?? undefined,
-      deletedAt:          message.deletedAt   ?? undefined,
-      attachments:        message.attachments ?? [],
+      senderLevel: sender.level,
+      content: message.content,
+      replyToId: message.replyToId ?? undefined,
+      editedAt: message.editedAt ?? undefined,
+      deletedAt: message.deletedAt ?? undefined,
+      attachments: message.attachments ?? [],
       reactions,
       isRead,
-      isPinned:           !!message.pinnedMessage,
-      createdAt:          message.createdAt,
-      updatedAt:          message.updatedAt,
+      isPinned: !!message.pinnedMessage,
+      createdAt: message.createdAt,
+      updatedAt: message.updatedAt,
     };
   }
 
@@ -1007,7 +1320,9 @@ export class ChatService {
   ): Promise<{ chatRoomId: string; isNew: boolean }> {
     // Prevent self-messaging
     if (currentTeacherId === targetTeacherId) {
-      throw new BadRequestException('You cannot start a conversation with yourself');
+      throw new BadRequestException(
+        'You cannot start a conversation with yourself',
+      );
     }
 
     // Verify target teacher exists
@@ -1020,7 +1335,10 @@ export class ChatService {
     }
 
     // Sort IDs to ensure consistent participant ordering
-    const [participant1Id, participant2Id] = [currentTeacherId, targetTeacherId].sort();
+    const [participant1Id, participant2Id] = [
+      currentTeacherId,
+      targetTeacherId,
+    ].sort();
 
     // Check if conversation already exists
     let chatRoom = await this.prisma.chatRoom.findUnique({
@@ -1072,10 +1390,7 @@ export class ChatService {
     const conversations = await this.prisma.chatRoom.findMany({
       where: {
         isDirect: true,
-        OR: [
-          { participant1Id: teacherId },
-          { participant2Id: teacherId },
-        ],
+        OR: [{ participant1Id: teacherId }, { participant2Id: teacherId }],
       },
       include: {
         participant1: {
@@ -1120,9 +1435,10 @@ export class ChatService {
     });
 
     return conversations.map((conv) => {
-      const otherParticipant = conv.participant1Id === teacherId
-        ? conv.participant2
-        : conv.participant1;
+      const otherParticipant =
+        conv.participant1Id === teacherId
+          ? conv.participant2
+          : conv.participant1;
 
       const lastMessage = conv.messages[0];
       const unreadCount = conv.unreadCounts[0]?.count ?? 0;
@@ -1130,13 +1446,15 @@ export class ChatService {
       return {
         id: conv.id,
         otherParticipant,
-        lastMessage: lastMessage ? {
-          id: lastMessage.id,
-          content: lastMessage.content,
-          senderId: lastMessage.senderId,
-          senderName: `${lastMessage.sender.firstName} ${lastMessage.sender.lastName}`,
-          createdAt: lastMessage.createdAt,
-        } : null,
+        lastMessage: lastMessage
+          ? {
+              id: lastMessage.id,
+              content: lastMessage.content,
+              senderId: lastMessage.senderId,
+              senderName: `${lastMessage.sender.firstName} ${lastMessage.sender.lastName}`,
+              createdAt: lastMessage.createdAt,
+            }
+          : null,
         unreadCount,
         updatedAt: conv.updatedAt,
       };
@@ -1163,8 +1481,13 @@ export class ChatService {
       throw new BadRequestException('This is not a direct conversation');
     }
 
-    if (chatRoom.participant1Id !== teacherId && chatRoom.participant2Id !== teacherId) {
-      throw new ForbiddenException('You do not have access to this conversation');
+    if (
+      chatRoom.participant1Id !== teacherId &&
+      chatRoom.participant2Id !== teacherId
+    ) {
+      throw new ForbiddenException(
+        'You do not have access to this conversation',
+      );
     }
   }
 
@@ -1214,9 +1537,10 @@ export class ChatService {
       },
     });
 
-    const otherParticipant = chatRoom?.participant1Id === teacherId
-      ? chatRoom?.participant2
-      : chatRoom?.participant1;
+    const otherParticipant =
+      chatRoom?.participant1Id === teacherId
+        ? chatRoom?.participant2
+        : chatRoom?.participant1;
 
     const messages = await this.prisma.chatMessage.findMany({
       where: {
@@ -1281,17 +1605,19 @@ export class ChatService {
       messages: messages.map((m) => this.formatMessage(m, m.sender, teacherId)),
       hasMore: messages.length === limit,
       nextCursor: messages.length > 0 ? messages[messages.length - 1].id : null,
-      otherParticipant: otherParticipant ? {
-        id: otherParticipant.id,
-        firstName: otherParticipant.firstName,
-        lastName: otherParticipant.lastName,
-        profileImage: otherParticipant.profileImage,
-        level: otherParticipant.level,
-        verified: otherParticipant.verified,
-        profession: otherParticipant.profession,
-        department: otherParticipant.department,
-        school: otherParticipant.school,
-      } : null,
+      otherParticipant: otherParticipant
+        ? {
+            id: otherParticipant.id,
+            firstName: otherParticipant.firstName,
+            lastName: otherParticipant.lastName,
+            profileImage: otherParticipant.profileImage,
+            level: otherParticipant.level,
+            verified: otherParticipant.verified,
+            profession: otherParticipant.profession,
+            department: otherParticipant.department,
+            school: otherParticipant.school,
+          }
+        : null,
     };
   }
 
@@ -1334,7 +1660,7 @@ export class ChatService {
         // Extract filename from URL
         const fileName = url.split('/').pop() || 'unknown';
         const type = this.attachmentService.getAttachmentType(fileName);
-        
+
         await this.prisma.chatAttachment.create({
           data: {
             messageId: message.id,
@@ -1360,9 +1686,10 @@ export class ChatService {
     });
 
     if (chatRoom) {
-      const recipientId = chatRoom.participant1Id === senderId
-        ? chatRoom.participant2Id
-        : chatRoom.participant1Id;
+      const recipientId =
+        chatRoom.participant1Id === senderId
+          ? chatRoom.participant2Id
+          : chatRoom.participant1Id;
 
       if (!recipientId) {
         return this.formatMessage(message, message.sender);

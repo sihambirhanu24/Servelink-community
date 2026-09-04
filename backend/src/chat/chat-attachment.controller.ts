@@ -44,7 +44,10 @@ export class ChatAttachmentController {
     this.attachmentService.validateFile(file);
 
     // File is already saved by Multer, just need to return the URL
-    const url = `${file.destination}/${file.filename}`.replace(process.cwd(), '');
+    const url = `${file.destination}/${file.filename}`.replace(
+      process.cwd(),
+      '',
+    );
     const type = this.attachmentService.getAttachmentType(file.originalname);
 
     return {
@@ -68,7 +71,10 @@ export class ChatAttachmentController {
 
     const chatRoom = await this.chatService.getOrCreateChatRoom(communityId);
 
-    return this.attachmentService.getSharedMedia(chatRoom.id, parseInt(limit, 10));
+    return this.attachmentService.getSharedMedia(
+      chatRoom.id,
+      parseInt(limit, 10),
+    );
   }
 
   /**
@@ -86,7 +92,10 @@ export class ChatAttachmentController {
 
     const chatRoom = await this.chatService.getOrCreateChatRoom(communityId);
 
-    return this.attachmentService.getSharedFiles(chatRoom.id, parseInt(limit, 10));
+    return this.attachmentService.getSharedFiles(
+      chatRoom.id,
+      parseInt(limit, 10),
+    );
   }
 
   /**
