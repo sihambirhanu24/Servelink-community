@@ -1,4 +1,7 @@
-import { TeacherVerificationStatus, VerificationDocumentType } from '@prisma/client';
+import {
+  TeacherVerificationStatus,
+  VerificationDocumentType,
+} from '@prisma/client';
 
 export interface VerificationDocument {
   id: string;
@@ -56,4 +59,10 @@ export const ALLOWED_VERIFICATION_MIME_TYPES = [
 /**
  * Allowed file extensions for verification documents
  */
-export const ALLOWED_VERIFICATION_EXTENSIONS = ['.pdf', '.docx', '.jpg', '.jpeg', '.png'];
+export const ALLOWED_VERIFICATION_EXTENSIONS = [
+  '.pdf',
+  '.docx',
+  '.jpg',
+  '.jpeg',
+  '.png',
+];

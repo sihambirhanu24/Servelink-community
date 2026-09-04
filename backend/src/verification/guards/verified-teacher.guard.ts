@@ -10,16 +10,16 @@ import { TeacherVerificationService } from '../teacher-verification.service';
 
 /**
  * Guard to ensure only APPROVED teachers can access protected routes.
- * 
+ *
  * This guard should be used AFTER JwtAuthGuard to ensure the user is authenticated.
  * It checks that:
  * 1. User is authenticated (has valid JWT)
  * 2. User is a teacher (not admin)
  * 3. Teacher's verificationStatus is APPROVED
- * 
+ *
  * Usage:
  * @UseGuards(JwtAuthGuard, VerifiedTeacherGuard)
- * 
+ *
  * Note: Admins bypass this check (they use isAdmin flag instead)
  */
 @Injectable()
@@ -47,15 +47,21 @@ export class VerifiedTeacherGuard implements CanActivate {
 
     // Must have teacherId (regular teacher accounts)
     if (!user.teacherId) {
-      this.logger.warn(`VerifiedTeacherGuard: User ${user.sub || user.id} has no teacherId`);
+      this.logger.warn(
+        `VerifiedTeacherGuard: User ${user.sub || user.id} has no teacherId`,
+      );
       throw new ForbiddenException('Teacher account required');
     }
 
     // Check teacher verification status
-    const state = await this.verificationService.getTeacherVerificationState(user.teacherId);
+    const state = await this.verificationService.getTeacherVerificationState(
+      user.teacherId,
+    );
 
     if (state?.verificationStatus === 'PENDING') {
-      this.logger.log(`VerifiedTeacherGuard: Teacher ${user.teacherId} is PENDING (blocked access)`);
+      this.logger.log(
+        `VerifiedTeacherGuard: Teacher ${user.teacherId} is PENDING (blocked access)`,
+      );
       throw new ForbiddenException({
         code: 'VERIFICATION_PENDING',
         message: 'Teacher verification is pending.',
@@ -63,7 +69,9 @@ export class VerifiedTeacherGuard implements CanActivate {
     }
 
     if (state?.verificationStatus === 'REJECTED') {
-      this.logger.log(`VerifiedTeacherGuard: Teacher ${user.teacherId} is REJECTED (blocked access)`);
+      this.logger.log(
+        `VerifiedTeacherGuard: Teacher ${user.teacherId} is REJECTED (blocked access)`,
+      );
       throw new ForbiddenException({
         code: 'VERIFICATION_REJECTED',
         message: 'Teacher verification was rejected.',
@@ -72,10 +80,13 @@ export class VerifiedTeacherGuard implements CanActivate {
     }
 
     if (state?.verificationStatus !== 'APPROVED') {
-      this.logger.log(`VerifiedTeacherGuard: Teacher ${user.teacherId} has unknown status (blocked access)`);
+      this.logger.log(
+        `VerifiedTeacherGuard: Teacher ${user.teacherId} has unknown status (blocked access)`,
+      );
       throw new ForbiddenException({
         code: 'VERIFICATION_REQUIRED',
-        message: 'Your teacher account must be verified before accessing this resource.',
+        message:
+          'Your teacher account must be verified before accessing this resource.',
       });
     }
 

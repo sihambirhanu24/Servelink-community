@@ -87,11 +87,13 @@ export class VerificationController {
   @HttpCode(HttpStatus.OK)
   async resubmit(@Request() req) {
     const teacherId = req.user.teacherId || req.user.sub;
-    const result = await this.verificationService.resubmitVerification(teacherId);
+    const result =
+      await this.verificationService.resubmitVerification(teacherId);
 
     return {
       success: true,
-      message: 'Verification resubmitted successfully. Please wait for admin review.',
+      message:
+        'Verification resubmitted successfully. Please wait for admin review.',
       verificationStatus: result.verificationStatus,
     };
   }
@@ -102,9 +104,15 @@ export class VerificationController {
    */
   @Patch('setup')
   @UseGuards(JwtAuthGuard)
-  async setupVerification(@Request() req, @Body() setupDto: VerificationSetupDto) {
+  async setupVerification(
+    @Request() req,
+    @Body() setupDto: VerificationSetupDto,
+  ) {
     const teacherId = req.user.teacherId || req.user.sub;
-    const result = await this.verificationService.updateVerificationInfo(teacherId, setupDto);
+    const result = await this.verificationService.updateVerificationInfo(
+      teacherId,
+      setupDto,
+    );
 
     return {
       success: true,
@@ -134,7 +142,10 @@ export class VerificationController {
 
     // Send file as download (do NOT serve via public URL)
     res.setHeader('Content-Type', document.mimeType);
-    res.setHeader('Content-Disposition', `inline; filename="${document.fileName}"`);
+    res.setHeader(
+      'Content-Disposition',
+      `inline; filename="${document.fileName}"`,
+    );
     res.sendFile(filePath, { root: '.' });
   }
 
@@ -143,7 +154,10 @@ export class VerificationController {
    * DELETE /verification/documents/:documentId
    */
   @Delete('documents/:documentId')
-  async deleteDocument(@Request() req, @Param('documentId') documentId: string) {
+  async deleteDocument(
+    @Request() req,
+    @Param('documentId') documentId: string,
+  ) {
     const teacherId = req.user.teacherId || req.user.sub;
     return this.verificationService.deleteDocument(documentId, teacherId);
   }

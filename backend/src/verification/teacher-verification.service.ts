@@ -102,7 +102,9 @@ export class TeacherVerificationService {
   /**
    * Get verification status and documents for a teacher
    */
-  async getVerificationStatus(teacherId: string): Promise<VerificationStatusResponse> {
+  async getVerificationStatus(
+    teacherId: string,
+  ): Promise<VerificationStatusResponse> {
     const teacher = await this.prisma.teacher.findUnique({
       where: { id: teacherId },
       select: {
@@ -179,7 +181,9 @@ export class TeacherVerificationService {
   /**
    * Get detailed verification info for a teacher (admin view)
    */
-  async getTeacherVerificationInfo(teacherId: string): Promise<TeacherVerificationInfo> {
+  async getTeacherVerificationInfo(
+    teacherId: string,
+  ): Promise<TeacherVerificationInfo> {
     const teacher = await this.prisma.teacher.findUnique({
       where: { id: teacherId },
       select: {
@@ -288,7 +292,11 @@ export class TeacherVerificationService {
         message: `Congratulations ${teacher.firstName}! Your teacher verification has been approved. You now have full access to ServeLink Community.`,
         type: NotificationEvent.SYSTEM,
       })
-      .catch((err) => this.logger.error(`Failed to send approval notification: ${err.message}`));
+      .catch((err) =>
+        this.logger.error(
+          `Failed to send approval notification: ${err.message}`,
+        ),
+      );
 
     this.logger.log(`Teacher ${teacherId} approved by admin ${adminId}`);
 
@@ -346,9 +354,15 @@ export class TeacherVerificationService {
         message: `Your teacher verification was rejected. Reason: ${reason}. Please update your documents and resubmit.`,
         type: NotificationEvent.SYSTEM,
       })
-      .catch((err) => this.logger.error(`Failed to send rejection notification: ${err.message}`));
+      .catch((err) =>
+        this.logger.error(
+          `Failed to send rejection notification: ${err.message}`,
+        ),
+      );
 
-    this.logger.log(`Teacher ${teacherId} rejected by admin ${adminId}: ${reason}`);
+    this.logger.log(
+      `Teacher ${teacherId} rejected by admin ${adminId}: ${reason}`,
+    );
 
     return updated;
   }
@@ -392,11 +406,15 @@ export class TeacherVerificationService {
       }
 
       if (teacher.verificationStatus !== TeacherVerificationStatus.REJECTED) {
-        throw new BadRequestException('Only rejected teachers can resubmit verification');
+        throw new BadRequestException(
+          'Only rejected teachers can resubmit verification',
+        );
       }
 
       if (teacher.verificationDocuments.length === 0) {
-        throw new BadRequestException('Please upload verification documents before resubmitting');
+        throw new BadRequestException(
+          'Please upload verification documents before resubmitting',
+        );
       }
 
       // Reset to PENDING status and clear rejection reason
@@ -443,7 +461,9 @@ export class TeacherVerificationService {
 
     // Authorization check: only the teacher themselves or an admin can view
     if (!isAdmin && document.teacherId !== requesterId) {
-      throw new ForbiddenException('You do not have permission to view this document');
+      throw new ForbiddenException(
+        'You do not have permission to view this document',
+      );
     }
 
     // Check if file exists
@@ -480,7 +500,9 @@ export class TeacherVerificationService {
     });
 
     if (teacher?.verificationStatus === TeacherVerificationStatus.APPROVED) {
-      throw new BadRequestException('Cannot delete documents from approved verification');
+      throw new BadRequestException(
+        'Cannot delete documents from approved verification',
+      );
     }
 
     // Delete from database
@@ -494,7 +516,9 @@ export class TeacherVerificationService {
         fs.unlinkSync(document.filePath);
       }
     } catch (error) {
-      this.logger.error(`Failed to delete file ${document.filePath}: ${error.message}`);
+      this.logger.error(
+        `Failed to delete file ${document.filePath}: ${error.message}`,
+      );
     }
 
     this.logger.log(`Teacher ${teacherId} deleted document ${documentId}`);
@@ -526,18 +550,30 @@ export class TeacherVerificationService {
         approvedAt: null,
         approvedBy: null,
         ...(data.gender !== undefined && { gender: data.gender }),
-        ...(data.dateOfBirth !== undefined && { dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : undefined }),
+        ...(data.dateOfBirth !== undefined && {
+          dateOfBirth: data.dateOfBirth
+            ? new Date(data.dateOfBirth)
+            : undefined,
+        }),
         ...(data.bio !== undefined && { bio: data.bio }),
         ...(data.phone !== undefined && { phone: data.phone }),
         ...(data.profession !== undefined && { profession: data.profession }),
-        ...(data.teacherIdNumber !== undefined && { teacherIdNumber: data.teacherIdNumber }),
-        ...(data.specialization !== undefined && { specialization: data.specialization }),
+        ...(data.teacherIdNumber !== undefined && {
+          teacherIdNumber: data.teacherIdNumber,
+        }),
+        ...(data.specialization !== undefined && {
+          specialization: data.specialization,
+        }),
         ...(data.skills !== undefined && { skills: data.skills }),
         ...(data.gradeLevel !== undefined && { gradeLevel: data.gradeLevel }),
-        ...(data.yearsOfExperience !== undefined && { yearsOfExperience: data.yearsOfExperience }),
+        ...(data.yearsOfExperience !== undefined && {
+          yearsOfExperience: data.yearsOfExperience,
+        }),
         ...(data.schoolType !== undefined && { schoolType: data.schoolType }),
         ...(data.city !== undefined && { city: data.city }),
-        ...(data.schoolLocation !== undefined && { schoolLocation: data.schoolLocation }),
+        ...(data.schoolLocation !== undefined && {
+          schoolLocation: data.schoolLocation,
+        }),
       },
       select: {
         id: true,
