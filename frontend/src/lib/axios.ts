@@ -1,5 +1,4 @@
 import axios from 'axios';
-import { toast } from 'sonner';
 
 export const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL, // e.g. http://localhost:4000
@@ -31,10 +30,6 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Tracks an in-flight refresh so concurrent 401s from multiple
-// simultaneous requests don't each fire their own /auth/refresh call.
-let refreshPromise: Promise<string> | null = null;
-
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -60,18 +55,21 @@ api.interceptors.response.use(
           window.dispatchEvent(new CustomEvent('show-verification-modal'));
         }
       } else if (code === 'ACCOUNT_SUSPENDED') {
+        // Business state, not a generic failure: the backend has confirmed the
+        // account is suspended (this fires even for a still-valid JWT). Send
+        // the teacher to the suspension screen instead of surfacing an error.
         if (typeof window !== 'undefined') {
-          // Store suspension details for display
           const suspensionDetails = {
-            suspensionReason: error.response.data.suspensionReason,
-            suspensionStart: error.response.data.suspensionStart,
-            suspensionUntil: error.response.data.suspensionUntil,
+            permanent: Boolean(error.response.data.permanent),
+            suspensionReason: error.response.data.suspensionReason ?? null,
+            suspensionStart: error.response.data.suspensionStart ?? null,
+            suspensionUntil: error.response.data.suspensionUntil ?? null,
           };
           localStorage.setItem('suspension_details', JSON.stringify(suspensionDetails));
-          // Dispatch event to show suspension modal or redirect
           window.dispatchEvent(new CustomEvent('account-suspended', { detail: suspensionDetails }));
-          // Redirect to suspended page
-          window.location.href = '/suspended';
+          if (window.location.pathname !== '/suspended') {
+            window.location.replace('/suspended');
+          }
         }
       }
     }

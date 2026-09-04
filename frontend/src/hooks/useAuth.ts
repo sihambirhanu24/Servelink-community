@@ -7,7 +7,7 @@ import {
   forgotPassword,
   resetPassword,
 } from "@/services/auth";
-import { useAuth } from "@/context/AuthContext";
+import { isSuspendedStatus, useAuth } from "@/context/AuthContext";
 
 export function useForgotPassword() {
   return useMutation({
@@ -51,6 +51,14 @@ export function useLogin() {
       // second reload.
       if (data?.accessToken && data?.teacher) {
         updateAuth(data.accessToken, data.teacher);
+      }
+
+      // The backend reports the effective account status with the login
+      // response; a suspended teacher goes straight to the suspension screen
+      // (where they can read the reason and appeal), never to the dashboard.
+      if (isSuspendedStatus(data?.teacher?.status)) {
+        router.replace("/suspended");
+        return;
       }
 
       router.push("/dashboard");
