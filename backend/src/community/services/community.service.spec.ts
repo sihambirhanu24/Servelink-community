@@ -54,19 +54,35 @@ describe('CommunityService', () => {
     (prisma.communityPost.findUnique as jest.Mock).mockResolvedValue({
       id: 'post-1',
       teacherId: 'teacher-1',
-    } as never);
+    });
 
-    (prisma.$transaction as jest.Mock).mockImplementation(async (callback: any) => callback(prisma));
+    (prisma.$transaction as jest.Mock).mockImplementation(
+      async (callback: any) => callback(prisma),
+    );
 
     await service.deletePost('post-1', 'teacher-1');
 
     expect(prisma.$transaction).toHaveBeenCalled();
-    expect(prisma.attachment.deleteMany).toHaveBeenCalledWith({ where: { postId: 'post-1' } });
-    expect(prisma.communityComment.deleteMany).toHaveBeenCalledWith({ where: { postId: 'post-1' } });
-    expect(prisma.communityLike.deleteMany).toHaveBeenCalledWith({ where: { postId: 'post-1' } });
-    expect(prisma.communityBookmark.deleteMany).toHaveBeenCalledWith({ where: { postId: 'post-1' } });
-    expect(prisma.communityReport.deleteMany).toHaveBeenCalledWith({ where: { postId: 'post-1' } });
-    expect(prisma.postTag.deleteMany).toHaveBeenCalledWith({ where: { postId: 'post-1' } });
-    expect(prisma.communityPost.delete).toHaveBeenCalledWith({ where: { id: 'post-1' } });
+    expect(prisma.attachment.deleteMany).toHaveBeenCalledWith({
+      where: { postId: 'post-1' },
+    });
+    expect(prisma.communityComment.deleteMany).toHaveBeenCalledWith({
+      where: { postId: 'post-1' },
+    });
+    expect(prisma.communityLike.deleteMany).toHaveBeenCalledWith({
+      where: { postId: 'post-1' },
+    });
+    expect(prisma.communityBookmark.deleteMany).toHaveBeenCalledWith({
+      where: { postId: 'post-1' },
+    });
+    expect(prisma.communityReport.deleteMany).toHaveBeenCalledWith({
+      where: { postId: 'post-1' },
+    });
+    expect(prisma.postTag.deleteMany).toHaveBeenCalledWith({
+      where: { postId: 'post-1' },
+    });
+    expect(prisma.communityPost.delete).toHaveBeenCalledWith({
+      where: { id: 'post-1' },
+    });
   });
 });

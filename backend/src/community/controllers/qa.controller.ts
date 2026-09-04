@@ -1,6 +1,15 @@
 import {
-  Body, Controller, Delete, Get, Param, Post, Query,
-  Request, UseGuards, DefaultValuePipe, ParseIntPipe,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Query,
+  Request,
+  UseGuards,
+  DefaultValuePipe,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -36,19 +45,19 @@ export class QaController {
   @Get()
   listQuestions(
     @Request() req: any,
-    @Query('status')  status?: string,
-    @Query('sort')    sort?: string,
-    @Query('search')  search?: string,
-    @Query('mine')    mine?: string,
+    @Query('status') status?: string,
+    @Query('sort') sort?: string,
+    @Query('search') search?: string,
+    @Query('mine') mine?: string,
     @Query('communityType') communityType?: string,
-    @Query('page',    new DefaultValuePipe(1),  ParseIntPipe) page: number = 1,
-    @Query('limit',   new DefaultValuePipe(20), ParseIntPipe) limit: number = 20,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number = 1,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number = 20,
   ) {
     return this.qaService.getQuestions(req.user.sub, {
-      status:  status as any,
-      sort:    sort as any,
+      status: status as any,
+      sort: sort as any,
       search,
-      mine:    mine === 'true',
+      mine: mine === 'true',
       communityType,
       page,
       limit,
@@ -60,7 +69,10 @@ export class QaController {
   @Post()
   @UseGuards(VerifiedTeacherGuard)
   createQuestion(@Request() req: any, @Body() dto: CreateQuestionBodyDto) {
-    console.log('[QaController] createQuestion called:', { userSub: req.user?.sub, dto });
+    console.log('[QaController] createQuestion called:', {
+      userSub: req.user?.sub,
+      dto,
+    });
     return this.qaService.createQuestion(req.user.sub, dto);
   }
 
@@ -102,7 +114,9 @@ export class QaController {
   }
 
   /** POST /community/questions/:id/best-answer/:answerId — select best answer */
-  @ApiOperation({ summary: 'Select best answer (asker only, after question closes)' })
+  @ApiOperation({
+    summary: 'Select best answer (asker only, after question closes)',
+  })
   @Post(':id/best-answer/:answerId')
   @UseGuards(VerifiedTeacherGuard)
   selectBestAnswer(
@@ -114,7 +128,9 @@ export class QaController {
   }
 
   /** POST /community/answers/:answerId/helpful — toggle helpful */
-  @ApiOperation({ summary: 'Toggle helpful on an answer (only after question closes)' })
+  @ApiOperation({
+    summary: 'Toggle helpful on an answer (only after question closes)',
+  })
   @Post('/answers/:answerId/helpful')
   @UseGuards(VerifiedTeacherGuard)
   toggleHelpful(@Param('answerId') answerId: string, @Request() req: any) {

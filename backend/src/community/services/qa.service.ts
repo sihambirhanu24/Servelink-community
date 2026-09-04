@@ -12,6 +12,7 @@ import { TeacherProgressService } from '../../progress/teacher-progress.service'
 import { TeacherActivityType } from '@prisma/client';
 import { POINT_VALUES } from '../../progress/types/progress.types';
 import { CommunityService } from './community.service';
+import { publiclyVisiblePostWhere } from '../../common/post-visibility';
 
 // ─── DTOs ─────────────────────────────────────────────────────────────────────
 
@@ -68,14 +69,20 @@ export class QaService {
    * A question is OPEN when its stored status is OPEN AND the deadline
    * has not yet passed (or no deadline was set).
    */
-  private isOpen(post: { questionStatus: string; deadline: Date | null }): boolean {
+  private isOpen(post: {
+    questionStatus: string;
+    deadline: Date | null;
+  }): boolean {
     if (post.questionStatus !== 'OPEN') return false;
     if (!post.deadline) return true; // no deadline = always open
     return new Date() < post.deadline;
   }
 
   /** Compute the effective status using server time */
-  private effectiveStatus(post: { questionStatus: string; deadline: Date | null }): string {
+  private effectiveStatus(post: {
+    questionStatus: string;
+    deadline: Date | null;
+  }): string {
     if (post.questionStatus === 'SOLVED') return 'SOLVED';
     if (post.questionStatus === 'CLOSED') return 'CLOSED';
     // OPEN — check deadline
@@ -98,7 +105,10 @@ export class QaService {
     } catch (e: any) {
       // P2002 = unique constraint (already rewarded) — silently ignore
       if (e?.code !== 'P2002') {
-        console.error(`Failed to award QA points (${activityType}):`, e?.message);
+        console.error(
+          `Failed to award QA points (${activityType}):`,
+          e?.message,
+        );
       }
     }
   }
@@ -115,7 +125,8 @@ export class QaService {
         name: 'Network Community',
         type: 'NETWORK' as any,
         subtype: 'COMMON' as any,
-        description: 'The global professional community for all verified ServeLink teachers.',
+        description:
+          'The global professional community for all verified ServeLink teachers.',
         isActive: true,
       },
     });
@@ -127,13 +138,25 @@ export class QaService {
     console.log('[QaService] createQuestion called:', { teacherId, dto });
     const deadline = this.resolveDeadline(dto.deadline);
     const normalizedType = dto.communityType.toUpperCase();
-    console.log('[QaService] Resolved deadline:', deadline, 'Type:', normalizedType);
+    console.log(
+      '[QaService] Resolved deadline:',
+      deadline,
+      'Type:',
+      normalizedType,
+    );
 
     // Re-use CommunityService's type resolution for community
     // We call createPostByType logic but capture the community
     const teacher = await this.prisma.teacher.findUnique({
       where: { id: teacherId },
-      select: { level: true, school: true, woreda: true, zone: true, region: true, privilegeExpiresAt: true },
+      select: {
+        level: true,
+        school: true,
+        woreda: true,
+        zone: true,
+        region: true,
+        privilegeExpiresAt: true,
+      },
     });
     if (!teacher) throw new NotFoundException('Teacher not found');
     console.log('[QaService] Teacher found:', teacher);
@@ -147,7 +170,8 @@ export class QaService {
         where: this.buildCommunityWhere(normalizedType, teacher),
         orderBy: { createdAt: 'asc' },
       });
-      if (!community) throw new NotFoundException(`No ${normalizedType} community found.`);
+      if (!community)
+        throw new NotFoundException(`No ${normalizedType} community found.`);
     }
     console.log('[QaService] Community found:', community);
 
@@ -163,36 +187,58 @@ export class QaService {
         questionStatus: 'OPEN',
       },
       include: {
-        teacher: { select: { id: true, firstName: true, lastName: true, profileImage: true, level: true } },
+        teacher: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            profileImage: true,
+            level: true,
+          },
+        },
         category: { select: { id: true, name: true } },
         community: { select: { id: true, name: true, type: true } },
         _count: { select: { comments: true } },
       },
     });
 
-    this.progressService.awardQuestionPoints(teacherId, post.id).catch(() => {});
+    this.progressService
+      .awardQuestionPoints(teacherId, post.id)
+      .catch(() => {});
     return { ...post, effectiveStatus: 'OPEN', answerCount: 0 };
   }
 
   private buildCommunityWhere(type: string, teacher: any): any {
     const base = { type: type as any, isActive: true };
     if (type === 'SCHOOL' && teacher.school)
-      return { ...base, OR: [{ school: { equals: teacher.school, mode: 'insensitive' } }, { name: { equals: teacher.school, mode: 'insensitive' } }] };
+      return {
+        ...base,
+        OR: [
+          { school: { equals: teacher.school, mode: 'insensitive' } },
+          { name: { equals: teacher.school, mode: 'insensitive' } },
+        ],
+      };
     if (type === 'WOREDA' && teacher.woreda)
-      return { ...base, woreda: { equals: teacher.woreda, mode: 'insensitive' } };
+      return {
+        ...base,
+        woreda: { equals: teacher.woreda, mode: 'insensitive' },
+      };
     if (type === 'ZONE' && teacher.zone)
       return { ...base, zone: { equals: teacher.zone, mode: 'insensitive' } };
     if (type === 'REGION' && teacher.region)
-      return { ...base, region: { equals: teacher.region, mode: 'insensitive' } };
+      return {
+        ...base,
+        region: { equals: teacher.region, mode: 'insensitive' },
+      };
     return base;
   }
 
   // ─── List questions ──────────────────────────────────────────────────────
 
   async getQuestions(teacherId: string, dto: QuestionFilterDto) {
-    const page  = dto.page  ?? 1;
+    const page = dto.page ?? 1;
     const limit = dto.limit ?? 20;
-    const skip  = (page - 1) * limit;
+    const skip = (page - 1) * limit;
 
     const where: any = { postType: 'QUESTION' };
 
@@ -227,13 +273,15 @@ export class QaService {
 
     if (dto.search) {
       where.OR = [
-        { title:       { contains: dto.search, mode: 'insensitive' } },
+        { title: { contains: dto.search, mode: 'insensitive' } },
         { description: { contains: dto.search, mode: 'insensitive' } },
       ];
     }
 
     if (dto.mine) {
       where.teacherId = teacherId;
+    } else {
+      where.moderationStatus = publiclyVisiblePostWhere.moderationStatus;
     }
 
     const now = new Date();
@@ -250,9 +298,11 @@ export class QaService {
     }
 
     const orderBy: any =
-      dto.sort === 'most-answers'  ? { comments: { _count: 'desc' } } :
-      dto.sort === 'ending-soon'   ? { deadline: 'asc' } :
-      { createdAt: 'desc' };
+      dto.sort === 'most-answers'
+        ? { comments: { _count: 'desc' } }
+        : dto.sort === 'ending-soon'
+          ? { deadline: 'asc' }
+          : { createdAt: 'desc' };
 
     const [posts, total] = await Promise.all([
       this.prisma.communityPost.findMany({
@@ -261,7 +311,15 @@ export class QaService {
         skip,
         take: limit,
         include: {
-          teacher: { select: { id: true, firstName: true, lastName: true, profileImage: true, level: true } },
+          teacher: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              profileImage: true,
+              level: true,
+            },
+          },
           category: { select: { id: true, name: true } },
           community: { select: { id: true, name: true, type: true } },
           tags: { include: { tag: true } },
@@ -290,7 +348,16 @@ export class QaService {
     const post = await this.prisma.communityPost.findUnique({
       where: { id: questionId },
       include: {
-        teacher: { select: { id: true, firstName: true, lastName: true, profileImage: true, level: true, verified: true } },
+        teacher: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            profileImage: true,
+            level: true,
+            verified: true,
+          },
+        },
         category: { select: { id: true, name: true } },
         community: { select: { id: true, name: true, type: true } },
         tags: { include: { tag: true } },
@@ -304,17 +371,21 @@ export class QaService {
     }
 
     // Increment view count (fire and forget)
-    this.prisma.communityPost.update({ where: { id: questionId }, data: { views: { increment: 1 } } }).catch(() => {});
+    this.prisma.communityPost
+      .update({ where: { id: questionId }, data: { views: { increment: 1 } } })
+      .catch(() => {});
 
     const status = this.effectiveStatus(post);
     const isAsker = post.teacherId === teacherId;
 
     // Auto-close if deadline passed but status still OPEN
     if (status === 'CLOSED' && post.questionStatus === 'OPEN') {
-      this.prisma.communityPost.update({
-        where: { id: questionId },
-        data: { questionStatus: 'CLOSED' },
-      }).catch(() => {});
+      this.prisma.communityPost
+        .update({
+          where: { id: questionId },
+          data: { questionStatus: 'CLOSED' },
+        })
+        .catch(() => {});
     }
 
     return {
@@ -331,7 +402,13 @@ export class QaService {
   async getAnswers(questionId: string, teacherId: string) {
     const post = await this.prisma.communityPost.findUnique({
       where: { id: questionId },
-      select: { id: true, teacherId: true, questionStatus: true, deadline: true, postType: true },
+      select: {
+        id: true,
+        teacherId: true,
+        questionStatus: true,
+        deadline: true,
+        postType: true,
+      },
     });
 
     if (!post || post.postType !== 'QUESTION') {
@@ -361,7 +438,11 @@ export class QaService {
     }
 
     // CLOSED / SOLVED — all answers visible
-    return this.fetchAnswersOpen(questionId, teacherId, post.questionStatus === 'SOLVED');
+    return this.fetchAnswersOpen(
+      questionId,
+      teacherId,
+      post.questionStatus === 'SOLVED',
+    );
   }
 
   private async fetchAnswersForAsker(questionId: string, askerId: string) {
@@ -369,7 +450,16 @@ export class QaService {
       where: { postId: questionId, parentId: null },
       orderBy: [{ isAccepted: 'desc' }, { createdAt: 'asc' }],
       include: {
-        teacher: { select: { id: true, firstName: true, lastName: true, profileImage: true, level: true, verified: true } },
+        teacher: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            profileImage: true,
+            level: true,
+            verified: true,
+          },
+        },
         reactions: { select: { teacherId: true, reaction: true } },
       },
     });
@@ -377,8 +467,11 @@ export class QaService {
     return {
       answers: comments.map((c) => ({
         ...c,
-        helpfulCount: c.reactions.filter((r) => r.reaction === 'HELPFUL').length,
-        markedHelpful: c.reactions.some((r) => r.teacherId === askerId && r.reaction === 'HELPFUL'),
+        helpfulCount: c.reactions.filter((r) => r.reaction === 'HELPFUL')
+          .length,
+        markedHelpful: c.reactions.some(
+          (r) => r.teacherId === askerId && r.reaction === 'HELPFUL',
+        ),
       })),
       isBlind: false,
       totalCount: comments.length,
@@ -390,24 +483,46 @@ export class QaService {
     const comment = await this.prisma.communityComment.findFirst({
       where: { postId: questionId, teacherId, parentId: null },
       include: {
-        teacher: { select: { id: true, firstName: true, lastName: true, profileImage: true, level: true, verified: true } },
+        teacher: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            profileImage: true,
+            level: true,
+            verified: true,
+          },
+        },
         reactions: { select: { teacherId: true, reaction: true } },
       },
     });
     if (!comment) return null;
     return {
       ...comment,
-      helpfulCount: 0,   // hidden during blind period
+      helpfulCount: 0, // hidden during blind period
       markedHelpful: false,
     };
   }
 
-  private async fetchAnswersOpen(questionId: string, teacherId: string, isSolved: boolean) {
+  private async fetchAnswersOpen(
+    questionId: string,
+    teacherId: string,
+    isSolved: boolean,
+  ) {
     const comments = await this.prisma.communityComment.findMany({
       where: { postId: questionId, parentId: null },
       orderBy: [{ isAccepted: 'desc' }, { createdAt: 'asc' }],
       include: {
-        teacher: { select: { id: true, firstName: true, lastName: true, profileImage: true, level: true, verified: true } },
+        teacher: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            profileImage: true,
+            level: true,
+            verified: true,
+          },
+        },
         reactions: { select: { teacherId: true, reaction: true } },
       },
     });
@@ -415,8 +530,11 @@ export class QaService {
     return {
       answers: comments.map((c) => ({
         ...c,
-        helpfulCount: c.reactions.filter((r) => r.reaction === 'HELPFUL').length,
-        markedHelpful: c.reactions.some((r) => r.teacherId === teacherId && r.reaction === 'HELPFUL'),
+        helpfulCount: c.reactions.filter((r) => r.reaction === 'HELPFUL')
+          .length,
+        markedHelpful: c.reactions.some(
+          (r) => r.teacherId === teacherId && r.reaction === 'HELPFUL',
+        ),
       })),
       isBlind: false,
       totalCount: comments.length,
@@ -426,17 +544,31 @@ export class QaService {
 
   // ─── Submit answer ────────────────────────────────────────────────────────
 
-  async submitAnswer(questionId: string, teacherId: string, dto: SubmitAnswerDto) {
+  async submitAnswer(
+    questionId: string,
+    teacherId: string,
+    dto: SubmitAnswerDto,
+  ) {
     const post = await this.prisma.communityPost.findUnique({
       where: { id: questionId },
-      select: { id: true, title: true, teacherId: true, questionStatus: true, deadline: true, postType: true },
+      select: {
+        id: true,
+        title: true,
+        teacherId: true,
+        questionStatus: true,
+        deadline: true,
+        postType: true,
+      },
     });
 
-    if (!post || post.postType !== 'QUESTION') throw new NotFoundException('Question not found');
+    if (!post || post.postType !== 'QUESTION')
+      throw new NotFoundException('Question not found');
 
     // Server-side: reject if not OPEN
     if (!this.isOpen(post)) {
-      throw new ForbiddenException('This question is closed. Answers are no longer accepted.');
+      throw new ForbiddenException(
+        'This question is closed. Answers are no longer accepted.',
+      );
     }
 
     // Asker cannot answer their own question
@@ -449,13 +581,23 @@ export class QaService {
       where: { postId: questionId, teacherId, parentId: null },
     });
     if (existing) {
-      throw new ConflictException('You have already submitted an answer to this question.');
+      throw new ConflictException(
+        'You have already submitted an answer to this question.',
+      );
     }
 
     const answer = await this.prisma.communityComment.create({
       data: { content: dto.content, teacherId, postId: questionId },
       include: {
-        teacher: { select: { id: true, firstName: true, lastName: true, profileImage: true, level: true } },
+        teacher: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            profileImage: true,
+            level: true,
+          },
+        },
       },
     });
 
@@ -469,14 +611,16 @@ export class QaService {
 
     // Notify question asker (do NOT reveal who answered during blind period)
     const answererName = `${answer.teacher.firstName} ${answer.teacher.lastName}`;
-    this.notificationService.create({
-      receiverId: post.teacherId,
-      title: 'Someone answered your question',
-      message: `Your question "${post.title}" received a new answer.`,
-      type: NotificationEvent.ANSWER_SUBMITTED,
-      referenceId: questionId,
-      // senderId omitted during blind period to avoid identity leak
-    }).catch(() => {});
+    this.notificationService
+      .create({
+        receiverId: post.teacherId,
+        title: 'Someone answered your question',
+        message: `Your question "${post.title}" received a new answer.`,
+        type: NotificationEvent.ANSWER_SUBMITTED,
+        referenceId: questionId,
+        // senderId omitted during blind period to avoid identity leak
+      })
+      .catch(() => {});
 
     return {
       ...answer,
@@ -493,22 +637,34 @@ export class QaService {
     const comment = await this.prisma.communityComment.findUnique({
       where: { id: answerId },
       include: {
-        post: { select: { id: true, questionStatus: true, deadline: true, postType: true } },
+        post: {
+          select: {
+            id: true,
+            questionStatus: true,
+            deadline: true,
+            postType: true,
+          },
+        },
       },
     });
 
     if (!comment) throw new NotFoundException('Answer not found');
-    if (comment.post.postType !== 'QUESTION') throw new BadRequestException('Helpful only applies to question answers');
+    if (comment.post.postType !== 'QUESTION')
+      throw new BadRequestException('Helpful only applies to question answers');
 
     // Prevent voting on own answer
     if (comment.teacherId === teacherId) {
-      throw new ForbiddenException('You cannot mark your own answer as helpful.');
+      throw new ForbiddenException(
+        'You cannot mark your own answer as helpful.',
+      );
     }
 
     // Server-side: helpful voting only allowed when question is CLOSED or SOLVED
     const status = this.effectiveStatus(comment.post);
     if (status === 'OPEN') {
-      throw new ForbiddenException('Helpful voting is not available while the question is still open.');
+      throw new ForbiddenException(
+        'Helpful voting is not available while the question is still open.',
+      );
     }
 
     const existing = await this.prisma.commentReaction.findUnique({
@@ -534,52 +690,81 @@ export class QaService {
 
     // Notify answer author
     const voter = await this.prisma.teacher.findUnique({
-      where: { id: teacherId }, select: { firstName: true, lastName: true },
+      where: { id: teacherId },
+      select: { firstName: true, lastName: true },
     });
-    const voterName = voter ? `${voter.firstName} ${voter.lastName}` : 'Someone';
-    this.notificationService.create({
-      receiverId: comment.teacherId,
-      senderId: teacherId,
-      senderName: voterName,
-      title: 'Your answer was marked helpful',
-      message: `${voterName} marked your answer as helpful.`,
-      type: NotificationEvent.ANSWER_HELPFUL,
-      referenceId: answerId,
-    }).catch(() => {});
+    const voterName = voter
+      ? `${voter.firstName} ${voter.lastName}`
+      : 'Someone';
+    this.notificationService
+      .create({
+        receiverId: comment.teacherId,
+        senderId: teacherId,
+        senderName: voterName,
+        title: 'Your answer was marked helpful',
+        message: `${voterName} marked your answer as helpful.`,
+        type: NotificationEvent.ANSWER_HELPFUL,
+        referenceId: answerId,
+      })
+      .catch(() => {});
 
     return { marked: true };
   }
 
   // ─── Select best answer (atomic transaction) — now supports toggle/unmark ──
 
-  async selectBestAnswer(questionId: string, answerId: string, teacherId: string) {
+  async selectBestAnswer(
+    questionId: string,
+    answerId: string,
+    teacherId: string,
+  ) {
     // Load post
     const post = await this.prisma.communityPost.findUnique({
       where: { id: questionId },
-      select: { id: true, title: true, teacherId: true, questionStatus: true, deadline: true, postType: true, bestAnswerId: true },
+      select: {
+        id: true,
+        title: true,
+        teacherId: true,
+        questionStatus: true,
+        deadline: true,
+        postType: true,
+        bestAnswerId: true,
+      },
     });
 
-    if (!post || post.postType !== 'QUESTION') throw new NotFoundException('Question not found');
+    if (!post || post.postType !== 'QUESTION')
+      throw new NotFoundException('Question not found');
 
     // Only asker can select best answer
     if (post.teacherId !== teacherId) {
-      throw new ForbiddenException('Only the question author can select the best answer.');
+      throw new ForbiddenException(
+        'Only the question author can select the best answer.',
+      );
     }
 
     // Only allowed when CLOSED or SOLVED
     const status = this.effectiveStatus(post);
     if (status === 'OPEN') {
-      throw new ForbiddenException('Best answer can only be selected after the question closes.');
+      throw new ForbiddenException(
+        'Best answer can only be selected after the question closes.',
+      );
     }
 
     // Toggle behavior: if this answer is already marked, unmark it
     if (post.bestAnswerId === answerId && status === 'SOLVED') {
-      return this.unselectBestAnswer(questionId, answerId, teacherId, post.title);
+      return this.unselectBestAnswer(
+        questionId,
+        answerId,
+        teacherId,
+        post.title,
+      );
     }
 
     // If another answer is marked, we're changing the selection
     if (status === 'SOLVED' && post.bestAnswerId !== answerId) {
-      throw new ForbiddenException('A best answer has already been selected. Unmark it first to select a different one.');
+      throw new ForbiddenException(
+        'A best answer has already been selected. Unmark it first to select a different one.',
+      );
     }
 
     // Load the answer
@@ -594,7 +779,9 @@ export class QaService {
 
     // Answer author cannot be the asker (extra guard)
     if (answer.teacherId === teacherId) {
-      throw new ForbiddenException('You cannot select your own answer as the best answer.');
+      throw new ForbiddenException(
+        'You cannot select your own answer as the best answer.',
+      );
     }
 
     const now = new Date();
@@ -643,18 +830,23 @@ export class QaService {
 
     // Notify answer author
     const asker = await this.prisma.teacher.findUnique({
-      where: { id: teacherId }, select: { firstName: true, lastName: true },
+      where: { id: teacherId },
+      select: { firstName: true, lastName: true },
     });
-    const askerName = asker ? `${asker.firstName} ${asker.lastName}` : 'The question author';
-    this.notificationService.create({
-      receiverId: answer.teacherId,
-      senderId: teacherId,
-      senderName: askerName,
-      title: '🏆 Your answer was selected as Best Answer!',
-      message: `${askerName} selected your answer as the best answer for "${post.title}". You earned +${POINT_VALUES.BEST_ANSWER_SELECTED} points!`,
-      type: NotificationEvent.BEST_ANSWER,
-      referenceId: questionId,
-    }).catch(() => {});
+    const askerName = asker
+      ? `${asker.firstName} ${asker.lastName}`
+      : 'The question author';
+    this.notificationService
+      .create({
+        receiverId: answer.teacherId,
+        senderId: teacherId,
+        senderName: askerName,
+        title: '🏆 Your answer was selected as Best Answer!',
+        message: `${askerName} selected your answer as the best answer for "${post.title}". You earned +${POINT_VALUES.BEST_ANSWER_SELECTED} points!`,
+        type: NotificationEvent.BEST_ANSWER,
+        referenceId: questionId,
+      })
+      .catch(() => {});
 
     return {
       success: true,
@@ -666,7 +858,12 @@ export class QaService {
 
   // ─── Unselect best answer (revert SOLVED back to CLOSED) ────────────────
 
-  private async unselectBestAnswer(questionId: string, answerId: string, teacherId: string, questionTitle: string) {
+  private async unselectBestAnswer(
+    questionId: string,
+    answerId: string,
+    teacherId: string,
+    questionTitle: string,
+  ) {
     // Atomic transaction: unmark answer + reopen question
     await this.prisma.$transaction(async (tx) => {
       // Unmark the answer
@@ -699,24 +896,29 @@ export class QaService {
         where: { id: teacherId },
         select: { firstName: true, lastName: true },
       });
-      const askerName = asker ? `${asker.firstName} ${asker.lastName}` : 'The question author';
+      const askerName = asker
+        ? `${asker.firstName} ${asker.lastName}`
+        : 'The question author';
 
-      this.notificationService.create({
-        receiverId: answer.teacherId,
-        senderId: teacherId,
-        senderName: askerName,
-        title: 'Best Answer Unmarked',
-        message: `${askerName} unmarked your answer as the best answer for "${questionTitle}".`,
-        type: NotificationEvent.REPLY, // reusing REPLY type
-        referenceId: questionId,
-      }).catch(() => {});
+      this.notificationService
+        .create({
+          receiverId: answer.teacherId,
+          senderId: teacherId,
+          senderName: askerName,
+          title: 'Best Answer Unmarked',
+          message: `${askerName} unmarked your answer as the best answer for "${questionTitle}".`,
+          type: NotificationEvent.REPLY, // reusing REPLY type
+          referenceId: questionId,
+        })
+        .catch(() => {});
     }
 
     return {
       success: true,
       questionStatus: 'CLOSED',
       bestAnswerId: null,
-      message: 'Best answer unmarked. Question is now closed and awaiting a new best answer selection.',
+      message:
+        'Best answer unmarked. Question is now closed and awaiting a new best answer selection.',
     };
   }
 
@@ -728,20 +930,29 @@ export class QaService {
       select: { id: true, postId: true, teacherId: true, isAccepted: true },
     });
 
-    if (!comment || comment.postId !== questionId) throw new NotFoundException('Answer not found');
-    if (comment.teacherId !== teacherId) throw new ForbiddenException('You can only delete your own answer.');
-    if (comment.isAccepted) throw new ForbiddenException('You cannot delete the accepted best answer.');
+    if (!comment || comment.postId !== questionId)
+      throw new NotFoundException('Answer not found');
+    if (comment.teacherId !== teacherId)
+      throw new ForbiddenException('You can only delete your own answer.');
+    if (comment.isAccepted)
+      throw new ForbiddenException(
+        'You cannot delete the accepted best answer.',
+      );
 
     const post = await this.prisma.communityPost.findUnique({
       where: { id: questionId },
       select: { questionStatus: true, deadline: true },
     });
 
-    if (post && !this.isOpen(post as any)) {
-      throw new ForbiddenException('You cannot delete an answer after the question closes.');
+    if (post && !this.isOpen(post)) {
+      throw new ForbiddenException(
+        'You cannot delete an answer after the question closes.',
+      );
     }
 
-    await this.prisma.commentReaction.deleteMany({ where: { commentId: answerId } });
+    await this.prisma.commentReaction.deleteMany({
+      where: { commentId: answerId },
+    });
     await this.prisma.communityComment.delete({ where: { id: answerId } });
 
     return { success: true };
