@@ -1,7 +1,4 @@
-import {
-  CommunityType,
-  TeacherLevelType,
-} from "@prisma/client";
+import { CommunityType, TeacherLevelType } from '@prisma/client';
 
 export function canJoinCommunity(
   level: TeacherLevelType,

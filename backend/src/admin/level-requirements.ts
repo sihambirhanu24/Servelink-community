@@ -1,4 +1,4 @@
-import { TeacherLevelType } from "@prisma/client";
+import { TeacherLevelType } from '@prisma/client';
 
 export const LEVEL_REQUIREMENTS = {
   [TeacherLevelType.LEVEL_1]: {
