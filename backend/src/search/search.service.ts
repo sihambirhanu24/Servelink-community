@@ -1,11 +1,10 @@
-import { Injectable } from "@nestjs/common";
-import { PrismaService } from "../prisma/prisma.service";
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { publiclyVisiblePostWhere } from '../common/post-visibility';
 
 @Injectable()
 export class SearchService {
-  constructor(
-    private readonly prisma: PrismaService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async searchTeachers(keyword: string) {
     return this.prisma.teacher.findMany({
@@ -14,19 +13,19 @@ export class SearchService {
           {
             firstName: {
               contains: keyword,
-              mode: "insensitive",
+              mode: 'insensitive',
             },
           },
           {
             lastName: {
               contains: keyword,
-              mode: "insensitive",
+              mode: 'insensitive',
             },
           },
           {
             subject: {
               contains: keyword,
-              mode: "insensitive",
+              mode: 'insensitive',
             },
           },
         ],
@@ -37,17 +36,18 @@ export class SearchService {
   async searchPosts(keyword: string) {
     return this.prisma.communityPost.findMany({
       where: {
+        ...publiclyVisiblePostWhere,
         OR: [
           {
             title: {
               contains: keyword,
-              mode: "insensitive",
+              mode: 'insensitive',
             },
           },
           {
             description: {
               contains: keyword,
-              mode: "insensitive",
+              mode: 'insensitive',
             },
           },
         ],
@@ -64,7 +64,7 @@ export class SearchService {
       where: {
         name: {
           contains: keyword,
-          mode: "insensitive",
+          mode: 'insensitive',
         },
       },
     });
