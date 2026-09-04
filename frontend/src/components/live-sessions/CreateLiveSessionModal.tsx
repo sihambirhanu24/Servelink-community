@@ -1,7 +1,12 @@
 import React, { useState } from "react";
 import { Dialog, Transition } from "@headlessui/react";
-import { X, Calendar, Clock, Loader2, Globe } from "lucide-react";
+import { X, Calendar, Clock, Loader2, Globe, Video } from "lucide-react";
 import api from "@/lib/axios";
+
+enum LiveSessionProvider {
+  LIVEKIT = 'LIVEKIT',
+  GOOGLE_MEET = 'GOOGLE_MEET',
+}
 
 interface CreateLiveSessionModalProps {
   isOpen: boolean;
@@ -15,13 +20,14 @@ export function CreateLiveSessionModal({ isOpen, onClose, onSuccess }: CreateLiv
   const [formData, setFormData] = useState({
     topic: "",
     description: "",
+    provider: LiveSessionProvider.LIVEKIT,
+    meetingUrl: "",
     scheduledStart: "",
     duration: 60,
     isPaid: false,
     price: "",
     visibility: "NETWORK",
     maxParticipants: "",
-    restreamUrl: "",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -33,13 +39,14 @@ export function CreateLiveSessionModal({ isOpen, onClose, onSuccess }: CreateLiv
       const payload = {
         topic: formData.topic,
         description: formData.description || undefined,
+        provider: formData.provider,
+        meetingUrl: formData.provider === LiveSessionProvider.GOOGLE_MEET ? formData.meetingUrl : undefined,
         scheduledStart: new Date(formData.scheduledStart).toISOString(),
         duration: Number(formData.duration),
         isPaid: formData.isPaid,
         price: formData.isPaid && formData.price ? Number(formData.price) : undefined,
         visibility: formData.visibility,
         maxParticipants: formData.maxParticipants ? Number(formData.maxParticipants) : undefined,
-        restreamUrl: formData.restreamUrl,
       };
 
       await api.post("/live-sessions", payload);
@@ -111,18 +118,6 @@ export function CreateLiveSessionModal({ isOpen, onClose, onSuccess }: CreateLiv
                   </div>
 
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-700">Restream Session URL *</label>
-                    <input
-                      required
-                      type="url"
-                      className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm focus:border-[#043658] focus:outline-none focus:ring-1 focus:ring-[#043658]"
-                      value={formData.restreamUrl}
-                      onChange={(e) => setFormData({ ...formData, restreamUrl: e.target.value })}
-                      placeholder="https://studio.restream.io/guest/..."
-                    />
-                  </div>
-
-                  <div>
                     <label className="mb-1 block text-sm font-medium text-slate-700">Description</label>
                     <textarea
                       className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm focus:border-[#043658] focus:outline-none focus:ring-1 focus:ring-[#043658]"
@@ -132,6 +127,86 @@ export function CreateLiveSessionModal({ isOpen, onClose, onSuccess }: CreateLiv
                       placeholder="What will students learn in this session?"
                     />
                   </div>
+
+                  {/* Provider Selection */}
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700 flex items-center gap-1">
+                      <Video className="h-4 w-4" /> Session Provider *
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <label className={`relative flex cursor-pointer rounded-xl border-2 p-4 transition-all ${
+                        formData.provider === LiveSessionProvider.LIVEKIT
+                          ? 'border-[#043658] bg-blue-50'
+                          : 'border-slate-300 hover:border-slate-400'
+                      }`}>
+                        <input
+                          type="radio"
+                          name="provider"
+                          value={LiveSessionProvider.LIVEKIT}
+                          checked={formData.provider === LiveSessionProvider.LIVEKIT}
+                          onChange={(e) => setFormData({ ...formData, provider: e.target.value as LiveSessionProvider })}
+                          className="sr-only"
+                        />
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-semibold text-slate-900">LiveKit</span>
+                            {formData.provider === LiveSessionProvider.LIVEKIT && (
+                              <div className="h-5 w-5 rounded-full bg-[#043658] flex items-center justify-center">
+                                <div className="h-2 w-2 rounded-full bg-white"></div>
+                              </div>
+                            )}
+                          </div>
+                          <p className="mt-1 text-xs text-slate-600">Built-in video platform</p>
+                        </div>
+                      </label>
+
+                      <label className={`relative flex cursor-pointer rounded-xl border-2 p-4 transition-all ${
+                        formData.provider === LiveSessionProvider.GOOGLE_MEET
+                          ? 'border-[#043658] bg-blue-50'
+                          : 'border-slate-300 hover:border-slate-400'
+                      }`}>
+                        <input
+                          type="radio"
+                          name="provider"
+                          value={LiveSessionProvider.GOOGLE_MEET}
+                          checked={formData.provider === LiveSessionProvider.GOOGLE_MEET}
+                          onChange={(e) => setFormData({ ...formData, provider: e.target.value as LiveSessionProvider })}
+                          className="sr-only"
+                        />
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-semibold text-slate-900">Google Meet</span>
+                            {formData.provider === LiveSessionProvider.GOOGLE_MEET && (
+                              <div className="h-5 w-5 rounded-full bg-[#043658] flex items-center justify-center">
+                                <div className="h-2 w-2 rounded-full bg-white"></div>
+                              </div>
+                            )}
+                          </div>
+                          <p className="mt-1 text-xs text-slate-600">Use your Google Meet link</p>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Google Meet URL Field */}
+                  {formData.provider === LiveSessionProvider.GOOGLE_MEET && (
+                    <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+                      <label className="mb-1 block text-sm font-medium text-slate-700">
+                        Google Meet URL *
+                      </label>
+                      <input
+                        required
+                        type="url"
+                        className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm focus:border-[#043658] focus:outline-none focus:ring-1 focus:ring-[#043658]"
+                        value={formData.meetingUrl}
+                        onChange={(e) => setFormData({ ...formData, meetingUrl: e.target.value })}
+                        placeholder="https://meet.google.com/abc-defg-hij"
+                      />
+                      <p className="mt-2 text-xs text-slate-600">
+                        💡 Create a meeting in Google Meet and paste the link here. Students will join via this external link.
+                      </p>
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
