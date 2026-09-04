@@ -10,4 +10,8 @@ export const validationSchema = Joi.object({
   JWT_EXPIRES_IN: Joi.string().required(),
 
   FRONTEND_URL: Joi.string().required(),
+
+  LIVEKIT_URL: Joi.string().allow('').optional(),
+  LIVEKIT_API_KEY: Joi.string().allow('').optional(),
+  LIVEKIT_API_SECRET: Joi.string().allow('').optional(),
 });

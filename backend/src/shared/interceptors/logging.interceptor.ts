@@ -3,28 +3,17 @@ import {
   NestInterceptor,
   ExecutionContext,
   CallHandler,
-} from "@nestjs/common";
+} from '@nestjs/common';
 
-import { Observable, tap } from "rxjs";
+import { Observable, tap } from 'rxjs';
 
 @Injectable()
-export class LoggingInterceptor
-  implements NestInterceptor
-{
-  intercept(
-    context: ExecutionContext,
-    next: CallHandler,
-  ): Observable<any> {
+export class LoggingInterceptor implements NestInterceptor {
+  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const req = context.switchToHttp().getRequest();
 
-    console.log(
-      `${req.method} ${req.url}`,
-    );
+    console.log(`${req.method} ${req.url}`);
 
-    return next.handle().pipe(
-      tap(() =>
-        console.log("Request completed"),
-      ),
-    );
+    return next.handle().pipe(tap(() => console.log('Request completed')));
   }
 }

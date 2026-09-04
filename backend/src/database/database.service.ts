@@ -44,7 +44,9 @@ export class DatabaseService implements OnModuleInit {
     let skipped = 0;
 
     for (const name of this.CATEGORIES) {
-      const existing = await this.prisma.category.findUnique({ where: { name } });
+      const existing = await this.prisma.category.findUnique({
+        where: { name },
+      });
       if (existing) {
         skipped++;
       } else {

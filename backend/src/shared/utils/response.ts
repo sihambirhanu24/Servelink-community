@@ -1,7 +1,4 @@
-export function successResponse(
-  message: string,
-  data: any,
-) {
+export function successResponse(message: string, data: any) {
   return {
     success: true,
     message,

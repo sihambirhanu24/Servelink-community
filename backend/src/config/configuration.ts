@@ -1,5 +1,5 @@
 export default () => ({
-  port: parseInt(process.env.PORT ?? "3000", 10),
+  port: parseInt(process.env.PORT ?? '3000', 10),
 
   databaseUrl: process.env.DATABASE_URL,
 
@@ -14,4 +14,8 @@ export default () => ({
   chapaPublicKey: process.env.CHAPA_PUBLIC_KEY,
 
   chapaTestMode: process.env.CHAPA_TEST_MODE === 'true',
+
+  livekitUrl: process.env.LIVEKIT_URL,
+  livekitApiKey: process.env.LIVEKIT_API_KEY,
+  livekitApiSecret: process.env.LIVEKIT_API_SECRET,
 });
