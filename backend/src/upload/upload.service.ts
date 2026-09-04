@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable } from '@nestjs/common';
 
 @Injectable()
 export class UploadService {
@@ -8,8 +8,7 @@ export class UploadService {
 
       path: file.path,
 
-      url:
-        "/uploads/" + file.filename,
+      url: '/uploads/' + file.filename,
 
       size: file.size,
 

@@ -5,24 +5,20 @@ import {
   Post,
   UploadedFile,
   UseInterceptors,
-} from "@nestjs/common";
+} from '@nestjs/common';
 
-import { FileInterceptor } from "@nestjs/platform-express";
+import { FileInterceptor } from '@nestjs/platform-express';
 
-import { UploadService } from "./upload.service";
+import { UploadService } from './upload.service';
 
-import { multerConfig } from "./config/multer.config";
+import { multerConfig } from './config/multer.config';
 
-@Controller("upload")
+@Controller('upload')
 export class UploadController {
-  constructor(
-    private readonly uploadService: UploadService,
-  ) {}
+  constructor(private readonly uploadService: UploadService) {}
 
   @Post()
-  @UseInterceptors(
-    FileInterceptor("file", multerConfig),
-  )
+  @UseInterceptors(FileInterceptor('file', multerConfig))
   upload(
     @UploadedFile()
     file: Express.Multer.File,
@@ -30,12 +26,11 @@ export class UploadController {
     return this.uploadService.upload(file);
   }
 
-  @Delete(":filename")
+  @Delete(':filename')
   remove(
-    @Param("filename")
+    @Param('filename')
     filename: string,
   ) {
     return this.uploadService.delete(filename);
   }
-  
 }
