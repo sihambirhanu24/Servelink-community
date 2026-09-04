@@ -36,7 +36,7 @@ export class LocationChangeService {
       orderBy: { school: 'asc' },
     });
 
-    return schools.filter(s => s.school);
+    return schools.filter((s) => s.school);
   }
 
   async getMyRequests(teacherId: string) {
@@ -60,7 +60,9 @@ export class LocationChangeService {
     });
 
     if (existing) {
-      throw new BadRequestException('You already have a pending location change request.');
+      throw new BadRequestException(
+        'You already have a pending location change request.',
+      );
     }
 
     const teacher = await this.prisma.teacher.findUnique({
@@ -200,11 +202,16 @@ export class LocationChangeService {
 
       // 3. Update teacher location
       const updateData: any = {};
-      if (request.requestedSchool !== null) updateData.school = request.requestedSchool;
-      if (request.requestedWoreda !== null) updateData.woreda = request.requestedWoreda;
-      if (request.requestedZone !== null) updateData.zone = request.requestedZone;
-      if (request.requestedRegion !== null) updateData.region = request.requestedRegion;
-      if (request.requestedSubject !== null) updateData.subject = request.requestedSubject;
+      if (request.requestedSchool !== null)
+        updateData.school = request.requestedSchool;
+      if (request.requestedWoreda !== null)
+        updateData.woreda = request.requestedWoreda;
+      if (request.requestedZone !== null)
+        updateData.zone = request.requestedZone;
+      if (request.requestedRegion !== null)
+        updateData.region = request.requestedRegion;
+      if (request.requestedSubject !== null)
+        updateData.subject = request.requestedSubject;
 
       if (Object.keys(updateData).length > 0) {
         await tx.teacher.update({
@@ -232,14 +239,20 @@ export class LocationChangeService {
           type: NotificationEvent.SYSTEM,
         })
         .catch((err) =>
-          this.logger.error(`Failed to send approval notification: ${err.message}`),
+          this.logger.error(
+            `Failed to send approval notification: ${err.message}`,
+          ),
         );
 
       return updatedRequest;
     });
   }
 
-  async rejectRequest(id: string, adminId: string, dto: RejectLocationChangeDto) {
+  async rejectRequest(
+    id: string,
+    adminId: string,
+    dto: RejectLocationChangeDto,
+  ) {
     const request = await this.prisma.teacherLocationChangeRequest.findUnique({
       where: { id },
     });
@@ -252,15 +265,16 @@ export class LocationChangeService {
       throw new BadRequestException('Request is not pending');
     }
 
-    const updatedRequest = await this.prisma.teacherLocationChangeRequest.update({
-      where: { id },
-      data: {
-        status: LocationChangeStatus.REJECTED,
-        adminId,
-        adminComment: dto.reason,
-        reviewedAt: new Date(),
-      },
-    });
+    const updatedRequest =
+      await this.prisma.teacherLocationChangeRequest.update({
+        where: { id },
+        data: {
+          status: LocationChangeStatus.REJECTED,
+          adminId,
+          adminComment: dto.reason,
+          reviewedAt: new Date(),
+        },
+      });
 
     // Notify teacher
     this.notificationService
@@ -271,7 +285,9 @@ export class LocationChangeService {
         type: NotificationEvent.SYSTEM,
       })
       .catch((err) =>
-        this.logger.error(`Failed to send rejection notification: ${err.message}`),
+        this.logger.error(
+          `Failed to send rejection notification: ${err.message}`,
+        ),
       );
 
     return updatedRequest;
@@ -287,7 +303,9 @@ export class LocationChangeService {
     }
 
     if (!isAdmin && request.teacherId !== requesterId) {
-      throw new ForbiddenException('You do not have permission to view this document');
+      throw new ForbiddenException(
+        'You do not have permission to view this document',
+      );
     }
 
     if (!request.filePath || !fs.existsSync(request.filePath)) {
