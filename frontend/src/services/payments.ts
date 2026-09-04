@@ -29,6 +29,7 @@ export interface VerifyPaymentResponse {
   status: string;
   verifiedAt: string;
   message: string;
+  liveSessionId?: string;
 }
 
 export interface RequestPayoutDto {
@@ -65,6 +66,11 @@ export interface Payout {
   processedBy?: string;
   processedAt?: string;
   completedAt?: string;
+  chapaTransferId?: string;
+  chapaReference?: string;
+  bankReference?: string;
+  submittedAt?: string;
+  lastVerifiedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -189,6 +195,21 @@ export const paymentsApi = {
     return response.data;
   },
 
+  // Admin: retry / verify Chapa refund
+  async retryRefund(id: string, token: string) {
+    const response = await axios.post(`${API_BASE_URL}/payments/${id}/refund/retry`, {}, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return response.data;
+  },
+
+  async verifyRefund(id: string, token: string) {
+    const response = await axios.post(`${API_BASE_URL}/payments/${id}/refund/verify`, {}, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return response.data;
+  },
+
   // Admin: Get finance dashboard
   async getFinanceDashboard(token: string) {
     const response = await axios.get(`${API_BASE_URL}/payouts/admin/dashboard`, {
@@ -197,17 +218,9 @@ export const paymentsApi = {
     return response.data;
   },
 
-  // Student: Get my payment history
-  async getPaymentHistory(token: string) {
-    const response = await axios.get(`${API_BASE_URL}/payments/history`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    return response.data;
-  },
-
-  // Student: Get specific payment receipt
-  async getPaymentById(id: string, token: string) {
-    const response = await axios.get(`${API_BASE_URL}/payments/${id}`, {
+  // Cancel payout
+  async cancelPayout(id: string, token: string): Promise<Payout> {
+    const response = await axios.patch(`${API_BASE_URL}/payouts/${id}/cancel`, {}, {
       headers: { Authorization: `Bearer ${token}` },
     });
     return response.data;

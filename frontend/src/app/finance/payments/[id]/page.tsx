@@ -11,7 +11,7 @@ import Button from '@/components/ui/Button';
 export default function PaymentDetailsPage() {
   const { id } = useParams() as { id: string };
   const router = useRouter();
-  const { token, isLoading: authLoading } = useAuth();
+  const { token, user } = useAuth();
   
   const [payment, setPayment] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -36,16 +36,16 @@ export default function PaymentDetailsPage() {
       }
     };
 
-    if (!authLoading && isAuthenticated) {
+    if (user && token) {
       fetchPaymentDetails();
-    } else if (!authLoading && !isAuthenticated) {
+    } else if (!user) {
       setIsLoading(false);
     }
 
     return () => { isMounted = false; };
-  }, [id, token, isAuthenticated, authLoading]);
+  }, [id, token, user]);
 
-  if (isLoading || authLoading) {
+  if (isLoading) {
     return (
       <div className="flex h-[60vh] w-full items-center justify-center">
         <Loader2 className="h-10 w-10 animate-spin text-[#043658]" />
@@ -53,7 +53,7 @@ export default function PaymentDetailsPage() {
     );
   }
 
-  if (!isAuthenticated || error) {
+  if (!user || error) {
     return (
       <div className="flex h-[60vh] w-full flex-col items-center justify-center p-6 text-center">
         <XCircle className="h-12 w-12 text-red-500 mb-4" />
@@ -69,7 +69,8 @@ export default function PaymentDetailsPage() {
     );
   }
 
-  const isSuccess = payment.status === 'SUCCESSFUL';
+  const isRefunded = payment.status === 'REFUNDED' || payment.refundStatus === 'REFUNDED';
+  const isSuccess = payment.status === 'SUCCESSFUL' || isRefunded;
 
   return (
     <div className="mx-auto max-w-3xl p-4 md:p-6 lg:p-8 animate-in fade-in duration-500">
@@ -93,8 +94,13 @@ export default function PaymentDetailsPage() {
             </div>
             <div>
               <h1 className="text-2xl font-bold font-['Lexend']">
-                {isSuccess ? 'Payment Successful' : payment.status === 'PENDING' ? 'Payment Pending' : 'Payment Failed'}
+                {isRefunded ? 'Payment Refunded' : isSuccess ? 'Payment Successful' : payment.status === 'PENDING' ? 'Payment Pending' : 'Payment Failed'}
               </h1>
+              {payment.refundStatus && payment.refundStatus !== 'NOT_REQUIRED' && !isRefunded && (
+                <p className="text-white/90 font-medium text-sm mt-1">
+                  {payment.refundStatus === 'PROCESSING' ? 'Refund processing' : payment.refundStatus === 'PENDING' ? 'Refund pending' : payment.refundStatus === 'FAILED' ? 'Refund failed — contact support' : payment.refundStatus}
+                </p>
+              )}
               <p className="text-white/80 font-medium text-sm mt-1">
                 {new Date(payment.createdAt).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
               </p>
@@ -130,8 +136,8 @@ export default function PaymentDetailsPage() {
 
               <div>
                 <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Chapa Reference</p>
-                {payment.chapaTxRef ? (
-                  <p className="font-mono text-sm text-slate-600 bg-slate-50 p-2 rounded border border-slate-100">{payment.chapaTxRef}</p>
+                {payment.chapaReference ? (
+                  <p className="font-mono text-sm text-slate-600 bg-slate-50 p-2 rounded border border-slate-100">{payment.chapaReference}</p>
                 ) : (
                   <p className="text-sm font-medium text-slate-400">Not Available</p>
                 )}
@@ -147,16 +153,20 @@ export default function PaymentDetailsPage() {
           </div>
 
           <div className="mt-10 pt-8 border-t border-slate-100 flex flex-col sm:flex-row gap-4 justify-end">
-            {isSuccess && payment.chapaTxRef && (
+            {isSuccess && payment.chapaReference ? (
               <a 
-                href={`https://chapa.link/payment-receipt/${payment.chapaTxRef}`} 
+                href={`https://chapa.link/payment-receipt/${payment.chapaReference}`} 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="flex items-center justify-center gap-2 rounded-xl bg-slate-100 px-6 py-3.5 text-sm font-bold text-slate-700 shadow-sm transition-all hover:bg-slate-200"
               >
                 <FileText className="h-5 w-5" /> View Official Receipt
               </a>
-            )}
+            ) : isSuccess && !payment.chapaReference ? (
+              <div className="flex items-center justify-center gap-2 rounded-xl bg-amber-50 px-6 py-3.5 text-sm font-medium text-amber-700 border border-amber-100">
+                <FileText className="h-5 w-5" /> Receipt unavailable in test mode
+              </div>
+            ) : null}
             
             {isSuccess && payment.liveSessionId && (
               <Link href={`/live-sessions/${payment.liveSessionId}`}>

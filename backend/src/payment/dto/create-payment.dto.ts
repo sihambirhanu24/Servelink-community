@@ -1,4 +1,11 @@
-import { IsNotEmpty, IsString, IsEnum, IsNumber, IsOptional, IsDecimal } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsString,
+  IsEnum,
+  IsNumber,
+  IsOptional,
+  IsDecimal,
+} from 'class-validator';
 
 export enum PaymentMethod {
   TELEBIRR = 'TELEBIRR',

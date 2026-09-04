@@ -1,4 +1,13 @@
-import { Controller, Post, Get, Body, Param, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Body,
+  Param,
+  UseGuards,
+  UnauthorizedException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PaymentService } from './payment.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { VerifyPaymentDto } from './dto/verify-payment.dto';
@@ -11,7 +20,10 @@ export class PaymentController {
   constructor(private readonly paymentService: PaymentService) {}
 
   @Post('initialize')
-  createPayment(@CurrentUser() user: any, @Body() createPaymentDto: CreatePaymentDto) {
+  createPayment(
+    @CurrentUser() user: any,
+    @Body() createPaymentDto: CreatePaymentDto,
+  ) {
     return this.paymentService.createPayment(user.sub, createPaymentDto);
   }
 
@@ -23,6 +35,26 @@ export class PaymentController {
   @Post('webhook')
   handleWebhook(@Body() payload: any) {
     return this.paymentService.handleWebhook(payload);
+  }
+
+  @Post(':id/refund/retry')
+  retryRefund(@Param('id') id: string, @CurrentUser() user: any) {
+    if (!user.isAdmin) {
+      throw new ForbiddenException('Only admins can retry refunds');
+    }
+    return this.paymentService.initiateRefundForPayment(
+      id,
+      'Admin retry of session refund',
+      { force: true },
+    );
+  }
+
+  @Post(':id/refund/verify')
+  verifyRefund(@Param('id') id: string, @CurrentUser() user: any) {
+    if (!user.isAdmin) {
+      throw new ForbiddenException('Only admins can verify refunds');
+    }
+    return this.paymentService.verifyRefundForPayment(id);
   }
 
   @Get('history')

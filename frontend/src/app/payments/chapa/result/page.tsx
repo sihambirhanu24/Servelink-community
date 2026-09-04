@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { paymentsApi } from '@/services/payments';
@@ -8,11 +8,11 @@ import { CheckCircle2, XCircle, Loader2, FileText, ArrowRight, Video } from 'luc
 import Link from 'next/link';
 import Button from '@/components/ui/Button';
 
-export default function ChapaPaymentResultPage() {
+function ChapaPaymentResultContent() {
   const searchParams = useSearchParams();
   const txRef = searchParams.get('tx_ref');
   const router = useRouter();
-  const { token, isLoading: authLoading } = useAuth();
+  const { token, isInitializing } = useAuth();
   
   const [status, setStatus] = useState<'PENDING' | 'SUCCESS' | 'FAILED'>('PENDING');
   const [errorMessage, setErrorMessage] = useState('');
@@ -30,7 +30,7 @@ export default function ChapaPaymentResultPage() {
         return;
       }
 
-      if (authLoading) return;
+      if (isInitializing) return;
 
       if (!token) {
         if (isMounted) {
@@ -65,7 +65,7 @@ export default function ChapaPaymentResultPage() {
     return () => {
       isMounted = false;
     };
-  }, [txRef, token, authLoading]);
+  }, [txRef, token, isInitializing]);
 
   if (status === 'PENDING') {
     return (
@@ -89,7 +89,7 @@ export default function ChapaPaymentResultPage() {
               Go Back & Try Again
             </Button>
             <Link href="/community?tab=live-streams">
-              <Button variant="outline" className="w-full">
+              <Button variant="secondary" className="w-full">
                 Browse Other Sessions
               </Button>
             </Link>
@@ -144,7 +144,7 @@ export default function ChapaPaymentResultPage() {
 
           {/* Action Buttons */}
           <div className="space-y-3">
-            {paymentData?.chapaReference && (
+            {paymentData?.chapaReference ? (
               <a 
                 href={`https://chapa.link/payment-receipt/${paymentData.chapaReference}`} 
                 target="_blank" 
@@ -153,7 +153,11 @@ export default function ChapaPaymentResultPage() {
               >
                 <FileText className="h-5 w-5" /> View Official Receipt
               </a>
-            )}
+            ) : paymentData?.status === 'SUCCESSFUL' ? (
+              <div className="flex w-full items-center justify-center gap-2 rounded-xl bg-amber-50 px-4 py-4 text-sm font-medium text-amber-700 border border-amber-100">
+                <FileText className="h-5 w-5" /> Receipt unavailable in test mode
+              </div>
+            ) : null}
             
             {paymentData?.liveSessionId && (
               <Link href={`/live-sessions/${paymentData.liveSessionId}`} className="block">
@@ -173,5 +177,18 @@ export default function ChapaPaymentResultPage() {
 
       </div>
     </div>
+  );
+}
+
+export default function ChapaPaymentResultPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-[60vh] flex-col items-center justify-center p-6 text-center">
+        <Loader2 className="h-16 w-16 animate-spin text-[#043658] mb-6" />
+        <h1 className="text-2xl font-bold font-['Lexend'] text-[#043658] mb-2">Loading...</h1>
+      </div>
+    }>
+      <ChapaPaymentResultContent />
+    </Suspense>
   );
 }

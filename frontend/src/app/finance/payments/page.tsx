@@ -7,7 +7,7 @@ import { Loader2, FileText, CheckCircle2, XCircle, ArrowRight, Eye } from 'lucid
 import Link from 'next/link';
 
 export default function StudentPaymentsHistoryPage() {
-  const { token, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { token, user, isInitializing } = useAuth();
   const [payments, setPayments] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -28,16 +28,16 @@ export default function StudentPaymentsHistoryPage() {
       }
     };
 
-    if (!authLoading && isAuthenticated) {
+    if (!isInitializing && user && token) {
       fetchPayments();
-    } else if (!authLoading && !isAuthenticated) {
+    } else if (!isInitializing && !user) {
       setIsLoading(false);
     }
 
     return () => { isMounted = false; };
-  }, [token, isAuthenticated, authLoading]);
+  }, [token, user, isInitializing]);
 
-  if (isLoading || authLoading) {
+  if (isLoading || isInitializing) {
     return (
       <div className="flex h-[60vh] w-full items-center justify-center">
         <Loader2 className="h-10 w-10 animate-spin text-[#043658]" />
@@ -45,7 +45,7 @@ export default function StudentPaymentsHistoryPage() {
     );
   }
 
-  if (!isAuthenticated) {
+  if (!user) {
     return (
       <div className="flex h-[60vh] w-full items-center justify-center text-slate-500">
         You must be logged in to view your payment history.
@@ -98,7 +98,23 @@ export default function StudentPaymentsHistoryPage() {
                       {payment.currency} {payment.amount}
                     </td>
                     <td className="px-6 py-4">
-                      {payment.status === 'SUCCESSFUL' ? (
+                      {payment.status === 'REFUNDED' || payment.refundStatus === 'REFUNDED' ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
+                          Refunded
+                        </span>
+                      ) : payment.refundStatus === 'PROCESSING' ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2.5 py-1 text-xs font-medium text-purple-700">
+                          Refund Processing
+                        </span>
+                      ) : payment.refundStatus === 'PENDING' ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
+                          Refund Pending
+                        </span>
+                      ) : payment.refundStatus === 'FAILED' ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700">
+                          Refund Failed
+                        </span>
+                      ) : payment.status === 'SUCCESSFUL' ? (
                         <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
                           <CheckCircle2 className="h-3.5 w-3.5" /> Paid
                         </span>

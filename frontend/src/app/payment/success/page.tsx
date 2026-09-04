@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { paymentsApi } from "@/services/payments";
 import { useAuth } from "@/context/AuthContext";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-export default function PaymentSuccessPage() {
+function PaymentSuccessContent() {
   const searchParams = useSearchParams();
   const txRef = searchParams.get("tx_ref");
   const router = useRouter();
@@ -60,5 +60,18 @@ export default function PaymentSuccessPage() {
       <Loader2 className="h-10 w-10 animate-spin text-[#043658]" />
       <p className="text-lg font-medium text-slate-600">Verifying your payment with Chapa...</p>
     </div>
+  );
+}
+
+export default function PaymentSuccessPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex h-screen w-full items-center justify-center flex-col gap-4 bg-slate-50">
+        <Loader2 className="h-10 w-10 animate-spin text-[#043658]" />
+        <p className="text-lg font-medium text-slate-600">Loading...</p>
+      </div>
+    }>
+      <PaymentSuccessContent />
+    </Suspense>
   );
 }
