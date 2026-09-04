@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { publiclyVisiblePostWhere } from '../common/post-visibility';
 
 const LEVEL_ORDER: Record<string, number> = {
   LEVEL_1: 1,
@@ -121,43 +122,48 @@ export class DashboardService {
       .slice(0, 5);
 
     const joinedCommunityIds = [...joinedIds];
-    const communityFeedPosts = joinedCommunityIds.length > 0
-      ? await this.prisma.communityPost.findMany({
-          where: { communityId: { in: joinedCommunityIds }, teacherId: { not: teacherId } },
-          orderBy: { createdAt: 'desc' },
-          take: 6,
-          select: {
-            id: true,
-            title: true,
-            description: true,
-            createdAt: true,
-            community: { select: { id: true, name: true, type: true } },
-            category: { select: { id: true, name: true } },
-            teacher: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                profileImage: true,
-                level: true,
-                verified: true,
+    const communityFeedPosts =
+      joinedCommunityIds.length > 0
+        ? await this.prisma.communityPost.findMany({
+            where: {
+              communityId: { in: joinedCommunityIds },
+              teacherId: { not: teacherId },
+              ...publiclyVisiblePostWhere,
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 6,
+            select: {
+              id: true,
+              title: true,
+              description: true,
+              createdAt: true,
+              community: { select: { id: true, name: true, type: true } },
+              category: { select: { id: true, name: true } },
+              teacher: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  profileImage: true,
+                  level: true,
+                  verified: true,
+                },
+              },
+              _count: {
+                select: { communityLikes: true, comments: true },
               },
             },
-            _count: {
-              select: { communityLikes: true, comments: true },
-            },
-          },
-        })
-      : [];
+          })
+        : [];
 
     const communityAccessLevels = (
       ['SCHOOL', 'WOREDA', 'ZONE', 'REGION', 'NATIONAL'] as const
     ).map((type) => {
       const required = TYPE_MIN_LEVEL[type];
       const unlocked = teacherLevelNum >= required;
-      const joined = allCommunities
-        .filter((c) => c.type === type && joinedIds.has(c.id))
-        .length;
+      const joined = allCommunities.filter(
+        (c) => c.type === type && joinedIds.has(c.id),
+      ).length;
       const available = allCommunities.filter((c) => c.type === type).length;
       return { type, unlocked, required, joined, available };
     });

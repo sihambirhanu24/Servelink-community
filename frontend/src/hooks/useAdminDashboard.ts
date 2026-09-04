@@ -1,7 +1,14 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getAdminDashboard, getAdminTeachers, suspendTeacher, activateTeacher, upgradeTeacher } from "@/services/admin";
+import {
+  getAdminDashboard,
+  getAdminTeachers,
+  suspendTeacher,
+  activateTeacher,
+  upgradeTeacher,
+  type SuspendTeacherInput,
+} from "@/services/admin";
 
 export const ADMIN_DASHBOARD_KEY = "admin-dashboard";
 export const ADMIN_TEACHERS_KEY = "admin-teachers";
@@ -27,10 +34,12 @@ export function useAdminTeachers(query?: Parameters<typeof getAdminTeachers>[0])
 export function useSuspendTeacher() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: suspendTeacher,
+    mutationFn: ({ teacherId, ...input }: { teacherId: string } & SuspendTeacherInput) =>
+      suspendTeacher(teacherId, input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [ADMIN_DASHBOARD_KEY] });
       queryClient.invalidateQueries({ queryKey: [ADMIN_TEACHERS_KEY] });
+      queryClient.invalidateQueries({ queryKey: ["teachers"] });
     },
   });
 }
@@ -38,10 +47,12 @@ export function useSuspendTeacher() {
 export function useActivateTeacher() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: activateTeacher,
+    mutationFn: ({ teacherId, reason }: { teacherId: string; reason?: string }) =>
+      activateTeacher(teacherId, reason),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [ADMIN_DASHBOARD_KEY] });
       queryClient.invalidateQueries({ queryKey: [ADMIN_TEACHERS_KEY] });
+      queryClient.invalidateQueries({ queryKey: ["teachers"] });
     },
   });
 }

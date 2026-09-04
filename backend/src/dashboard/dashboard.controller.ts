@@ -4,14 +4,12 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
-@ApiTags("Dashboard")
+@ApiTags('Dashboard')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
-@Controller("dashboard")
+@Controller('dashboard')
 export class DashboardController {
-  constructor(
-    private readonly dashboardService: DashboardService,
-  ) {}
+  constructor(private readonly dashboardService: DashboardService) {}
 
   @Get()
   getDashboard(@CurrentUser() user: any) {
