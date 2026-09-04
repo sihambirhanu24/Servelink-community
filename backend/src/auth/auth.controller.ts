@@ -1,18 +1,22 @@
-import {
-  Body,
-  Controller,
-  Post,
-} from '@nestjs/common';
+import { Body, Controller, Post } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
-import { Req, Get, UseGuards, UseInterceptors, UploadedFile, BadRequestException } from "@nestjs/common";
-import { JwtAuthGuard } from "./guards/jwt-auth.guard";
-import { FileInterceptor } from "@nestjs/platform-express";
-import { verificationMulterConfig } from "../verification/config/verification-multer.config";
+import {
+  Req,
+  Get,
+  UseGuards,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
+} from '@nestjs/common';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { AllowSuspended } from './decorators/allow-suspended.decorator';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { verificationMulterConfig } from '../verification/config/verification-multer.config';
 
 import { AuthService } from './auth.service';
 
@@ -25,79 +29,65 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
-  constructor(
-    private readonly authService: AuthService,
-  ) {}
+  constructor(private readonly authService: AuthService) {}
 
- @ApiOperation({
-  summary: 'Register teacher',
-})
+  @ApiOperation({
+    summary: 'Register teacher',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Teacher registered successfully',
+  })
+  @Post('register')
+  register(@Body() dto: RegisterDto) {
+    return this.authService.register(dto);
+  }
 
-@ApiResponse({
-  status: 201,
-  description: 'Teacher registered successfully',
-})
+  @ApiOperation({
+    summary: 'Login teacher',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Login successful',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Invalid email or password',
+  })
+  @Post('login')
+  login(@Body() dto: LoginDto) {
+    return this.authService.login(dto);
+  }
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get current teacher profile',
+  })
+  @Get('profile')
+  @UseGuards(JwtAuthGuard)
+  @AllowSuspended()
+  profile(@GetUser() user: any) {
+    return user;
+  }
+  // A suspended teacher must still be able to load their own account so the
+  // frontend can render the "Account Suspended" screen (reason, end date, appeal).
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  @AllowSuspended()
+  me(@Req() req) {
+    return this.authService.me(req.user.sub);
+  }
 
-@Post('register')
-register(
-  @Body() dto: RegisterDto
-) {
-  return this.authService.register(dto);
-}
-
- @ApiOperation({
-  summary: 'Login teacher',
-})
-
-@ApiResponse({
-  status: 200,
-  description: 'Login successful',
-})
-
-@ApiResponse({
-  status: 401,
-  description: 'Invalid email or password',
-})
-
-@Post('login')
-login(@Body() dto: LoginDto) {
-  return this.authService.login(dto);
-}
-@ApiBearerAuth()
-
-@ApiOperation({
-  summary: 'Get current teacher profile',
-})
-
-@UseGuards(JwtAuthGuard)
-
-@Get('profile')
-@UseGuards(JwtAuthGuard)
-profile(@GetUser() user: any) {
-  return user;
-}
-@Get("me")
-@UseGuards(JwtAuthGuard)
-me(@Req() req) {
-  return this.authService.me(req.user.sub);
-}
-
-@Post("forgot-password")
-forgotPassword(@Body() body: { email: string }) {
+  @Post('forgot-password')
+  forgotPassword(@Body() body: { email: string }) {
     return this.authService.forgotPassword(body.email);
-}
-@Post("reset-password")
-resetPassword(
+  }
+  @Post('reset-password')
+  resetPassword(
     @Body()
     dto: ResetPasswordDto,
-){
-
-    return this.authService.resetPassword(
-        dto.token,
-        dto.password,
-    );
-
-}
+  ) {
+    return this.authService.resetPassword(dto.token, dto.password);
+  }
 
   @Post('admin/login')
   @ApiOperation({ summary: 'Admin login - use admin email & password' })

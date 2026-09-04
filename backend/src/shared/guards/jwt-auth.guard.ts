@@ -1,5 +1,3 @@
-import { Injectable } from "@nestjs/common";
-import { AuthGuard } from "@nestjs/passport";
-
-@Injectable()
-export class JwtAuthGuard extends AuthGuard("jwt") {}
+// Single implementation lives in auth/guards so suspension enforcement cannot be bypassed
+// by importing a different guard class.
+export { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';

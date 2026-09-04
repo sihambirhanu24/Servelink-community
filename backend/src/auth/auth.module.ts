@@ -12,6 +12,7 @@ import { TeacherLevelGuard } from './guards/teacher-level.guard';
 import { StringValue } from 'ms';
 import { MailModule } from 'src/mail/mail.module';
 import { ChatModule } from 'src/chat/chat.module';
+import { SuspensionModule } from '../suspension/suspension.module';
 
 @Module({
   imports: [
@@ -19,6 +20,9 @@ import { ChatModule } from 'src/chat/chat.module';
     ConfigModule,
     MailModule,
     ChatModule,
+    // JwtStrategy re-checks account status on every request and synchronises
+    // expired temporary suspensions via SuspensionService.
+    SuspensionModule,
 
     PassportModule.register({ defaultStrategy: 'jwt' }),
 
@@ -28,7 +32,7 @@ import { ChatModule } from 'src/chat/chat.module';
       useFactory: (config: ConfigService) => ({
         secret: config.get<string>('jwtSecret') ?? 'secret',
         signOptions: {
-          expiresIn: (config.get('jwtExpiresIn') ?? '7d') as StringValue,
+          expiresIn: config.get('jwtExpiresIn') ?? '7d',
         },
       }),
     }),
@@ -36,15 +40,8 @@ import { ChatModule } from 'src/chat/chat.module';
 
   controllers: [AuthController],
 
-  providers: [
-    AuthService,
-    JwtStrategy,
-    TeacherLevelGuard,
-  ],
+  providers: [AuthService, JwtStrategy, TeacherLevelGuard],
 
-  exports: [
-    JwtModule,
-    PassportModule,
-  ],
+  exports: [JwtModule, PassportModule],
 })
 export class AuthModule {}

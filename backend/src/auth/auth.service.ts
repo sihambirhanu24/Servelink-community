@@ -13,6 +13,7 @@ import { MailService } from '../mail/mail.service';
 import { ChatService } from '../chat/chat.service';
 import { RegisterDto } from '../auth/dto/register.dto';
 import { LoginDto } from '../auth/dto/login.dto';
+import { evaluateSuspension } from '../suspension/suspension-state';
 
 @Injectable()
 export class AuthService {
@@ -23,7 +24,6 @@ export class AuthService {
     private chatService: ChatService,
   ) {}
 
- 
   async register(registerDto: RegisterDto) {
     const { email, password } = registerDto;
 
@@ -39,67 +39,68 @@ export class AuthService {
 
     const teacher = await this.prisma.teacher.create({
       data: {
-        firstName:  registerDto.firstName,
-        lastName:   registerDto.lastName,
-        email:      registerDto.email,
-        password:   hashedPassword,
-        school:     registerDto.school,
-        woreda:     registerDto.woreda,
-        zone:       registerDto.zone,
-        region:     registerDto.region,
-        subject:    registerDto.subject,
+        firstName: registerDto.firstName,
+        lastName: registerDto.lastName,
+        email: registerDto.email,
+        password: hashedPassword,
+        school: registerDto.school,
+        woreda: registerDto.woreda,
+        zone: registerDto.zone,
+        region: registerDto.region,
+        subject: registerDto.subject,
         department: registerDto.department,
-        level:      'LEVEL_1',
+        level: 'LEVEL_1',
         // SECURITY: Always set verificationStatus to PENDING on registration.
         // Never trust client-provided verification status.
         verificationStatus: 'PENDING',
       },
       select: {
-        id:                 true,
-        firstName:          true,
-        lastName:           true,
-        email:              true,
-        level:              true,
-        school:             true,
-        woreda:             true,
-        zone:               true,
-        region:             true,
-        department:         true,
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        level: true,
+        school: true,
+        woreda: true,
+        zone: true,
+        region: true,
+        department: true,
         verificationStatus: true,
-        createdAt:          true,
-        updatedAt:          true,
+        createdAt: true,
+        updatedAt: true,
       },
     });
-
 
     // Auto-provision community chat rooms for this teacher.
     // Fire-and-forget — do not block registration on community creation errors.
     this.chatService
       .ensureTeacherCommunities({
-        level:      teacher.level,
-        school:     teacher.school,
-        woreda:     teacher.woreda,
-        zone:       teacher.zone,
-        region:     teacher.region,
+        level: teacher.level,
+        school: teacher.school,
+        woreda: teacher.woreda,
+        zone: teacher.zone,
+        region: teacher.region,
         department: teacher.department,
       })
       .catch((err) =>
-        console.error('[AuthService] Community provisioning failed after registration:', err),
+        console.error(
+          '[AuthService] Community provisioning failed after registration:',
+          err,
+        ),
       );
 
     const accessToken = await this.jwtService.signAsync({
-      sub:          teacher.id,
-      teacherId:    teacher.id, // Used by VerifiedTeacherGuard
-      email:        teacher.email,
+      sub: teacher.id,
+      teacherId: teacher.id, // Used by VerifiedTeacherGuard
+      email: teacher.email,
       // 'teacherLevel' is what RolesGuard reads — do not change this key name.
       teacherLevel: teacher.level,
-      isAdmin:      false,
+      isAdmin: false,
     });
 
     return { accessToken, teacher };
   }
 
-  
   async login(loginDto: LoginDto) {
     // 1. Try teacher table first
     const teacher = await this.prisma.teacher.findUnique({
@@ -107,7 +108,10 @@ export class AuthService {
     });
 
     if (teacher) {
-      const isPasswordValid = await bcrypt.compare(loginDto.password, teacher.password);
+      const isPasswordValid = await bcrypt.compare(
+        loginDto.password,
+        teacher.password,
+      );
       if (!isPasswordValid) {
         throw new UnauthorizedException('Invalid email or password');
       }
@@ -120,6 +124,19 @@ export class AuthService {
         isAdmin: false,
       };
       const accessToken = await this.jwtService.signAsync(payload);
+
+      // Report the *effective* account state. A suspended teacher still gets a
+      // token (only @AllowSuspended endpoints accept it) so the client can show
+      // the suspension screen and let them appeal. An expired temporary
+      // suspension is reported as ACTIVE; the row is synchronised on the first
+      // authenticated request by JwtStrategy.
+      const { suspension } = evaluateSuspension(teacher);
+      const effectiveStatus = suspension
+        ? suspension.permanent
+          ? 'PERMANENTLY_SUSPENDED'
+          : 'SUSPENDED'
+        : 'ACTIVE';
+
       return {
         accessToken,
         teacher: {
@@ -137,6 +154,10 @@ export class AuthService {
           zone: teacher.zone,
           region: teacher.region,
           department: teacher.department,
+          status: effectiveStatus,
+          suspensionReason: suspension?.reason ?? null,
+          suspensionStart: suspension?.start ?? null,
+          suspensionUntil: suspension?.until ?? null,
         },
       };
     }
@@ -147,7 +168,10 @@ export class AuthService {
     });
 
     if (admin) {
-      const isPasswordValid = await bcrypt.compare(loginDto.password, admin.password);
+      const isPasswordValid = await bcrypt.compare(
+        loginDto.password,
+        admin.password,
+      );
       if (!isPasswordValid) {
         throw new UnauthorizedException('Invalid email or password');
       }
@@ -169,97 +193,92 @@ export class AuthService {
     // 3. Neither found
     throw new UnauthorizedException('Invalid email or password');
   }
- async me(id: string) {
-  return this.prisma.teacher.findUnique({
-    where: { id },
-    select: {
-      id:                 true,
-      firstName:          true,
-      lastName:           true,
-      email:              true,
-      profileImage:       true,
-      verified:           true,
-      verificationStatus: true,
-      level:              true,
-      school:             true,
-      woreda:             true,
-      zone:               true,
-      region:             true,
-      department:         true,
-    },
-  });
-}
+  async me(id: string) {
+    return this.prisma.teacher.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        profileImage: true,
+        verified: true,
+        verificationStatus: true,
+        level: true,
+        school: true,
+        woreda: true,
+        zone: true,
+        region: true,
+        department: true,
+        status: true,
+        suspensionReason: true,
+        suspensionStart: true,
+        suspensionUntil: true,
+      },
+    });
+  }
 
-async forgotPassword(email: string) {
-  try {
-    
+  async forgotPassword(email: string) {
+    try {
+      const teacher = await this.prisma.teacher.findUnique({
+        where: { email },
+      });
 
-    const teacher = await this.prisma.teacher.findUnique({
-      where: { email },
+      console.log('Teacher:', teacher);
+
+      if (!teacher) {
+        console.log('Teacher not found');
+        return {
+          message: 'If the email exists, a reset link has been sent.',
+        };
+      }
+
+      const token = this.jwtService.sign(
+        {
+          sub: teacher.id,
+        },
+        {
+          expiresIn: '15m',
+        },
+      );
+
+      await this.mailService.sendResetEmail(email, token);
+      console.log('Email sent successfully');
+
+      return {
+        message: 'Reset email sent.',
+      };
+    } catch (error) {
+      console.error('Forgot Password Error');
+      console.error(error);
+      console.error(error.stack);
+
+      throw error;
+    }
+  }
+
+  async resetPassword(token: string, password: string) {
+    console.log('=== resetPassword ===');
+    console.log('Token:', token);
+    console.log('Password:', password);
+
+    const payload = this.jwtService.verify(token);
+    console.log('Payload:', payload);
+
+    const hashed = await bcrypt.hash(password, 10);
+    console.log('Hashed');
+
+    await this.prisma.teacher.update({
+      where: { id: payload.sub },
+      data: { password: hashed },
     });
 
-    console.log("Teacher:", teacher);
-
-    if (!teacher) {
-      console.log("Teacher not found");
-      return {
-        message: "If the email exists, a reset link has been sent.",
-      };
-    }
-
-    const token = this.jwtService.sign(
-      {
-        sub: teacher.id,
-      },
-      {
-        expiresIn: "15m",
-      },
-    );
-
-   
-
-  
-
-  await this.mailService.sendResetEmail(
-  email,
-  token,
-);
-    console.log("Email sent successfully");
+    console.log('Password updated');
 
     return {
-      message: "Reset email sent.",
+      message: 'Password updated successfully',
     };
-  } catch (error) {
-    console.error("Forgot Password Error");
-    console.error(error);
-    console.error(error.stack);
-
-    throw error;
   }
-}
-
-async resetPassword(token: string, password: string) {
-  console.log("=== resetPassword ===");
-  console.log("Token:", token);
-  console.log("Password:", password);
-
-  const payload = this.jwtService.verify(token);
-  console.log("Payload:", payload);
-
-  const hashed = await bcrypt.hash(password, 10);
-  console.log("Hashed");
-
-  await this.prisma.teacher.update({
-    where: { id: payload.sub },
-    data: { password: hashed },
-  });
-
-  console.log("Password updated");
-
-  return {
-    message: "Password updated successfully",
-  };
-}
 
   async adminLogin(email: string, password: string) {
     const admin = await this.prisma.admin.findUnique({ where: { email } });
