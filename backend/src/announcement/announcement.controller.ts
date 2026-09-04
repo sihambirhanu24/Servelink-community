@@ -39,10 +39,10 @@ export class AdminAnnouncementController {
   /** GET /admin/announcements?page=1&pageSize=20&status=PUBLISHED&search= */
   @Get()
   findAll(
-    @Query('page',     new DefaultValuePipe(1),  ParseIntPipe) page: number,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('pageSize', new DefaultValuePipe(20), ParseIntPipe) pageSize: number,
-    @Query('status')  status?: string,
-    @Query('search')  search?: string,
+    @Query('status') status?: string,
+    @Query('search') search?: string,
   ) {
     return this.announcementService.findAll({ page, pageSize, status, search });
   }
@@ -67,7 +67,7 @@ export class AdminAnnouncementController {
     @Body() dto: CreateAnnouncementDto,
     @UploadedFile() file?: Express.Multer.File,
   ) {
-    const adminId   = req.user.sub ?? req.user.id;
+    const adminId = req.user.sub ?? req.user.id;
     const adminName = req.user.name ?? 'Administrator';
     return this.announcementService.create(dto, adminId, adminName, file);
   }
@@ -118,7 +118,7 @@ export class AnnouncementController {
   findForTeacher(
     @Request() req: any,
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
-    @Query('page',  new DefaultValuePipe(1),  ParseIntPipe) page: number,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
   ) {
     const teacherId = req.user.sub ?? req.user.id;
     return this.announcementService.findForTeacher(teacherId, limit, page);

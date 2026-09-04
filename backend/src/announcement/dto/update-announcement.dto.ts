@@ -1,6 +1,15 @@
-import { IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import {
+  IsIn,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 import { Transform } from 'class-transformer';
-import { ANNOUNCEMENT_TYPES, ANNOUNCEMENT_TARGETS } from './create-announcement.dto';
+import {
+  ANNOUNCEMENT_TYPES,
+  ANNOUNCEMENT_TARGETS,
+} from './create-announcement.dto';
 
 export class UpdateAnnouncementDto {
   @IsString()

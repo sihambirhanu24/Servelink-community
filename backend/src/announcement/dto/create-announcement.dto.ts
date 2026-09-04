@@ -1,8 +1,28 @@
-import { IsIn, IsNotEmpty, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import {
+  IsIn,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 import { Transform } from 'class-transformer';
 
-export const ANNOUNCEMENT_TYPES = ['GENERAL', 'IMPORTANT', 'URGENT', 'COMMUNITY_UPDATE', 'SYSTEM_UPDATE'] as const;
-export const ANNOUNCEMENT_TARGETS = ['ALL_TEACHERS', 'SCHOOL', 'WOREDA', 'ZONE', 'REGION', 'NATIONAL'] as const;
+export const ANNOUNCEMENT_TYPES = [
+  'GENERAL',
+  'IMPORTANT',
+  'URGENT',
+  'COMMUNITY_UPDATE',
+  'SYSTEM_UPDATE',
+] as const;
+export const ANNOUNCEMENT_TARGETS = [
+  'ALL_TEACHERS',
+  'SCHOOL',
+  'WOREDA',
+  'ZONE',
+  'REGION',
+  'NATIONAL',
+] as const;
 
 export class CreateAnnouncementDto {
   @IsString()

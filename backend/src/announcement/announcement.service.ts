@@ -23,15 +23,15 @@ export class AnnouncementService {
   ) {
     return this.prisma.announcement.create({
       data: {
-        title:          dto.title,
-        content:        dto.content,
-        type:           (dto.type           ?? 'GENERAL')      as any,
+        title: dto.title,
+        content: dto.content,
+        type: (dto.type ?? 'GENERAL') as any,
         targetAudience: (dto.targetAudience ?? 'ALL_TEACHERS') as any,
-        communityId:    dto.communityId    ?? null,
-        createdById:    adminId,
-        createdByName:  adminName,
-        status:         'DRAFT'            as any,
-        attachmentUrl:  file ? `uploads/announcements/${file.filename}` : null,
+        communityId: dto.communityId ?? null,
+        createdById: adminId,
+        createdByName: adminName,
+        status: 'DRAFT' as any,
+        attachmentUrl: file ? `uploads/announcements/${file.filename}` : null,
         attachmentName: file ? file.originalname : null,
         attachmentSize: file ? file.size : null,
       },
@@ -49,15 +49,15 @@ export class AnnouncementService {
     status?: string;
     search?: string;
   }) {
-    const page     = query?.page     ?? 1;
+    const page = query?.page ?? 1;
     const pageSize = query?.pageSize ?? 20;
-    const skip     = (page - 1) * pageSize;
+    const skip = (page - 1) * pageSize;
 
     const where: any = {};
     if (query?.status) where.status = query.status as any;
     if (query?.search) {
       where.OR = [
-        { title:   { contains: query.search, mode: 'insensitive' } },
+        { title: { contains: query.search, mode: 'insensitive' } },
         { content: { contains: query.search, mode: 'insensitive' } },
       ];
     }
@@ -110,14 +110,16 @@ export class AnnouncementService {
     await this.findOne(id); // throws if not found
 
     const data: any = {};
-    if (dto.title          !== undefined) data.title          = dto.title;
-    if (dto.content        !== undefined) data.content        = dto.content;
-    if (dto.type           !== undefined) data.type           = dto.type;
-    if (dto.targetAudience !== undefined) data.targetAudience = dto.targetAudience;
-    if (dto.communityId    !== undefined) data.communityId    = dto.communityId || null;
+    if (dto.title !== undefined) data.title = dto.title;
+    if (dto.content !== undefined) data.content = dto.content;
+    if (dto.type !== undefined) data.type = dto.type;
+    if (dto.targetAudience !== undefined)
+      data.targetAudience = dto.targetAudience;
+    if (dto.communityId !== undefined)
+      data.communityId = dto.communityId || null;
 
     if (file) {
-      data.attachmentUrl  = `uploads/announcements/${file.filename}`;
+      data.attachmentUrl = `uploads/announcements/${file.filename}`;
       data.attachmentName = file.originalname;
       data.attachmentSize = file.size;
     }
@@ -147,7 +149,7 @@ export class AnnouncementService {
     await this.findOne(id);
     return this.prisma.announcement.update({
       where: { id },
-      data:  { status: 'PUBLISHED' as any, publishedAt: new Date() },
+      data: { status: 'PUBLISHED' as any, publishedAt: new Date() },
       include: { community: { select: { id: true, name: true, type: true } } },
     });
   }
@@ -156,7 +158,7 @@ export class AnnouncementService {
     await this.findOne(id);
     return this.prisma.announcement.update({
       where: { id },
-      data:  { status: 'DRAFT' as any, publishedAt: null },
+      data: { status: 'DRAFT' as any, publishedAt: null },
       include: { community: { select: { id: true, name: true, type: true } } },
     });
   }
@@ -174,7 +176,13 @@ export class AnnouncementService {
   async findForTeacher(teacherId: string, limit = 20, page = 1) {
     const teacher = await this.prisma.teacher.findUnique({
       where: { id: teacherId },
-      select: { school: true, woreda: true, zone: true, region: true, level: true },
+      select: {
+        school: true,
+        woreda: true,
+        zone: true,
+        region: true,
+        level: true,
+      },
     });
     if (!teacher) throw new NotFoundException('Teacher not found');
 
@@ -268,16 +276,29 @@ export class AnnouncementService {
     const ann = await this.prisma.announcement.findUnique({
       where: { id: announcementId },
       include: {
-        community: { select: { id: true, name: true, type: true, school: true, woreda: true, zone: true, region: true } },
+        community: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+            school: true,
+            woreda: true,
+            zone: true,
+            region: true,
+          },
+        },
         reads: { where: { teacherId }, select: { readAt: true } },
       },
     });
     if (!ann) throw new NotFoundException('Announcement not found');
-    if (ann.status !== 'PUBLISHED') throw new NotFoundException('Announcement not found');
+    if (ann.status !== 'PUBLISHED')
+      throw new NotFoundException('Announcement not found');
 
     // Access check
     if (!this.canTeacherSeeAnnouncement(ann, teacher)) {
-      throw new ForbiddenException('You do not have access to this announcement');
+      throw new ForbiddenException(
+        'You do not have access to this announcement',
+      );
     }
 
     return {
@@ -293,15 +314,19 @@ export class AnnouncementService {
     teacher: { school: string; woreda: string; zone: string; region: string },
   ): boolean {
     switch (ann.targetAudience) {
-      case 'ALL_TEACHERS': return true;
-      case 'NATIONAL':     return true;
+      case 'ALL_TEACHERS':
+        return true;
+      case 'NATIONAL':
+        return true;
       case 'SCHOOL':
         return ann.community
-          ? ann.community.school?.toLowerCase() === teacher.school?.toLowerCase()
+          ? ann.community.school?.toLowerCase() ===
+              teacher.school?.toLowerCase()
           : false;
       case 'WOREDA':
         return ann.community
-          ? ann.community.woreda?.toLowerCase() === teacher.woreda?.toLowerCase()
+          ? ann.community.woreda?.toLowerCase() ===
+              teacher.woreda?.toLowerCase()
           : false;
       case 'ZONE':
         return ann.community
@@ -309,9 +334,11 @@ export class AnnouncementService {
           : false;
       case 'REGION':
         return ann.community
-          ? ann.community.region?.toLowerCase() === teacher.region?.toLowerCase()
+          ? ann.community.region?.toLowerCase() ===
+              teacher.region?.toLowerCase()
           : false;
-      default: return false;
+      default:
+        return false;
     }
   }
 
@@ -336,12 +363,18 @@ export class AnnouncementService {
   async getSummary() {
     const [published, draft, recent] = await Promise.all([
       this.prisma.announcement.count({ where: { status: 'PUBLISHED' } }),
-      this.prisma.announcement.count({ where: { status: 'DRAFT'     } }),
+      this.prisma.announcement.count({ where: { status: 'DRAFT' } }),
       this.prisma.announcement.findMany({
-        where:   { status: 'PUBLISHED' },
+        where: { status: 'PUBLISHED' },
         orderBy: { publishedAt: 'desc' },
-        take:    5,
-        select:  { id: true, title: true, type: true, publishedAt: true, createdByName: true },
+        take: 5,
+        select: {
+          id: true,
+          title: true,
+          type: true,
+          publishedAt: true,
+          createdByName: true,
+        },
       }),
     ]);
     return { published, draft, recent };
