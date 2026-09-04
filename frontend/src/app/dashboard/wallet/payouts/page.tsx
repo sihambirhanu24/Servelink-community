@@ -5,17 +5,21 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import { paymentsApi, WalletData, Payout } from '@/services/payments';
 import { useAuth } from '@/context/AuthContext';
-import { ArrowUpRight, Clock, CheckCircle, AlertCircle, XCircle, Wallet, Calendar } from 'lucide-react';
+import { ArrowUpRight, Clock, CheckCircle, AlertCircle, XCircle, Wallet, Calendar, RefreshCw, Receipt, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { RequestPayoutModal } from '@/components/wallet/RequestPayoutModal';
+import { useRouter } from 'next/navigation';
 
 export default function PayoutsPage() {
   const { token } = useAuth();
+  const router = useRouter();
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [payoutHistory, setPayoutHistory] = useState<Payout[]>([]);
   const [loading, setLoading] = useState(true);
   const [showPayoutModal, setShowPayoutModal] = useState(false);
   const [filterStatus, setFilterStatus] = useState('ALL');
+  const [verifyingPayout, setVerifyingPayout] = useState<string | null>(null);
+  const [cancellingPayout, setCancellingPayout] = useState<string | null>(null);
 
   useEffect(() => {
     if (token) {
@@ -44,6 +48,41 @@ export default function PayoutsPage() {
       console.error('Failed to load payouts:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleVerifyPayout = async (reference: string) => {
+    try {
+      setVerifyingPayout(reference);
+      await paymentsApi.verifyPayoutStatus(reference, token!);
+      await loadData(); // Refresh to get updated status
+    } catch (err: any) {
+      console.error('Failed to verify payout:', err);
+      if (err.response?.status === 404) {
+        alert('Payout not found. It may have been cancelled or deleted. Refreshing the page...');
+        await loadData(); // Refresh to remove stale payouts
+      } else {
+        alert('Failed to verify payout status. Please try again.');
+      }
+    } finally {
+      setVerifyingPayout(null);
+    }
+  };
+
+  const handleCancelPayout = async (id: string) => {
+    if (!confirm('Are you sure you want to cancel this payout request?')) {
+      return;
+    }
+
+    try {
+      setCancellingPayout(id);
+      await paymentsApi.cancelPayout(id, token!);
+      await loadData(); // Refresh to get updated status
+    } catch (err) {
+      console.error('Failed to cancel payout:', err);
+      alert('Failed to cancel payout. Please try again.');
+    } finally {
+      setCancellingPayout(null);
     }
   };
 
@@ -77,6 +116,8 @@ export default function PayoutsPage() {
         return <XCircle className="h-4 w-4" />;
       case 'FAILED':
         return <AlertCircle className="h-4 w-4" />;
+      case 'PROCESSING':
+        return <RefreshCw className="h-4 w-4 animate-spin" />;
       default:
         return null;
     }
@@ -219,6 +260,16 @@ export default function PayoutsPage() {
                         <p className="font-semibold text-[#043658]">{formatNumber(payout.amount).toFixed(2)} ETB</p>
                       </div>
                     </div>
+                    {payout.status === 'PROCESSING' && payout.chapaReference && (
+                      <div className="mt-2 text-xs text-purple-600">
+                        Chapa Reference: {payout.chapaReference}
+                      </div>
+                    )}
+                    {payout.status === 'COMPLETED' && payout.bankReference && (
+                      <div className="mt-2 text-xs text-green-600">
+                        Bank Reference: {payout.bankReference}
+                      </div>
+                    )}
                     {payout.rejectionReason && (
                       <div className="mt-2 text-sm text-red-600">
                         Reason: {payout.rejectionReason}
@@ -232,6 +283,54 @@ export default function PayoutsPage() {
                     {payout.completedAt && (
                       <div className="mt-1 text-xs text-gray-500">
                         Completed: {format(new Date(payout.completedAt), 'MMM dd, yyyy HH:mm')}
+                      </div>
+                    )}
+                    {payout.status === 'PENDING' && (
+                      <div className="mt-2">
+                        <button
+                          onClick={() => handleCancelPayout(payout.id)}
+                          disabled={cancellingPayout === payout.id}
+                          className="rounded-xl px-5 py-3 font-semibold transition duration-300 bg-red-500 text-white hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        >
+                          {cancellingPayout === payout.id ? (
+                            <>
+                              <RefreshCw className="h-3 w-3 animate-spin" /> Cancelling...
+                            </>
+                          ) : (
+                            <>
+                              <X className="h-3 w-3" /> Cancel Request
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
+                    {payout.status === 'PROCESSING' && (
+                      <div className="mt-2">
+                        <button
+                          onClick={() => handleVerifyPayout(payout.reference)}
+                          disabled={verifyingPayout === payout.reference}
+                          className="rounded-xl px-5 py-3 font-semibold transition duration-300 bg-[#FFC107] text-[#043658] hover:bg-yellow-400 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        >
+                          {verifyingPayout === payout.reference ? (
+                            <>
+                              <RefreshCw className="h-3 w-3 animate-spin" /> Verifying...
+                            </>
+                          ) : (
+                            <>
+                              <RefreshCw className="h-3 w-3" /> Check Status
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
+                    {payout.status === 'COMPLETED' && (
+                      <div className="mt-2">
+                        <button
+                          onClick={() => router.push(`/dashboard/wallet/payouts/${payout.reference}/receipt`)}
+                          className="rounded-xl px-5 py-3 font-semibold transition duration-300 bg-[#FFC107] text-[#043658] hover:bg-yellow-400 flex items-center gap-2"
+                        >
+                          <Receipt className="h-3 w-3" /> View Receipt
+                        </button>
                       </div>
                     )}
                   </div>
