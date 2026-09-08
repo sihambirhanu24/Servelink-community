@@ -660,80 +660,88 @@ export class CommunityService {
       throw new ConflictException('You have already reported this post');
     }
 
-    // Create the report and flag the post for the moderation queue
-    const [report] = await this.prisma.$transaction([
-      this.prisma.communityReport.create({
-        data: {
-          teacherId,
-          postId,
-          reason: dto.reason,
-          description: dto.description,
-          status: 'PENDING',
-        },
-      }),
-      this.prisma.communityPost.updateMany({
-        where: { id: postId, moderationStatus: 'ACTIVE' },
-        data: { moderationStatus: 'REPORTED' },
-      }),
-    ]);
+    try {
+      // Create the report and flag the post for the moderation queue
+      const [report] = await this.prisma.$transaction([
+        this.prisma.communityReport.create({
+          data: {
+            teacherId,
+            postId,
+            reason: dto.reason,
+            description: dto.description,
+            status: 'PENDING',
+          },
+        }),
+        this.prisma.communityPost.updateMany({
+          where: { id: postId, moderationStatus: 'ACTIVE' },
+          data: { moderationStatus: 'REPORTED' },
+        }),
+      ]);
 
-    // Get admin users
-    const admins = await this.prisma.admin.findMany({
-      select: { id: true },
-    });
-
-    // Notify admins about the report
-    if (admins.length > 0) {
-      const reporter = await this.prisma.teacher.findUnique({
-        where: { id: teacherId },
-        select: { firstName: true, lastName: true },
+      // Get admin users
+      const admins = await this.prisma.admin.findMany({
+        select: { id: true },
       });
 
-      const reporterName = reporter
-        ? `${reporter.firstName} ${reporter.lastName}`
-        : 'A teacher';
+      // Notify admins about the report
+      if (admins.length > 0) {
+        const reporter = await this.prisma.teacher.findUnique({
+          where: { id: teacherId },
+          select: { firstName: true, lastName: true },
+        });
 
-      await Promise.all(
-        admins.map((admin) =>
-          this.notificationService.create({
-            receiverId: admin.id,
-            senderId: teacherId,
-            senderName: reporterName,
-            title: 'New Post Report',
-            message: `${reporterName} reported a post: "${post.title.substring(0, 50)}..." for ${dto.reason}`,
-            type: NotificationEvent.REPORT,
-            referenceId: report.id,
-          }),
-        ),
+        const reporterName = reporter
+          ? `${reporter.firstName} ${reporter.lastName}`
+          : 'A teacher';
+
+        await Promise.all(
+          admins.map((admin) =>
+            this.notificationService.create({
+              receiverId: admin.id,
+              senderId: teacherId,
+              senderName: reporterName,
+              title: 'New Post Report',
+              message: `${reporterName} reported a post: "${post.title.substring(0, 50)}..." for ${dto.reason}`,
+              type: NotificationEvent.REPORT,
+              referenceId: report.id,
+            }),
+          ),
+        );
+      }
+
+      // ── Notify the REPORTER (confirmation — do NOT mention who owns the post) ──
+      this.notificationService
+        .create({
+          receiverId: teacherId,
+          title: 'Report Submitted',
+          message:
+            'Your report has been submitted and will be reviewed by an administrator.',
+          type: NotificationEvent.REPORT,
+          referenceId: report.id,
+        })
+        .catch(() => {});
+
+      // ── Notify the POST OWNER (privacy: do NOT reveal reporter identity) ───────
+      this.notificationService
+        .create({
+          receiverId: post.teacherId,
+          title: 'Post Reported',
+          message:
+            'Your post has been reported and is currently under review by an administrator.',
+          type: NotificationEvent.REPORT,
+          referenceId: postId,
+          // senderId / senderName intentionally omitted — reporter must stay anonymous
+        })
+        .catch(() => {});
+
+      return { success: true, reportId: report.id };
+    } catch (error) {
+      // Log and rethrow database errors
+      console.error('Error creating report:', error);
+      throw new BadRequestException(
+        'Failed to submit report. Please try again.',
       );
     }
-
-    // ── Notify the REPORTER (confirmation — do NOT mention who owns the post) ──
-    this.notificationService
-      .create({
-        receiverId: teacherId,
-        title: 'Report Submitted',
-        message:
-          'Your report has been submitted and will be reviewed by an administrator.',
-        type: NotificationEvent.REPORT,
-        referenceId: report.id,
-      })
-      .catch(() => {});
-
-    // ── Notify the POST OWNER (privacy: do NOT reveal reporter identity) ───────
-    this.notificationService
-      .create({
-        receiverId: post.teacherId,
-        title: 'Post Reported',
-        message:
-          'Your post has been reported and is currently under review by an administrator.',
-        type: NotificationEvent.REPORT,
-        referenceId: postId,
-        // senderId / senderName intentionally omitted — reporter must stay anonymous
-      })
-      .catch(() => {});
-
-    return { success: true, reportId: report.id };
   }
 
   async uploadAttachment(file: Express.Multer.File, postId: string) {

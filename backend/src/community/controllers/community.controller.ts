@@ -301,6 +301,7 @@ export class CommunityController {
     @Body() dto: ReportPostDto,
     @Req() req,
   ) {
+    console.log('Report post request received:', { postId, dto });
     return this.communityService.reportPost(req.user.sub, postId, dto);
   }
 

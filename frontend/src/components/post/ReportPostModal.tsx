@@ -131,7 +131,33 @@ export function ReportPostModal({
       }, 1500);
     },
     onError: (err: any) => {
-      setError(err?.response?.data?.message || "Failed to submit report");
+      console.error('Report post error:', err);
+      
+      // Extract the most detailed error message available
+      let errorMessage = 'Failed to submit report';
+      
+      if (err?.response?.data) {
+        const data = err.response.data;
+        
+        // Handle class-validator array errors
+        if (Array.isArray(data.message)) {
+          errorMessage = data.message.join(', ');
+        } 
+        // Handle single error message
+        else if (typeof data.message === 'string') {
+          errorMessage = data.message;
+        }
+        // Handle error with specific field
+        else if (data.error) {
+          errorMessage = data.error;
+        }
+      } 
+      // Handle network errors
+      else if (err?.message) {
+        errorMessage = err.message;
+      }
+      
+      setError(errorMessage);
     },
   });
 

@@ -11,6 +11,7 @@ import {
 import { getNetworkOverview, getGuidelines, getTopContributors } from "@/services/community-network";
 import type { NetworkPost, CommunityGuideline, TopContributor } from "@/services/community-network";
 import { stripHtml } from "@/lib/sanitize";
+import { TeacherSupportCard } from "@/components/support/TeacherSupportCard";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -276,27 +277,7 @@ export function OverviewTab({ onTabChange }: OverviewTabProps) {
         <div className="space-y-5">
 
           {/* Teacher Support Card */}
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-6 h-6 rounded-md bg-[#043658]/10 flex items-center justify-center">
-                <Handshake className="w-4 h-4 text-[#043658]" />
-              </div>
-              <h3 className="font-bold text-[#043658] text-sm">Teacher Support</h3>
-            </div>
-            <p className="text-xs text-slate-600 mb-4 leading-relaxed">
-              Connect with mentors or offer your expertise to peers in the network.
-            </p>
-            <div className="space-y-2.5">
-              <button className="w-full flex items-center justify-center gap-2 bg-[#043658] text-white py-2 rounded-lg text-xs font-semibold hover:bg-[#032a44] transition-colors">
-                <MessageCircle className="w-4 h-4" />
-                Request Support
-              </button>
-              <button className="w-full flex items-center justify-center gap-2 bg-white text-[#043658] border border-slate-200 py-2 rounded-lg text-xs font-semibold hover:bg-slate-50 transition-colors shadow-sm">
-                <Handshake className="w-4 h-4" />
-                Offer Support
-              </button>
-            </div>
-          </div>
+          <TeacherSupportCard />
 
           {/* Top Contributors Card */}
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
