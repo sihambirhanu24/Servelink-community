@@ -16,7 +16,8 @@ export type NotificationType =
   | 'APPEAL_SUBMITTED'
   | 'APPEAL_APPROVED'
   | 'APPEAL_REJECTED'
-  | 'ACCOUNT_RESTORED';
+  | 'ACCOUNT_RESTORED'
+  | 'LIVE_SESSION';
 
 export interface Notification {
   id: string;

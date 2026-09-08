@@ -17,7 +17,12 @@ export function NotificationCard({ notification, compact = false }: Notification
   const { mutate: markRead } = useMarkRead();
   const { mutate: deleteNotif } = useDeleteNotification();
 
-  const config = NOTIFICATION_TYPE_CONFIG[notification.type];
+  const config = NOTIFICATION_TYPE_CONFIG[notification.type] || {
+    emoji: '🔔',
+    label: 'Notification',
+    bgColor: 'bg-gray-100',
+    textColor: 'text-gray-600',
+  };
   const route = getNotificationRoute(notification.type, notification.referenceId);
   const timeAgo = getRelativeTime(notification.createdAt);
 

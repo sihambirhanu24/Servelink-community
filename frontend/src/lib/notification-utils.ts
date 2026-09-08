@@ -11,6 +11,8 @@ export function getNotificationRoute(type: NotificationType, referenceId?: strin
       return referenceId ? `/community/${referenceId}` : '/community';
     case 'LEVEL_UPGRADE':
       return '/profile';
+    case 'LIVE_SESSION':
+      return referenceId ? `/live-sessions/${referenceId}` : '/live-sessions';
     case 'SUSPENSION':
     case 'APPEAL_SUBMITTED':
     case 'APPEAL_APPROVED':
@@ -168,5 +170,11 @@ export const NOTIFICATION_TYPE_CONFIG: Record<NotificationType, NotificationType
     label: 'Account Restored',
     bgColor: 'bg-green-50',
     textColor: 'text-green-600',
+  },
+  LIVE_SESSION: {
+    emoji: '📹',
+    label: 'Live Session',
+    bgColor: 'bg-purple-50',
+    textColor: 'text-purple-600',
   },
 };
