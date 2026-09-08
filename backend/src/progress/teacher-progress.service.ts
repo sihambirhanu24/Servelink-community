@@ -20,7 +20,7 @@ export class TeacherProgressService {
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
     private readonly verificationService: TeacherVerificationService,
-  ) { }
+  ) {}
 
   /**
    * Calculate the appropriate level based on points
@@ -37,7 +37,9 @@ export class TeacherProgressService {
   /**
    * Get the next level based on current level
    */
-  private getNextLevel(currentLevel: TeacherLevelType): TeacherLevelType | null {
+  private getNextLevel(
+    currentLevel: TeacherLevelType,
+  ): TeacherLevelType | null {
     const levels = [
       TeacherLevelType.LEVEL_1,
       TeacherLevelType.LEVEL_2,
@@ -52,7 +54,10 @@ export class TeacherProgressService {
   /**
    * Calculate points required to reach the next level
    */
-  private calculatePointsToNextLevel(currentPoints: number, currentLevel: TeacherLevelType): number {
+  private calculatePointsToNextLevel(
+    currentPoints: number,
+    currentLevel: TeacherLevelType,
+  ): number {
     const nextLevel = this.getNextLevel(currentLevel);
     if (!nextLevel) return 0;
 
@@ -116,12 +121,20 @@ export class TeacherProgressService {
           message: `Congratulations ${teacherName}! You've been permanently upgraded to ${newLevel.replace('_', ' ')}. You now have full access to new communities!`,
           type: NotificationEvent.LEVEL_UPGRADE,
         })
-        .catch((err) => this.logger.error(`Failed to send upgrade notification: ${err.message}`));
+        .catch((err) =>
+          this.logger.error(
+            `Failed to send upgrade notification: ${err.message}`,
+          ),
+        );
 
-      this.logger.log(`Teacher ${teacherId} upgraded from ${oldLevel} to ${newLevel}`);
+      this.logger.log(
+        `Teacher ${teacherId} upgraded from ${oldLevel} to ${newLevel}`,
+      );
     } else if (newIndex < oldIndex) {
       // Level downgraded (due to violation)
-      this.logger.log(`Teacher ${teacherId} downgraded from ${oldLevel} to ${newLevel}`);
+      this.logger.log(
+        `Teacher ${teacherId} downgraded from ${oldLevel} to ${newLevel}`,
+      );
     }
   }
 
@@ -184,10 +197,16 @@ export class TeacherProgressService {
   /**
    * Award points for creating a question
    */
-  async awardQuestionPoints(teacherId: string, questionId: string): Promise<void> {
-    const isVerified = await this.verificationService.isTeacherVerified(teacherId);
+  async awardQuestionPoints(
+    teacherId: string,
+    questionId: string,
+  ): Promise<void> {
+    const isVerified =
+      await this.verificationService.isTeacherVerified(teacherId);
     if (!isVerified) {
-      this.logger.debug(`Teacher ${teacherId} is not verified - question created but no points awarded`);
+      this.logger.debug(
+        `Teacher ${teacherId} is not verified - question created but no points awarded`,
+      );
       return;
     }
 
@@ -200,23 +219,35 @@ export class TeacherProgressService {
 
     if (result.success) {
       await this.recalculateTeacherProgress(teacherId);
-      this.logger.log(`Awarded ${POINT_VALUES.QUESTION_CREATED} points to teacher ${teacherId} for question ${questionId}`);
+      this.logger.log(
+        `Awarded ${POINT_VALUES.QUESTION_CREATED} points to teacher ${teacherId} for question ${questionId}`,
+      );
     }
   }
 
   /**
    * Award points for creating a discussion
    */
-  async awardDiscussionPoints(teacherId: string, discussionId: string): Promise<void> {
-    this.logger.log(`Attempting to award discussion points to teacher ${teacherId} for discussion ${discussionId}`);
-    
-    const isVerified = await this.verificationService.isTeacherVerified(teacherId);
+  async awardDiscussionPoints(
+    teacherId: string,
+    discussionId: string,
+  ): Promise<void> {
+    this.logger.log(
+      `Attempting to award discussion points to teacher ${teacherId} for discussion ${discussionId}`,
+    );
+
+    const isVerified =
+      await this.verificationService.isTeacherVerified(teacherId);
     if (!isVerified) {
-      this.logger.warn(`Teacher ${teacherId} is not verified - discussion created but no points awarded`);
+      this.logger.warn(
+        `Teacher ${teacherId} is not verified - discussion created but no points awarded`,
+      );
       return;
     }
 
-    this.logger.log(`Teacher ${teacherId} is verified, recording DISCUSSION_CREATED activity`);
+    this.logger.log(
+      `Teacher ${teacherId} is verified, recording DISCUSSION_CREATED activity`,
+    );
 
     const result = await this.recordActivity(
       teacherId,
@@ -229,9 +260,13 @@ export class TeacherProgressService {
 
     if (result.success) {
       await this.recalculateTeacherProgress(teacherId);
-      this.logger.log(`Awarded ${POINT_VALUES.DISCUSSION_CREATED} points to teacher ${teacherId} for discussion ${discussionId}`);
+      this.logger.log(
+        `Awarded ${POINT_VALUES.DISCUSSION_CREATED} points to teacher ${teacherId} for discussion ${discussionId}`,
+      );
     } else {
-      this.logger.warn(`Failed to record activity for discussion ${discussionId}: ${result.reason}`);
+      this.logger.warn(
+        `Failed to record activity for discussion ${discussionId}: ${result.reason}`,
+      );
     }
   }
 
@@ -239,9 +274,12 @@ export class TeacherProgressService {
    * Award points for creating a resource
    */
   async awardResourcePoints(teacherId: string, postId: string): Promise<void> {
-    const isVerified = await this.verificationService.isTeacherVerified(teacherId);
+    const isVerified =
+      await this.verificationService.isTeacherVerified(teacherId);
     if (!isVerified) {
-      this.logger.debug(`Teacher ${teacherId} is not verified - resource created but no points awarded`);
+      this.logger.debug(
+        `Teacher ${teacherId} is not verified - resource created but no points awarded`,
+      );
       return;
     }
 
@@ -254,14 +292,20 @@ export class TeacherProgressService {
 
     if (result.success) {
       await this.recalculateTeacherProgress(teacherId);
-      this.logger.log(`Awarded ${POINT_VALUES.RESOURCE_CREATED} points to teacher ${teacherId} for resource ${postId}`);
+      this.logger.log(
+        `Awarded ${POINT_VALUES.RESOURCE_CREATED} points to teacher ${teacherId} for resource ${postId}`,
+      );
     }
   }
 
   /**
    * Award points to discussion owner for receiving a bookmark
    */
-  async awardDiscussionBookmarkPoints(discussionOwnerId: string, discussionId: string, bookmarkerId: string): Promise<void> {
+  async awardDiscussionBookmarkPoints(
+    discussionOwnerId: string,
+    discussionId: string,
+    bookmarkerId: string,
+  ): Promise<void> {
     const referenceId = `${discussionId}:${bookmarkerId}`;
 
     const result = await this.recordActivity(
@@ -273,14 +317,20 @@ export class TeacherProgressService {
 
     if (result.success) {
       await this.recalculateTeacherProgress(discussionOwnerId);
-      this.logger.log(`Awarded ${POINT_VALUES.DISCUSSION_BOOKMARK_RECEIVED} point to teacher ${discussionOwnerId} for bookmark on discussion ${discussionId}`);
+      this.logger.log(
+        `Awarded ${POINT_VALUES.DISCUSSION_BOOKMARK_RECEIVED} point to teacher ${discussionOwnerId} for bookmark on discussion ${discussionId}`,
+      );
     }
   }
 
   /**
    * Remove points when a discussion bookmark is removed
    */
-  async removeDiscussionBookmarkPoints(discussionOwnerId: string, discussionId: string, bookmarkerId: string): Promise<void> {
+  async removeDiscussionBookmarkPoints(
+    discussionOwnerId: string,
+    discussionId: string,
+    bookmarkerId: string,
+  ): Promise<void> {
     const referenceId = `${discussionId}:${bookmarkerId}`;
 
     try {
@@ -295,9 +345,13 @@ export class TeacherProgressService {
       });
 
       await this.recalculateTeacherProgress(discussionOwnerId);
-      this.logger.log(`Removed ${POINT_VALUES.DISCUSSION_BOOKMARK_RECEIVED} point from teacher ${discussionOwnerId} for unbookmark on discussion ${discussionId}`);
+      this.logger.log(
+        `Removed ${POINT_VALUES.DISCUSSION_BOOKMARK_RECEIVED} point from teacher ${discussionOwnerId} for unbookmark on discussion ${discussionId}`,
+      );
     } catch (error) {
-      this.logger.debug(`Discussion bookmark activity not found for removal: ${referenceId}`);
+      this.logger.debug(
+        `Discussion bookmark activity not found for removal: ${referenceId}`,
+      );
     }
   }
 
@@ -311,7 +365,8 @@ export class TeacherProgressService {
     postId: string,
   ): Promise<{ awarded: boolean; reason: string }> {
     // SECURITY CHECK: Only APPROVED teachers can earn progression points
-    const isVerified = await this.verificationService.isTeacherVerified(teacherId);
+    const isVerified =
+      await this.verificationService.isTeacherVerified(teacherId);
     if (!isVerified) {
       this.logger.debug(
         `Teacher ${teacherId} is not verified - post created but no points awarded`,
@@ -325,7 +380,9 @@ export class TeacherProgressService {
     // Check daily limit
     const limitReached = await this.hasReachedDailyPostLimit(teacherId);
     if (limitReached) {
-      this.logger.debug(`Teacher ${teacherId} has reached daily post reward limit`);
+      this.logger.debug(
+        `Teacher ${teacherId} has reached daily post reward limit`,
+      );
       return {
         awarded: false,
         reason: 'Daily reward limit reached (3 posts per day)',
@@ -333,17 +390,24 @@ export class TeacherProgressService {
     }
 
     // This method is deprecated - use specific methods instead
-    this.logger.warn(`awardPostPoints is deprecated. Use specific award methods instead.`);
+    this.logger.warn(
+      `awardPostPoints is deprecated. Use specific award methods instead.`,
+    );
     return {
       awarded: false,
-      reason: 'Use specific award methods (awardQuestionPoints, awardDiscussionPoints, awardResourcePoints)',
+      reason:
+        'Use specific award methods (awardQuestionPoints, awardDiscussionPoints, awardResourcePoints)',
     };
   }
 
   /**
    * Award points to post owner for receiving a like
    */
-  async awardLikePoints(postOwnerId: string, postId: string, likerId: string): Promise<void> {
+  async awardLikePoints(
+    postOwnerId: string,
+    postId: string,
+    likerId: string,
+  ): Promise<void> {
     // Create a unique reference combining post and liker
     const referenceId = `${postId}:${likerId}`;
 
@@ -356,14 +420,20 @@ export class TeacherProgressService {
 
     if (result.success) {
       await this.recalculateTeacherProgress(postOwnerId);
-      this.logger.log(`Awarded ${POINT_VALUES.LIKE_RECEIVED} point to teacher ${postOwnerId} for like on post ${postId}`);
+      this.logger.log(
+        `Awarded ${POINT_VALUES.LIKE_RECEIVED} point to teacher ${postOwnerId} for like on post ${postId}`,
+      );
     }
   }
 
   /**
    * Remove points when a like is removed (unlike)
    */
-  async removeLikePoints(postOwnerId: string, postId: string, likerId: string): Promise<void> {
+  async removeLikePoints(
+    postOwnerId: string,
+    postId: string,
+    likerId: string,
+  ): Promise<void> {
     const referenceId = `${postId}:${likerId}`;
 
     try {
@@ -379,7 +449,9 @@ export class TeacherProgressService {
       });
 
       await this.recalculateTeacherProgress(postOwnerId);
-      this.logger.log(`Removed ${POINT_VALUES.LIKE_RECEIVED} point from teacher ${postOwnerId} for unlike on post ${postId}`);
+      this.logger.log(
+        `Removed ${POINT_VALUES.LIKE_RECEIVED} point from teacher ${postOwnerId} for unlike on post ${postId}`,
+      );
     } catch (error) {
       // Activity not found - already removed or never existed
       this.logger.debug(`Like activity not found for removal: ${referenceId}`);
@@ -389,7 +461,11 @@ export class TeacherProgressService {
   /**
    * Award points to post owner for receiving a bookmark
    */
-  async awardBookmarkPoints(postOwnerId: string, postId: string, bookmarkerId: string): Promise<void> {
+  async awardBookmarkPoints(
+    postOwnerId: string,
+    postId: string,
+    bookmarkerId: string,
+  ): Promise<void> {
     const referenceId = `${postId}:${bookmarkerId}`;
 
     const result = await this.recordActivity(
@@ -401,14 +477,20 @@ export class TeacherProgressService {
 
     if (result.success) {
       await this.recalculateTeacherProgress(postOwnerId);
-      this.logger.log(`Awarded ${POINT_VALUES.BOOKMARK_RECEIVED} point to teacher ${postOwnerId} for bookmark on post ${postId}`);
+      this.logger.log(
+        `Awarded ${POINT_VALUES.BOOKMARK_RECEIVED} point to teacher ${postOwnerId} for bookmark on post ${postId}`,
+      );
     }
   }
 
   /**
    * Remove points when a bookmark is removed
    */
-  async removeBookmarkPoints(postOwnerId: string, postId: string, bookmarkerId: string): Promise<void> {
+  async removeBookmarkPoints(
+    postOwnerId: string,
+    postId: string,
+    bookmarkerId: string,
+  ): Promise<void> {
     const referenceId = `${postId}:${bookmarkerId}`;
 
     try {
@@ -423,9 +505,13 @@ export class TeacherProgressService {
       });
 
       await this.recalculateTeacherProgress(postOwnerId);
-      this.logger.log(`Removed ${POINT_VALUES.BOOKMARK_RECEIVED} point from teacher ${postOwnerId} for unbookmark on post ${postId}`);
+      this.logger.log(
+        `Removed ${POINT_VALUES.BOOKMARK_RECEIVED} point from teacher ${postOwnerId} for unbookmark on post ${postId}`,
+      );
     } catch (error) {
-      this.logger.debug(`Bookmark activity not found for removal: ${referenceId}`);
+      this.logger.debug(
+        `Bookmark activity not found for removal: ${referenceId}`,
+      );
     }
   }
 
@@ -449,7 +535,9 @@ export class TeacherProgressService {
 
     if (result.success) {
       await this.recalculateTeacherProgress(teacherId);
-      this.logger.warn(`Applied ${POINT_VALUES.VIOLATION_CONFIRMED} point penalty to teacher ${teacherId} for violation on post ${postId}`);
+      this.logger.warn(
+        `Applied ${POINT_VALUES.VIOLATION_CONFIRMED} point penalty to teacher ${teacherId} for violation on post ${postId}`,
+      );
     }
   }
 
@@ -484,7 +572,10 @@ export class TeacherProgressService {
       select: { points: true },
     });
 
-    const totalPoints = activities.reduce((sum, activity) => sum + activity.points, 0);
+    const totalPoints = activities.reduce(
+      (sum, activity) => sum + activity.points,
+      0,
+    );
     // Ensure points never go below zero
     const finalPoints = Math.max(0, totalPoints);
 
@@ -524,8 +615,14 @@ export class TeacherProgressService {
     }
 
     const nextLevel = this.getNextLevel(teacher.level);
-    const pointsToNextLevel = this.calculatePointsToNextLevel(teacher.points, teacher.level);
-    const progressPercentage = this.calculateProgressPercentage(teacher.points, teacher.level);
+    const pointsToNextLevel = this.calculatePointsToNextLevel(
+      teacher.points,
+      teacher.level,
+    );
+    const progressPercentage = this.calculateProgressPercentage(
+      teacher.points,
+      teacher.level,
+    );
 
     return {
       points: teacher.points,

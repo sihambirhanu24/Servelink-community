@@ -1,5 +1,5 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, BadRequestException } from '@nestjs/common';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import { AllExceptionsFilter } from './shared/filters/all-exceptions.filter';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
@@ -20,7 +20,10 @@ async function bootstrap() {
   app.enableCors({
     origin: (origin, callback) => {
       // Allow localhost on any port in development
-      if (process.env.NODE_ENV === 'development' && (!origin || origin.includes('localhost'))) {
+      if (
+        process.env.NODE_ENV === 'development' &&
+        (!origin || origin.includes('localhost'))
+      ) {
         callback(null, true);
       } else if (origin === process.env.FRONTEND_URL) {
         callback(null, true);
@@ -38,6 +41,19 @@ async function bootstrap() {
       whitelist: true,
       transform: true,
       forbidNonWhitelisted: true,
+      // Add detailed error messages for debugging
+      exceptionFactory: (errors) => {
+        const messages = errors.map((error) => ({
+          field: error.property,
+          constraints: error.constraints,
+          value: error.value,
+        }));
+        console.log('Validation errors:', JSON.stringify(messages, null, 2));
+        return new BadRequestException({
+          message: errors.map((e) => Object.values(e.constraints || {}).join(', ')).filter(Boolean),
+          errors: messages,
+        });
+      },
     }),
   );
 
@@ -55,9 +71,7 @@ async function bootstrap() {
 
   await app.listen(process.env.PORT || 3000);
 
-  console.log(
-    `🚀 Swagger: http://localhost:${process.env.PORT || 3000}/api`,
-  );
+  console.log(`🚀 Swagger: http://localhost:${process.env.PORT || 3000}/api`);
 }
 
 bootstrap();

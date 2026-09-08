@@ -12,7 +12,7 @@ import { MembershipModule } from './membership/membership.module';
 import { ProfileModule } from './profile/profile.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { EngagementModule } from './engagement/engagement.module';
-import { TeacherModule } from "./teacher/teacher.module";
+import { TeacherModule } from './teacher/teacher.module';
 import { DatabaseService } from './database/database.service';
 import { ChatModule } from './chat/chat.module';
 import { ProgressModule } from './progress/progress.module';
@@ -23,55 +23,59 @@ import { DiscussionModule } from './discussion/discussion.module';
 import { SuspensionModule } from './suspension/suspension.module';
 import { LiveSessionModule } from './live-session/live-session.module';
 import { PaymentModule } from './payment/payment.module';
+import { SupportModule } from './support/support.module';
+import { WalletModule } from './wallet/wallet.module';
 
-import { MailModule } from "./mail/mail.module";
-import { ConfigModule } from '@nestjs/config'
+import { MailModule } from './mail/mail.module';
+import { ConfigModule } from '@nestjs/config';
 
 import configuration from './config/configuration';
 
 import { validationSchema } from './config/validation';
-import { ServeStaticModule } from "@nestjs/serve-static";
-import { join } from "path";
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'path';
 
 @Module({
   imports: [
-  ConfigModule.forRoot({
-    isGlobal: true,
-    envFilePath: ".env",
-    load: [configuration],
-    validationSchema,
-  }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: '.env',
+      load: [configuration],
+      validationSchema,
+    }),
 
-  ServeStaticModule.forRoot({
-    rootPath: join(process.cwd(), "uploads"),
-    serveRoot: "/uploads",
-  }),
+    ServeStaticModule.forRoot({
+      rootPath: join(process.cwd(), 'uploads'),
+      serveRoot: '/uploads',
+    }),
 
-  PrismaModule,
-  AuthModule,
-  CommunityModule,
-  NotificationModule,
-  MembershipModule,
-  ProfileModule,
-  DashboardModule,
-  EngagementModule,
-  PostModule,
-  AdminModule,
-  FileModule,
-  SharedModule,
-  TeacherModule,
-  ChatModule,
-  ProgressModule,
-  VerificationModule,
-  LocationChangeModule,
-  AnnouncementModule,
-  DiscussionModule,
-  SuspensionModule,
-  LiveSessionModule,
-  PaymentModule,
+    PrismaModule,
+    AuthModule,
+    CommunityModule,
+    NotificationModule,
+    MembershipModule,
+    ProfileModule,
+    DashboardModule,
+    EngagementModule,
+    PostModule,
+    AdminModule,
+    FileModule,
+    SharedModule,
+    TeacherModule,
+    ChatModule,
+    ProgressModule,
+    VerificationModule,
+    LocationChangeModule,
+    AnnouncementModule,
+    DiscussionModule,
+    SuspensionModule,
+    LiveSessionModule,
+    PaymentModule,
+    SupportModule,
+    WalletModule,
 
-  MailModule,
-],
-providers: [DatabaseService],
+    MailModule,
+  ],
+  providers: [DatabaseService],
 })
 export class AppModule {}

@@ -21,6 +21,9 @@ export class ProgressController {
   @UseGuards(JwtAuthGuard)
   @Get('activity')
   async getMyActivity(@Req() req, @Query('limit') limit?: string) {
-    return this.progressService.getActivityHistory(req.user.sub, limit ? parseInt(limit) : 50);
+    return this.progressService.getActivityHistory(
+      req.user.sub,
+      limit ? parseInt(limit) : 50,
+    );
   }
 }

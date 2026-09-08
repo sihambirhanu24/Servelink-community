@@ -33,6 +33,50 @@ export class SearchService {
     });
   }
 
+  /**
+   * Get verified teachers eligible for messaging.
+   * Excludes current user, unverified, pending, rejected, and suspended teachers.
+   */
+  async getVerifiedTeachers(currentTeacherId: string, keyword?: string, limit = 20) {
+    const where: any = {
+      AND: [
+        { verificationStatus: 'APPROVED' },
+        { status: 'ACTIVE' },
+        { verified: true },
+        { id: { not: currentTeacherId } }, // Exclude current user
+      ],
+    };
+
+    // Add search filter if keyword provided
+    if (keyword && keyword.trim()) {
+      where.AND.push({
+        OR: [
+          { firstName: { contains: keyword, mode: 'insensitive' } },
+          { lastName: { contains: keyword, mode: 'insensitive' } },
+          { department: { contains: keyword, mode: 'insensitive' } },
+        ],
+      });
+    }
+
+    return this.prisma.teacher.findMany({
+      where,
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        profileImage: true,
+        level: true,
+        department: true,
+        verified: true,
+      },
+      orderBy: [
+        { level: 'desc' }, // Higher levels first
+        { firstName: 'asc' },
+      ],
+      take: limit,
+    });
+  }
+
   async searchPosts(keyword: string) {
     return this.prisma.communityPost.findMany({
       where: {
