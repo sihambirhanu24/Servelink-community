@@ -99,6 +99,17 @@ model Teacher {
   locationHistory                   TeacherLocationHistory[]
   payoutProfile                     TeacherPayoutProfile?
   verificationDocuments             TeacherVerificationDocument[]
+  supportProviderProfile            SupportProviderProfile?
+  requestedSupport                  SupportRequest[]               @relation("SupportRequester")
+  walletBalance                     WalletBalance?
+  walletTransactions                WalletTransaction[]
+  relatedWalletTransactions         WalletTransaction[]            @relation("RelatedTeacher")
+  financialSupportRequests          FinancialSupportRequest[]
+  contributionsMade                 FinancialContribution[]        @relation("FinancialContributor")
+  contributionsReceived             FinancialContribution[]        @relation("FinancialRecipient")
+
+  @@index([status])
+  @@index([status, suspensionUntil])
 }
 
 model TeacherPayoutProfile {
@@ -698,6 +709,7 @@ model SuspensionHistory {
 
   @@index([teacherId])
   @@index([suspendedAt])
+  @@index([teacherId, restoredAt])
 }
 
 model SuspensionAppeal {
@@ -738,32 +750,35 @@ model NotificationPreference {
 }
 
 model LiveSession {
-  id                String                    @id @default(cuid())
-  teacherId         String
-  adminId           String?
-  topic             String
-  description       String?
-  scheduledStart    DateTime
-  duration          Int
-  status            LiveSessionStatus         @default(REQUESTED)
-  rejectionReason   String?
-  meetingRoomId     String?                   @unique
-  startedAt         DateTime?
-  endedAt           DateTime?
-  createdAt         DateTime                  @default(now())
-  updatedAt         DateTime                  @updatedAt
-  isPaid            Boolean                   @default(false)
-  price             Decimal?                  @db.Decimal(10, 2)
-  maxParticipants   Int?
-  restreamChannelId String?
-  restreamPlayerUrl String?
-  visibility        LiveSessionVisibility     @default(NETWORK)
-  restreamEventId   String?
-  restreamStatus    String?
-  admin             Admin?                    @relation(fields: [adminId], references: [id])
-  teacher           Teacher                   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  registrations     LiveSessionRegistration[]
-  payments          Payment[]
+  id                 String                    @id @default(cuid())
+  teacherId          String
+  adminId            String?
+  topic              String
+  description        String?
+  scheduledStart     DateTime
+  duration           Int
+  status             LiveSessionStatus         @default(REQUESTED)
+  rejectionReason    String?
+  meetingRoomId      String?                   @unique
+  startedAt          DateTime?
+  endedAt            DateTime?
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+  isPaid             Boolean                   @default(false)
+  price              Decimal?                  @db.Decimal(10, 2)
+  maxParticipants    Int?
+  visibility         LiveSessionVisibility     @default(NETWORK)
+  cancelledAt        DateTime?
+  cancelledById      String?
+  archivedAt         DateTime?
+  livekitRoomName    String?                   @unique
+  provider           LiveSessionProvider       @default(LIVEKIT)
+  meetingUrl         String?
+  financialAuditLogs FinancialAuditLog[]
+  admin              Admin?                    @relation(fields: [adminId], references: [id])
+  teacher            Teacher                   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  registrations      LiveSessionRegistration[]
+  payments           Payment[]
 
   @@index([teacherId])
   @@index([adminId])
@@ -810,11 +825,20 @@ model Payment {
   idempotencyKey          String                   @unique
   createdAt               DateTime                 @default(now())
   updatedAt               DateTime                 @updatedAt
+  chapaReference          String?                  @unique
+  refundStatus            RefundStatus             @default(NOT_REQUIRED)
+  chapaRefundRefId        String?
+  refundIdempotencyKey    String?                  @unique
+  refundFailureReason     String?
+  refundInitiatedAt       DateTime?
+  refundLastCheckedAt     DateTime?
+  financialAuditLogs      FinancialAuditLog[]
   liveSessionRegistration LiveSessionRegistration?
   liveSession             LiveSession?             @relation(fields: [liveSessionId], references: [id])
   teacher                 Teacher                  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   teacherEarnings         TeacherEarning[]
 
+  @@index([refundStatus])
   @@index([teacherId])
   @@index([liveSessionId])
   @@index([status])
@@ -823,21 +847,22 @@ model Payment {
 }
 
 model TeacherEarning {
-  id            String        @id @default(cuid())
-  teacherId     String
-  liveSessionId String?
-  paymentId     String?
-  grossAmount   Decimal       @db.Decimal(10, 2)
-  platformFee   Decimal       @db.Decimal(10, 2)
-  netAmount     Decimal       @db.Decimal(10, 2)
-  status        EarningStatus @default(PENDING)
-  payoutId      String?
-  completedAt   DateTime?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  payment       Payment?      @relation(fields: [paymentId], references: [id])
-  payout        Payout?       @relation(fields: [payoutId], references: [id])
-  teacher       Teacher       @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  id                   String        @id @default(cuid())
+  teacherId            String
+  liveSessionId        String?
+  paymentId            String?
+  grossAmount          Decimal       @db.Decimal(10, 2)
+  platformFee          Decimal       @db.Decimal(10, 2)
+  netAmount            Decimal       @db.Decimal(10, 2)
+  status               EarningStatus @default(PENDING)
+  payoutId             String?
+  completedAt          DateTime?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+  refundReviewRequired Boolean       @default(false)
+  payment              Payment?      @relation(fields: [paymentId], references: [id])
+  payout               Payout?       @relation(fields: [payoutId], references: [id])
+  teacher              Teacher       @relation(fields: [teacherId], references: [id], onDelete: Cascade)
 
   @@index([teacherId])
   @@index([liveSessionId])
@@ -850,8 +875,11 @@ model Payout {
   id                String           @id @default(cuid())
   teacherId         String
   amount            Decimal          @db.Decimal(10, 2)
+  feeAmount         Decimal?         @db.Decimal(10, 2)
+  netAmount         Decimal?         @db.Decimal(10, 2)
   currency          String           @default("ETB")
   status            PayoutStatus     @default(PENDING)
+  bankCode          String?
   bankName          String?
   bankAccountNumber String?
   bankAccountName   String?
@@ -862,7 +890,15 @@ model Payout {
   processedBy       String?
   processedAt       DateTime?
   completedAt       DateTime?
+  failedAt          DateTime?
   metadata          Json?
+  chapaTransferId   String?          @unique
+  chapaReference    String?          @unique
+  bankReference     String?
+  chapaStatus       String?
+  webhookReceivedAt DateTime?
+  submittedAt       DateTime?
+  lastVerifiedAt    DateTime?
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
   teacher           Teacher          @relation(fields: [teacherId], references: [id], onDelete: Cascade)
@@ -871,17 +907,119 @@ model Payout {
   @@index([teacherId])
   @@index([status])
   @@index([createdAt])
+  @@index([chapaTransferId])
+  @@index([chapaReference])
+  @@index([reference])
 }
 
 model PlatformSettings {
-  id                   String   @id @default(cuid())
-  platformFeePercent   Decimal  @default(15.00) @db.Decimal(5, 2)
-  minPayoutAmount      Decimal  @default(100.00) @db.Decimal(10, 2)
-  autoApprovePayouts   Boolean  @default(false)
-  chapaPublicKey       String?
-  chapaSecretKey       String?
-  chapaTestMode        Boolean  @default(true)
-  updatedAt            DateTime @updatedAt
+  id                 String   @id @default(cuid())
+  platformFeePercent Decimal  @default(15.00) @db.Decimal(5, 2)
+  minPayoutAmount    Decimal  @default(100.00) @db.Decimal(10, 2)
+  chapaPublicKey     String?
+  chapaSecretKey     String?
+  chapaTestMode      Boolean  @default(true)
+  updatedAt          DateTime @updatedAt
+  autoApprovePayouts Boolean  @default(false)
+}
+
+model FinancialAuditLog {
+  id            String       @id @default(cuid())
+  actorId       String
+  actorIsAdmin  Boolean      @default(false)
+  action        String
+  liveSessionId String?
+  paymentId     String?
+  metadata      Json?
+  createdAt     DateTime     @default(now())
+  liveSession   LiveSession? @relation(fields: [liveSessionId], references: [id])
+  payment       Payment?     @relation(fields: [paymentId], references: [id])
+
+  @@index([liveSessionId])
+  @@index([paymentId])
+  @@index([createdAt])
+}
+
+model SupportProviderProfile {
+  id                String           @id @default(cuid())
+  teacherId         String           @unique
+  expertise         String[]
+  experience        String
+  description       String
+  supportTypes      SupportType[]
+  availabilityDays  String[]
+  availabilityTime  String?
+  maxActiveRequests Int              @default(5)
+  isAvailable       Boolean          @default(true)
+  completedSessions Int              @default(0)
+  averageRating     Decimal?         @db.Decimal(3, 2)
+  totalEarnings     Decimal          @default(0) @db.Decimal(10, 2)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  teacher           Teacher          @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  providedSupport   SupportRequest[] @relation("SupportProvider")
+  receivedRatings   SupportRating[]
+
+  @@index([teacherId])
+  @@index([isAvailable])
+}
+
+model SupportRequest {
+  id                 String                  @id @default(cuid())
+  requesterId        String
+  providerId         String?
+  category           SupportCategory?
+  topic              String
+  description        String
+  supportType        SupportType
+  urgency            SupportUrgency
+  preferredAt        DateTime?
+  notes              String?
+  status             SupportRequestStatus    @default(PENDING)
+  chatRoomId         String?
+  liveSessionId      String?
+  paymentType        SupportPaymentType      @default(FREE)
+  requestedAmount    Decimal?                @db.Decimal(10, 2)
+  paymentReason      String?
+  paymentStatus      SupportPaymentStatus    @default(NOT_REQUIRED)
+  paymentReference   String?                 @unique
+  reservedAt         DateTime?
+  transferredAt      DateTime?
+  releasedAt         DateTime?
+  refundedAt         DateTime?
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+  acceptedAt         DateTime?
+  completedAt        DateTime?
+  cancelledAt        DateTime?
+  requester          Teacher                 @relation("SupportRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  provider           SupportProviderProfile? @relation("SupportProvider", fields: [providerId], references: [teacherId])
+  rating             SupportRating?
+  walletTransactions WalletTransaction[]
+
+  @@index([requesterId])
+  @@index([providerId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([supportType])
+  @@index([paymentStatus])
+  @@index([paymentReference])
+}
+
+model SupportRating {
+  id               String                 @id @default(cuid())
+  supportRequestId String                 @unique
+  requesterId      String
+  providerId       String
+  rating           Int
+  feedback         String?
+  createdAt        DateTime               @default(now())
+  supportRequest   SupportRequest         @relation(fields: [supportRequestId], references: [id], onDelete: Cascade)
+  provider         SupportProviderProfile @relation(fields: [providerId], references: [teacherId], onDelete: Cascade)
+
+  @@index([supportRequestId])
+  @@index([providerId])
+  @@index([createdAt])
 }
 
 enum VerificationDocumentType {
@@ -1078,6 +1216,11 @@ enum LiveSessionVisibility {
   NATIONAL
 }
 
+enum LiveSessionProvider {
+  LIVEKIT
+  GOOGLE_MEET
+}
+
 enum LiveSessionStatus {
   REQUESTED
   APPROVED
@@ -1098,6 +1241,14 @@ enum PaymentStatus {
   REFUNDED
 }
 
+enum RefundStatus {
+  NOT_REQUIRED
+  PENDING
+  PROCESSING
+  REFUNDED
+  FAILED
+}
+
 enum PaymentMethod {
   TELEBIRR
   CBE_BIRR
@@ -1110,6 +1261,7 @@ enum EarningStatus {
   PENDING
   AVAILABLE
   PAID_OUT
+  REVERSED
 }
 
 enum PayoutStatus {
@@ -1118,4 +1270,163 @@ enum PayoutStatus {
   PROCESSING
   COMPLETED
   REJECTED
+  CANCELLED
+  FAILED
+}
+
+enum SupportType {
+  CHAT
+  LIVE_SESSION
+  RESOURCE
+  MENTORSHIP
+}
+
+enum SupportCategory {
+  PROFESSIONAL
+  RESOURCE
+  MENTORSHIP
+  LIVE
+}
+
+enum SupportUrgency {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum SupportRequestStatus {
+  PENDING
+  ACCEPTED
+  IN_PROGRESS
+  COMPLETED
+  DECLINED
+  CANCELLED
+}
+
+enum SupportPaymentType {
+  FREE
+  PAID
+}
+
+enum SupportPaymentStatus {
+  NOT_REQUIRED
+  RESERVED
+  TRANSFERRED
+  RELEASED
+  REFUNDED
+  FAILED
+}
+
+model WalletBalance {
+  id               String   @id @default(cuid())
+  teacherId        String   @unique
+  availableBalance Decimal  @default(0) @db.Decimal(10, 2)
+  reservedBalance  Decimal  @default(0) @db.Decimal(10, 2)
+  totalBalance     Decimal  @default(0) @db.Decimal(10, 2)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  teacher          Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@index([teacherId])
+}
+
+enum WalletTransactionType {
+  EARNING
+  SUPPORT_RESERVE
+  SUPPORT_TRANSFER_DEBIT
+  SUPPORT_TRANSFER_CREDIT
+  SUPPORT_RELEASE
+  SUPPORT_REFUND_DEBIT
+  SUPPORT_REFUND_CREDIT
+  FINANCIAL_SUPPORT_CONTRIBUTION
+  FINANCIAL_SUPPORT_RECEIVED
+  PAYOUT_DEBIT
+  ADJUSTMENT
+}
+
+enum WalletTransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REVERSED
+}
+
+model WalletTransaction {
+  id                String                   @id @default(cuid())
+  teacherId         String
+  type              WalletTransactionType
+  amount            Decimal                  @db.Decimal(10, 2)
+  balanceBefore     Decimal                  @db.Decimal(10, 2)
+  balanceAfter      Decimal                  @db.Decimal(10, 2)
+  status            WalletTransactionStatus  @default(COMPLETED)
+  reference         String                   @unique
+  supportRequestId  String?
+  relatedTeacherId  String?
+  metadata          Json?
+  description       String
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+  teacher           Teacher                  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  supportRequest    SupportRequest?          @relation(fields: [supportRequestId], references: [id])
+  relatedTeacher    Teacher?                 @relation("RelatedTeacher", fields: [relatedTeacherId], references: [id])
+
+  @@index([teacherId])
+  @@index([supportRequestId])
+  @@index([reference])
+  @@index([type])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// FINANCIAL SUPPORT SYSTEM (Teacher-to-Teacher Assistance)
+// ─────────────────────────────────────────────────────────────────────────
+
+enum FinancialSupportStatus {
+  OPEN
+  PARTIALLY_FUNDED
+  GOAL_REACHED
+  CANCELLED
+  CLOSED
+  EXPIRED
+}
+
+model FinancialSupportRequest {
+  id              String                   @id @default(cuid())
+  requesterId     String
+  amountNeeded    Decimal                  @db.Decimal(10, 2)
+  amountReceived  Decimal                  @default(0) @db.Decimal(10, 2)
+  reason          String
+  additionalNotes String?
+  status          FinancialSupportStatus   @default(OPEN)
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+  completedAt     DateTime?
+  expiresAt       DateTime?
+  cancelledAt     DateTime?
+  requester       Teacher                  @relation(fields: [requesterId], references: [id], onDelete: Cascade)
+  contributions   FinancialContribution[]
+
+  @@index([requesterId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model FinancialContribution {
+  id                       String                   @id @default(cuid())
+  supportRequestId         String
+  contributorId            String
+  recipientId              String
+  amount                   Decimal                  @db.Decimal(10, 2)
+  transactionReference     String                   @unique
+  createdAt                DateTime                 @default(now())
+  supportRequest           FinancialSupportRequest  @relation(fields: [supportRequestId], references: [id], onDelete: Cascade)
+  contributor              Teacher                  @relation("FinancialContributor", fields: [contributorId], references: [id], onDelete: Cascade)
+  recipient                Teacher                  @relation("FinancialRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@index([supportRequestId])
+  @@index([contributorId])
+  @@index([recipientId])
+  @@index([transactionReference])
+  @@index([createdAt])
 }
