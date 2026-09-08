@@ -7,8 +7,8 @@ export class TeachersQueryDto {
   search?: string; // matches against firstName/lastName/email
 
   @IsOptional()
-  @IsString()
-  status?: 'ACTIVE' | 'SUSPENDED';
+  @IsIn(['ACTIVE', 'SUSPENDED', 'PERMANENTLY_SUSPENDED'])
+  status?: 'ACTIVE' | 'SUSPENDED' | 'PERMANENTLY_SUSPENDED';
 
   @IsOptional()
   @IsString()

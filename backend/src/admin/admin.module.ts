@@ -5,10 +5,19 @@ import { ProgressModule } from '../progress/progress.module';
 import { VerificationModule } from '../verification/verification.module';
 import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
+import { AdminPostsController } from './admin-posts.controller';
+import { AdminPostsService } from './admin-posts.service';
+import { SuspensionModule } from '../suspension/suspension.module';
 
 @Module({
-  imports: [PrismaModule, NotificationModule, ProgressModule, VerificationModule],
-  controllers: [AdminController],
-  providers: [AdminService],
+  imports: [
+    PrismaModule,
+    NotificationModule,
+    ProgressModule,
+    VerificationModule,
+    SuspensionModule,
+  ],
+  controllers: [AdminPostsController, AdminController],
+  providers: [AdminService, AdminPostsService],
 })
 export class AdminModule {}

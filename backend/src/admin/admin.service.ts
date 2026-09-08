@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { TeacherProgressService } from '../progress/teacher-progress.service';
@@ -16,13 +20,14 @@ export class AdminService {
   ) {}
 
   async dashboard() {
-    const [teachers, communities, posts, reports, unverifiedTeachers] = await Promise.all([
-      this.prisma.teacher.count(),
-      this.prisma.community.count(),
-      this.prisma.communityPost.count(),
-      this.prisma.communityReport.count(),
-      this.prisma.teacher.count({ where: { verified: false } }),
-    ]);
+    const [teachers, communities, posts, reports, unverifiedTeachers] =
+      await Promise.all([
+        this.prisma.teacher.count(),
+        this.prisma.community.count(),
+        this.prisma.communityPost.count(),
+        this.prisma.communityReport.count(),
+        this.prisma.teacher.count({ where: { verified: false } }),
+      ]);
 
     const teacherLevels = await this.prisma.teacher.groupBy({
       by: ['level'],
@@ -43,39 +48,41 @@ export class AdminService {
     });
 
     // Get real recent activity: new registrations and recent posts
-    const [recentRegistrations, recentPosts, recentReports] = await Promise.all([
-      this.prisma.teacher.findMany({
-        take: 3,
-        orderBy: { createdAt: 'desc' },
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          createdAt: true,
-        },
-      }),
-      this.prisma.communityPost.findMany({
-        take: 2,
-        orderBy: { createdAt: 'desc' },
-        select: {
-          id: true,
-          title: true,
-          createdAt: true,
-          community: { select: { name: true } },
-          teacher: { select: { firstName: true, lastName: true } },
-        },
-      }),
-      this.prisma.communityReport.findMany({
-        take: 2,
-        orderBy: { createdAt: 'desc' },
-        select: {
-          id: true,
-          reason: true,
-          createdAt: true,
-          post: { select: { title: true } },
-        },
-      }),
-    ]);
+    const [recentRegistrations, recentPosts, recentReports] = await Promise.all(
+      [
+        this.prisma.teacher.findMany({
+          take: 3,
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            createdAt: true,
+          },
+        }),
+        this.prisma.communityPost.findMany({
+          take: 2,
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            title: true,
+            createdAt: true,
+            community: { select: { name: true } },
+            teacher: { select: { firstName: true, lastName: true } },
+          },
+        }),
+        this.prisma.communityReport.findMany({
+          take: 2,
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            reason: true,
+            createdAt: true,
+            post: { select: { title: true } },
+          },
+        }),
+      ],
+    );
 
     return {
       statistics: {
@@ -132,6 +139,11 @@ export class AdminService {
           rejectionReason: true,
           approvedAt: true,
           createdAt: true,
+          suspensionReason: true,
+          suspensionStart: true,
+          suspensionUntil: true,
+          suspendedBy: true,
+          suspensionCount: true,
           verificationDocuments: {
             select: {
               id: true,
@@ -178,23 +190,8 @@ export class AdminService {
     return updated;
   }
 
-  async suspendTeacher(teacherId: string) {
-    const teacher = await this.prisma.teacher.findUnique({ where: { id: teacherId } });
-    if (!teacher) throw new NotFoundException('Teacher not found');
-    return this.prisma.teacher.update({
-      where: { id: teacherId },
-      data: { status: 'SUSPENDED' as any },
-    });
-  }
-
-  async activateTeacher(teacherId: string) {
-    const teacher = await this.prisma.teacher.findUnique({ where: { id: teacherId } });
-    if (!teacher) throw new NotFoundException('Teacher not found');
-    return this.prisma.teacher.update({
-      where: { id: teacherId },
-      data: { status: 'ACTIVE' as any },
-    });
-  }
+  // Teacher suspension / restoration is owned by SuspensionService (history,
+  // notifications, auto-expiry). AdminController delegates to it directly.
 
   async getReports(query?: {
     page?: number;
@@ -210,9 +207,23 @@ export class AdminService {
       where.OR = [
         { id: { contains: query.search, mode: 'insensitive' } },
         { post: { title: { contains: query.search, mode: 'insensitive' } } },
-        { teacher: { firstName: { contains: query.search, mode: 'insensitive' } } },
-        { teacher: { lastName: { contains: query.search, mode: 'insensitive' } } },
-        { post: { community: { name: { contains: query.search, mode: 'insensitive' } } } },
+        {
+          teacher: {
+            firstName: { contains: query.search, mode: 'insensitive' },
+          },
+        },
+        {
+          teacher: {
+            lastName: { contains: query.search, mode: 'insensitive' },
+          },
+        },
+        {
+          post: {
+            community: {
+              name: { contains: query.search, mode: 'insensitive' },
+            },
+          },
+        },
       ];
     }
 
@@ -382,8 +393,7 @@ export class AdminService {
       .create({
         receiverId: report.teacherId,
         title: 'Report Reviewed',
-        message:
-          'Your report has been reviewed and no action was taken.',
+        message: 'Your report has been reviewed and no action was taken.',
         type: NotificationEvent.REPORT,
         referenceId: report.postId,
       })
@@ -448,7 +458,7 @@ export class AdminService {
   async removeContentFromReport(reportId: string) {
     const report = await this.prisma.communityReport.findUnique({
       where: { id: reportId },
-      include: { post: true }
+      include: { post: true },
     });
 
     if (!report) throw new NotFoundException('Report not found');
@@ -458,7 +468,9 @@ export class AdminService {
       // Also apply violation penalty
       this.progressService
         .applyViolationPenalty(report.post.teacherId, postId, reportId)
-        .catch((err) => console.error(`Failed to apply violation penalty: ${err.message}`));
+        .catch((err) =>
+          console.error(`Failed to apply violation penalty: ${err.message}`),
+        );
 
       await this.prisma.$transaction(async (tx) => {
         await tx.attachment.deleteMany({ where: { postId } });
@@ -493,7 +505,7 @@ export class AdminService {
         { department: { contains: query.search, mode: 'insensitive' } },
       ];
     }
-    if (query?.type)    where.type    = query.type.toUpperCase();
+    if (query?.type) where.type = query.type.toUpperCase();
     if (query?.subtype) where.subtype = query.subtype.toUpperCase();
     if (query?.isActive !== undefined) where.isActive = query.isActive;
 
@@ -553,12 +565,12 @@ export class AdminService {
     // Validate uniqueness before creating — provide a clear error
     const existing = await this.prisma.community.findFirst({
       where: {
-        type:       dto.type as any,
-        subtype:    (dto.subtype ?? 'COMMON') as any,
-        school:     dto.school     ?? null,
-        woreda:     dto.woreda     ?? null,
-        zone:       dto.zone       ?? null,
-        region:     dto.region     ?? null,
+        type: dto.type as any,
+        subtype: (dto.subtype ?? 'COMMON') as any,
+        school: dto.school ?? null,
+        woreda: dto.woreda ?? null,
+        zone: dto.zone ?? null,
+        region: dto.region ?? null,
         department: dto.department ?? null,
       },
     });
@@ -570,16 +582,16 @@ export class AdminService {
 
     return this.prisma.community.create({
       data: {
-        name:        dto.name,
-        type:        dto.type as any,
-        subtype:     (dto.subtype ?? 'COMMON') as any,
-        department:  dto.department ?? null,
-        school:      dto.school     ?? null,
-        woreda:      dto.woreda     ?? null,
-        zone:        dto.zone       ?? null,
-        region:      dto.region     ?? null,
+        name: dto.name,
+        type: dto.type as any,
+        subtype: (dto.subtype ?? 'COMMON') as any,
+        department: dto.department ?? null,
+        school: dto.school ?? null,
+        woreda: dto.woreda ?? null,
+        zone: dto.zone ?? null,
+        region: dto.region ?? null,
         description: dto.description ?? null,
-        isActive:    true,
+        isActive: dto.isActive ?? true,
       },
     });
   }
@@ -591,9 +603,9 @@ export class AdminService {
     return this.prisma.community.update({
       where: { id },
       data: {
-        ...(dto.name        !== undefined && { name: dto.name }),
+        ...(dto.name !== undefined && { name: dto.name }),
         ...(dto.description !== undefined && { description: dto.description }),
-        ...(dto.isActive    !== undefined && { isActive: dto.isActive }),
+        ...(dto.isActive !== undefined && { isActive: dto.isActive }),
       },
     });
   }
@@ -608,28 +620,41 @@ export class AdminService {
   }
 
   async getCommunityStats() {
-    const [byType, bySubtype, total, totalMembers, totalPosts, pendingReports] = await Promise.all([
-      this.prisma.community.groupBy({ by: ['type'], _count: true }),
-      this.prisma.community.groupBy({ by: ['subtype'], _count: true }),
-      this.prisma.community.count(),
-      this.prisma.communityMember.count({ where: { status: 'APPROVED' } }),
-      this.prisma.communityPost.count(),
-      this.prisma.communityReport.count({ where: { status: 'PENDING' } }),
-    ]);
+    const [byType, bySubtype, total, totalMembers, totalPosts, pendingReports] =
+      await Promise.all([
+        this.prisma.community.groupBy({ by: ['type'], _count: true }),
+        this.prisma.community.groupBy({ by: ['subtype'], _count: true }),
+        this.prisma.community.count(),
+        this.prisma.communityMember.count({ where: { status: 'APPROVED' } }),
+        this.prisma.communityPost.count(),
+        this.prisma.communityReport.count({ where: { status: 'PENDING' } }),
+      ]);
 
     // Convert byType array to object for easier frontend consumption
-    const byTypeObj = byType.reduce((acc, item) => {
-      acc[item.type] = item._count;
-      return acc;
-    }, {} as Record<string, number>);
+    const byTypeObj = byType.reduce(
+      (acc, item) => {
+        acc[item.type] = item._count;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
 
     // Ensure all types are present even if count is 0
-    const allTypes = ['NETWORK', 'NATIONAL', 'REGION', 'ZONE', 'WOREDA', 'SCHOOL'];
-    allTypes.forEach(type => {
+    const allTypes = [
+      'NETWORK',
+      'NATIONAL',
+      'REGION',
+      'ZONE',
+      'WOREDA',
+      'SCHOOL',
+    ];
+    allTypes.forEach((type) => {
       if (!byTypeObj[type]) byTypeObj[type] = 0;
     });
 
-    const active = await this.prisma.community.count({ where: { isActive: true } });
+    const active = await this.prisma.community.count({
+      where: { isActive: true },
+    });
     const inactive = total - active;
 
     return {
@@ -644,86 +669,188 @@ export class AdminService {
     };
   }
 
-  // ─── Post Moderation (admin-only) ─────────────────────────────────────────
+  async getCommunityMembers(
+    communityId: string,
+    query?: {
+      page?: number;
+      pageSize?: number;
+      search?: string;
+      status?: string;
+      level?: string;
+    },
+  ) {
+    const community = await this.prisma.community.findUnique({
+      where: { id: communityId },
+    });
+    if (!community) throw new NotFoundException('Community not found');
 
-  async getPostStats() {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const skip = ((query?.page ?? 1) - 1) * (query?.pageSize ?? 20);
+    const where: any = { communityId };
 
-    const [total, todayPosts, reported, underReview, removed, hidden] = await Promise.all([
-      this.prisma.communityPost.count(),
-      this.prisma.communityPost.count({ where: { createdAt: { gte: today } } }),
-      this.prisma.communityPost.count({ where: { moderationStatus: 'REPORTED' } }),
-      this.prisma.communityPost.count({ where: { moderationStatus: 'UNDER_REVIEW' } }),
-      this.prisma.communityPost.count({ where: { moderationStatus: 'REMOVED' } }),
-      this.prisma.communityPost.count({ where: { moderationStatus: 'HIDDEN' } }),
+    if (query?.search) {
+      where.teacher = {
+        OR: [
+          { firstName: { contains: query.search, mode: 'insensitive' } },
+          { lastName: { contains: query.search, mode: 'insensitive' } },
+          { email: { contains: query.search, mode: 'insensitive' } },
+        ],
+      };
+    }
+
+    if (query?.status) {
+      where.status = query.status;
+    }
+
+    if (query?.level) {
+      where.teacher = { ...where.teacher, level: query.level };
+    }
+
+    const [members, total] = await Promise.all([
+      this.prisma.communityMember.findMany({
+        where,
+        skip,
+        take: query?.pageSize ?? 20,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          teacher: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              level: true,
+              school: true,
+              department: true,
+              status: true,
+            },
+          },
+        },
+      }),
+      this.prisma.communityMember.count({ where }),
     ]);
 
     return {
-      total,
-      todayPosts,
-      reported,
-      underReview,
-      removed,
-      hidden,
+      data: members,
+      meta: {
+        total,
+        page: query?.page ?? 1,
+        pageSize: query?.pageSize ?? 20,
+        totalPages: Math.ceil(total / (query?.pageSize ?? 20)),
+      },
     };
   }
 
-  async getPosts(query?: {
-    page?: number;
-    pageSize?: number;
-    search?: string;
-    communityId?: string;
-    communityType?: string;
-    teacherLevel?: string;
-    moderationStatus?: string;
-    postType?: string;
-    dateFrom?: string;
-    dateTo?: string;
-    categoryId?: string;
-    reportStatus?: string;
-  }) {
+  async updateMemberStatus(
+    communityId: string,
+    memberId: string,
+    status: 'APPROVED' | 'REJECTED',
+  ) {
+    const membership = await this.prisma.communityMember.findUnique({
+      where: { id: memberId },
+      include: { community: true, teacher: true },
+    });
+
+    if (!membership) throw new NotFoundException('Membership not found');
+    if (membership.communityId !== communityId) {
+      throw new NotFoundException(
+        'Membership does not belong to this community',
+      );
+    }
+
+    const updated = await this.prisma.communityMember.update({
+      where: { id: memberId },
+      data: { status },
+      include: {
+        teacher: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            level: true,
+            school: true,
+            department: true,
+          },
+        },
+      },
+    });
+
+    // Notify teacher about status change
+    this.notificationService
+      .create({
+        receiverId: membership.teacherId,
+        title: 'Community Membership Updated',
+        message: `Your membership in ${membership.community.name} has been ${status.toLowerCase()}.`,
+        type: NotificationEvent.COMMUNITY_JOIN,
+        referenceId: communityId,
+      })
+      .catch(() => {});
+
+    return updated;
+  }
+
+  async removeMember(communityId: string, memberId: string) {
+    const membership = await this.prisma.communityMember.findUnique({
+      where: { id: memberId },
+      include: { community: true, teacher: true },
+    });
+
+    if (!membership) throw new NotFoundException('Membership not found');
+    if (membership.communityId !== communityId) {
+      throw new NotFoundException(
+        'Membership does not belong to this community',
+      );
+    }
+
+    await this.prisma.communityMember.delete({
+      where: { id: memberId },
+    });
+
+    // Notify teacher about removal
+    this.notificationService
+      .create({
+        receiverId: membership.teacherId,
+        title: 'Removed from Community',
+        message: `You have been removed from ${membership.community.name}.`,
+        type: NotificationEvent.COMMUNITY_JOIN,
+        referenceId: communityId,
+      })
+      .catch(() => {});
+
+    return { success: true, message: 'Member removed successfully' };
+  }
+
+  async getCommunityPosts(
+    communityId: string,
+    query?: {
+      page?: number;
+      pageSize?: number;
+      search?: string;
+      postType?: string;
+      moderationStatus?: string;
+    },
+  ) {
+    const community = await this.prisma.community.findUnique({
+      where: { id: communityId },
+    });
+    if (!community) throw new NotFoundException('Community not found');
+
     const skip = ((query?.page ?? 1) - 1) * (query?.pageSize ?? 20);
-    const where: any = {};
+    const where: any = { communityId };
 
     if (query?.search) {
       where.OR = [
         { title: { contains: query.search, mode: 'insensitive' } },
         { description: { contains: query.search, mode: 'insensitive' } },
-        { teacher: { firstName: { contains: query.search, mode: 'insensitive' } } },
-        { teacher: { lastName: { contains: query.search, mode: 'insensitive' } } },
-        { teacher: { email: { contains: query.search, mode: 'insensitive' } } },
       ];
     }
 
-    if (query?.communityId) where.communityId = query.communityId;
-    if (query?.communityType) where.community = { type: query.communityType };
-    if (query?.teacherLevel) where.teacher = { level: query.teacherLevel };
-    if (query?.moderationStatus) where.moderationStatus = query.moderationStatus;
-    if (query?.postType) where.postType = query.postType;
-    if (query?.categoryId) where.categoryId = query.categoryId;
-
-    if (query?.reportStatus) {
-      if (query.reportStatus === 'NO_REPORTS') {
-        where.communityReports = { none: {} };
-      } else if (query.reportStatus === 'REPORTED') {
-        where.communityReports = { some: {} };
-      } else if (query.reportStatus === 'UNRESOLVED') {
-        where.communityReports = { some: { status: 'PENDING' } };
-      } else if (query.reportStatus === 'RESOLVED') {
-        // Find posts where there are reports, and NONE of them are PENDING
-        // This means they have all been reviewed.
-        where.communityReports = {
-          some: {}, // Has at least one report
-          none: { status: 'PENDING' } // But none are pending
-        };
-      }
+    if (query?.postType) {
+      where.postType = query.postType;
     }
 
-    if (query?.dateFrom || query?.dateTo) {
-      where.createdAt = {};
-      if (query.dateFrom) where.createdAt.gte = new Date(query.dateFrom);
-      if (query.dateTo) where.createdAt.lte = new Date(query.dateTo);
+    if (query?.moderationStatus) {
+      where.moderationStatus = query.moderationStatus;
     }
 
     const [posts, total] = await Promise.all([
@@ -740,37 +867,16 @@ export class AdminService {
               lastName: true,
               email: true,
               level: true,
-              verified: true,
-              status: true,
-              profileImage: true,
             },
           },
-          community: {
-            select: {
-              id: true,
-              name: true,
-              type: true,
-              school: true,
-              woreda: true,
-              zone: true,
-              region: true,
-            },
-          },
-          category: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
+          category: { select: { id: true, name: true } },
           _count: {
             select: {
               communityLikes: true,
               comments: true,
-              communityBookmarks: true,
               communityReports: true,
             },
           },
-          attachments: true,
         },
       }),
       this.prisma.communityPost.count({ where }),
@@ -787,214 +893,72 @@ export class AdminService {
     };
   }
 
-  async getPostById(id: string) {
-    const post = await this.prisma.communityPost.findUnique({
-      where: { id },
-      include: {
-        teacher: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-            level: true,
-            verified: true,
-            status: true,
-            profileImage: true,
-            school: true,
-            department: true,
-            suspensionReason: true,
-            suspensionStart: true,
-            suspensionUntil: true,
-          },
-        },
-        community: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-            school: true,
-            woreda: true,
-            zone: true,
-            region: true,
-            department: true,
-          },
-        },
-        category: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-        _count: {
-          select: {
-            communityLikes: true,
-            comments: true,
-            communityBookmarks: true,
-            communityReports: true,
-          },
-        },
-        attachments: true,
-        comments: {
-          include: {
-            teacher: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                profileImage: true,
-              },
+  async getCommunityReports(
+    communityId: string,
+    query?: {
+      page?: number;
+      pageSize?: number;
+      status?: string;
+    },
+  ) {
+    const community = await this.prisma.community.findUnique({
+      where: { id: communityId },
+    });
+    if (!community) throw new NotFoundException('Community not found');
+
+    const skip = ((query?.page ?? 1) - 1) * (query?.pageSize ?? 20);
+    const where: any = {
+      post: { communityId },
+    };
+
+    if (query?.status) {
+      where.status = query.status;
+    }
+
+    const [reports, total] = await Promise.all([
+      this.prisma.communityReport.findMany({
+        where,
+        skip,
+        take: query?.pageSize ?? 20,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          teacher: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
             },
           },
-          orderBy: { createdAt: 'desc' },
-        },
-        communityReports: {
-          include: {
-            teacher: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
+          post: {
+            select: {
+              id: true,
+              title: true,
+              teacherId: true,
+              teacher: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                },
               },
             },
           },
         },
-        moderationHistory: {
-          orderBy: { createdAt: 'desc' },
-          take: 10,
-        },
-      },
-    });
+      }),
+      this.prisma.communityReport.count({ where }),
+    ]);
 
-    if (!post) throw new NotFoundException('Post not found');
-    return post;
+    return {
+      data: reports,
+      meta: {
+        total,
+        page: query?.page ?? 1,
+        pageSize: query?.pageSize ?? 20,
+        totalPages: Math.ceil(total / (query?.pageSize ?? 20)),
+      },
+    };
   }
 
-  async moderatePost(id: string, adminId: string, action: 'REMOVE' | 'HIDDEN' | 'RESTORE', reason?: string) {
-    const post = await this.prisma.communityPost.findUnique({
-      where: { id },
-      include: { teacher: true },
-    });
-    if (!post) throw new NotFoundException('Post not found');
-
-    let moderationStatus: any;
-    let moderationAction: any;
-    let notificationTitle = '';
-    let notificationMessage = '';
-
-    if (action === 'REMOVE') {
-      moderationStatus = 'REMOVED';
-      moderationAction = 'POST_REMOVED';
-      notificationTitle = 'Post Removed';
-      notificationMessage = reason
-        ? `Your post "${post.title}" has been removed because: ${reason}`
-        : `Your post "${post.title}" has been removed by an administrator.`;
-    } else if (action === 'HIDDEN') {
-      moderationStatus = 'HIDDEN';
-      moderationAction = 'POST_HIDDEN';
-      notificationTitle = 'Post Hidden';
-      notificationMessage = `Your post "${post.title}" has been hidden by an administrator.`;
-    } else if (action === 'RESTORE') {
-      moderationStatus = 'ACTIVE';
-      moderationAction = 'POST_RESTORED';
-      notificationTitle = 'Post Restored';
-      notificationMessage = `Your post "${post.title}" has been restored and is now visible again.`;
-    }
-
-    // Update post moderation status
-    const updatedPost = await this.prisma.communityPost.update({
-      where: { id },
-      data: {
-        moderationStatus,
-        moderatedById: adminId,
-        moderationReason: reason,
-        moderatedAt: new Date(),
-      },
-    });
-
-    // Create moderation history record
-    await this.prisma.moderationHistory.create({
-      data: {
-        postId: id,
-        teacherId: post.teacherId,
-        adminId,
-        action: moderationAction,
-        reason,
-      },
-    });
-
-    // Resolve related reports if post is removed/hidden
-    if (action === 'REMOVE' || action === 'HIDDEN') {
-      await this.prisma.communityReport.updateMany({
-        where: { postId: id, status: 'PENDING' },
-        data: {
-          status: 'RESOLVED',
-          reviewedById: adminId,
-          reviewedAt: new Date(),
-        },
-      });
-    }
-
-    // Send notification to post author
-    try {
-      await this.notificationService.create({
-        receiverId: post.teacherId,
-        title: notificationTitle,
-        message: notificationMessage,
-        type: NotificationEvent.SYSTEM,
-        referenceId: id,
-      });
-    } catch (error) {
-      // Log error but don't fail the moderation action
-      console.error('Failed to send notification:', error);
-    }
-
-    return updatedPost;
-  }
-
-  async getPostModerationHistory(postId: string) {
-    const history = await this.prisma.moderationHistory.findMany({
-      where: { postId },
-      include: {
-        post: {
-          select: {
-            title: true,
-          },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    return history;
-  }
-
-  async resolvePostReport(postId: string, reportId: string, adminId: string, action: 'RESOLVE' | 'DISMISS') {
-    const report = await this.prisma.communityReport.findUnique({
-      where: { id: reportId },
-    });
-    if (!report) throw new NotFoundException('Report not found');
-
-    const status = action === 'RESOLVE' ? 'RESOLVED' : 'DISMISSED';
-
-    const updatedReport = await this.prisma.communityReport.update({
-      where: { id: reportId },
-      data: {
-        status,
-        reviewedById: adminId,
-        reviewedAt: new Date(),
-      },
-    });
-
-    // Add moderation history
-    await this.prisma.moderationHistory.create({
-      data: {
-        postId: postId,
-        teacherId: report.teacherId, // Note: This logs the reporter, which is standard for tracking action taken on their report
-        adminId,
-        action: action === 'RESOLVE' ? 'REPORT_RESOLVED' : 'REPORT_DISMISSED',
-      },
-    });
-
-    return updatedReport;
-  }
+  // Post moderation (stats, listing, moderate, reports) lives in AdminPostsService.
 }

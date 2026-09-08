@@ -8,15 +8,15 @@ import {
 import { ApiProperty } from '@nestjs/swagger';
 
 export enum CommunityTypeDto {
-  SCHOOL   = 'SCHOOL',
-  WOREDA   = 'WOREDA',
-  ZONE     = 'ZONE',
-  REGION   = 'REGION',
+  SCHOOL = 'SCHOOL',
+  WOREDA = 'WOREDA',
+  ZONE = 'ZONE',
+  REGION = 'REGION',
   NATIONAL = 'NATIONAL',
 }
 
 export enum CommunitySubtypeDto {
-  COMMON     = 'COMMON',
+  COMMON = 'COMMON',
   DEPARTMENT = 'DEPARTMENT',
 }
 
@@ -70,6 +70,11 @@ export class CreateCommunityDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @ApiProperty({ required: false, default: true })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }
 
 export class UpdateCommunityDto {

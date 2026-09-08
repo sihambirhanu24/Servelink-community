@@ -1,5 +1,12 @@
 import { adminApi } from "@/lib/axios";
-import type { AdminDashboardData, TeachersResponse } from "@/types/admin";
+import type {
+  AdminDashboardData,
+  SuspensionHistoryItem,
+  SuspensionType,
+  Teacher,
+  TeacherStatus,
+  TeachersResponse,
+} from "@/types/admin";
 
 export async function getAdminDashboard(): Promise<AdminDashboardData> {
   const { data } = await adminApi.get<AdminDashboardData>("/admin/dashboard");
@@ -10,7 +17,7 @@ export async function getAdminTeachers(query?: {
   page?: number;
   pageSize?: number;
   search?: string;
-  status?: "ACTIVE" | "SUSPENDED";
+  status?: TeacherStatus;
   teacherLevel?: string;
   sortBy?: string;
   sortOrder?: "asc" | "desc";
@@ -27,13 +34,32 @@ export async function upgradeTeacher(teacherId: string, level: string) {
   return data;
 }
 
-export async function suspendTeacher(teacherId: string) {
-  const { data } = await adminApi.patch(`/admin/teachers/${teacherId}/suspend`);
+// ============ TEACHER SUSPENSION ============
+// All of these hit SuspensionService on the backend: the authoritative
+// Teacher.status is updated inside a transaction together with a
+// SuspensionHistory record, and every subsequent request made with the
+// teacher's existing JWT is rejected with 403 ACCOUNT_SUSPENDED.
+
+export interface SuspendTeacherInput {
+  suspensionType: SuspensionType;
+  reason: string;
+  /** Required for TEMPORARY suspensions. */
+  durationDays?: number;
+  reportId?: string;
+}
+
+export async function suspendTeacher(teacherId: string, input: SuspendTeacherInput): Promise<Teacher> {
+  const { data } = await adminApi.patch<Teacher>(`/admin/teachers/${teacherId}/suspend`, input);
   return data;
 }
 
-export async function activateTeacher(teacherId: string) {
-  const { data } = await adminApi.patch(`/admin/teachers/${teacherId}/activate`);
+export async function activateTeacher(teacherId: string, reason?: string): Promise<Teacher> {
+  const { data } = await adminApi.patch<Teacher>(`/admin/teachers/${teacherId}/activate`, reason ? { reason } : {});
+  return data;
+}
+
+export async function getTeacherSuspensionHistory(teacherId: string): Promise<SuspensionHistoryItem[]> {
+  const { data } = await adminApi.get<SuspensionHistoryItem[]>(`/admin/teachers/${teacherId}/suspension-history`);
   return data;
 }
 
@@ -67,8 +93,9 @@ export async function rejectMembership(id: string) {
 }
 
 // ============ POSTS ============
+// Prefer the typed helpers/hooks in services/admin-posts.ts; kept for backwards compatibility.
 export async function getAdminPosts(query?: any) {
-  const { data } = await adminApi.get("/posts", { params: query });
+  const { data } = await adminApi.get("/admin/posts", { params: query });
   return data;
 }
 
