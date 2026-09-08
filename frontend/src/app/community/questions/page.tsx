@@ -18,6 +18,7 @@ import { useAuth } from "@/context/AuthContext";
 import api from "@/lib/axios";
 import { toast } from "sonner";
 import type { QuestionFilter, QuestionSortKey } from "@/services/questions";
+import { TeacherSupportCard } from "@/components/support/TeacherSupportCard";
 import { stripHtml } from "@/lib/sanitize";
 import type { CommunityTypeKey } from "@/services/community";
 
@@ -496,23 +497,7 @@ export default function QuestionsPage() {
             <div className="space-y-6">
 
               {/* Teacher Support Card */}
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <div className="flex items-center gap-2 mb-2">
-                  <ShieldCheck className="h-5 w-5 text-[#043658]" />
-                  <h3 className="font-bold text-slate-800">Teacher Support</h3>
-                </div>
-                <p className="text-xs text-slate-500 mb-4 leading-relaxed">
-                  Connect with mentors or offer your expertise to peers in the network.
-                </p>
-                <div className="space-y-2">
-                  <button className="w-full rounded-xl bg-[#043658] py-2.5 text-xs font-semibold text-white shadow hover:bg-[#032742] transition-colors">
-                    Request Support
-                  </button>
-                  <button className="w-full rounded-xl border border-slate-200 bg-white py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
-                    Offer Support
-                  </button>
-                </div>
-              </div>
+              <TeacherSupportCard />
 
               {/* Top Contributors Card */}
               <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

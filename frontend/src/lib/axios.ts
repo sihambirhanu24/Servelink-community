@@ -112,3 +112,30 @@ adminApi.interceptors.response.use(
   }
 );
 
+
+// ─── Verified Teachers API ────────────────────────────────────────────────────
+
+export interface VerifiedTeacher {
+  id: string;
+  firstName: string;
+  lastName: string;
+  profileImage: string | null;
+  level: string;
+  department: string | null;
+  verified: boolean;
+}
+
+export async function getVerifiedTeachers(keyword?: string, limit = 20): Promise<VerifiedTeacher[]> {
+  const params = new URLSearchParams();
+  if (keyword) params.append('keyword', keyword);
+  params.append('limit', limit.toString());
+  
+  const { data } = await api.get<VerifiedTeacher[]>(`/search/verified-teachers?${params.toString()}`);
+  return data;
+}
+
+export async function createDirectConversation(targetTeacherId: string): Promise<{ chatRoomId: string; isNew: boolean }> {
+  const { data } = await api.post('/chat/conversations', { targetTeacherId });
+  return data;
+}
+
