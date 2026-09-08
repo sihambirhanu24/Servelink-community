@@ -215,6 +215,69 @@ export class ChatService {
     await Promise.all(ops);
   }
 
+  /**
+   * Ensure the global Discussion Room exists (idempotent).
+   * This is a single NETWORK/COMMON community accessible by all verified teachers.
+   */
+  async ensureDiscussionRoom(): Promise<void> {
+    // Check if Discussion Room already exists
+    let community = await this.prisma.community.findFirst({
+      where: {
+        type: CommunityType.NETWORK,
+        subtype: CommunitySubtype.COMMON,
+      },
+    });
+
+    if (!community) {
+      try {
+        community = await this.prisma.community.create({
+          data: {
+            type: CommunityType.NETWORK,
+            subtype: CommunitySubtype.COMMON,
+            name: 'Discussion Room',
+            description: 'For all verified teachers',
+            isActive: true,
+          },
+        });
+      } catch (e: any) {
+        // P2002 = unique constraint - concurrent creation
+        if (e.code === 'P2002') {
+          community = await this.prisma.community.findFirst({
+            where: {
+              type: CommunityType.NETWORK,
+              subtype: CommunitySubtype.COMMON,
+            },
+          });
+          if (!community) throw e;
+        } else {
+          throw e;
+        }
+      }
+    }
+
+    // Ensure chat room exists for Discussion Room
+    let chatRoom = await this.prisma.chatRoom.findUnique({
+      where: { communityId: community.id },
+    });
+    
+    if (!chatRoom) {
+      try {
+        chatRoom = await this.prisma.chatRoom.create({
+          data: { communityId: community.id },
+        });
+      } catch (e: any) {
+        if (e.code === 'P2002') {
+          chatRoom = await this.prisma.chatRoom.findUnique({
+            where: { communityId: community.id },
+          });
+          if (!chatRoom) throw e;
+        } else {
+          throw e;
+        }
+      }
+    }
+  }
+
   // ───────────────────────────────────────────────────────────────────────────
   // GET ACCESSIBLE CHAT GROUPS  (GET /chat/groups)
   // ───────────────────────────────────────────────────────────────────────────
@@ -230,6 +293,8 @@ export class ChatService {
    *   LEVEL_3 → up to 2:  Zone COMMON + Zone DEPARTMENT
    *   LEVEL_4 → up to 2:  Region COMMON + Region DEPARTMENT
    *   LEVEL_5 → up to 2:  National COMMON + National DEPARTMENT
+   *
+   * PLUS: All VERIFIED + ACTIVE teachers can access the global Discussion Room
    */
   async getAccessibleChatGroups(teacherId: string) {
     const teacher = await this.prisma.teacher.findUnique({
@@ -241,6 +306,9 @@ export class ChatService {
         zone: true,
         region: true,
         department: true,
+        verified: true,
+        verificationStatus: true,
+        status: true,
       },
     });
     if (!teacher) throw new NotFoundException('Teacher not found');
@@ -253,11 +321,17 @@ export class ChatService {
         zone: teacher.zone,
         woreda: teacher.woreda,
         region: teacher.region,
+        verified: teacher.verified,
+        verificationStatus: teacher.verificationStatus,
+        status: teacher.status,
       },
     );
 
     // Provision communities this teacher is entitled to (idempotent)
     await this.ensureTeacherCommunities(teacher);
+    
+    // Ensure global Discussion Room exists (idempotent)
+    await this.ensureDiscussionRoom();
 
     const clauses = this.accessibleCommunityClauses(teacher);
     console.log(`[ChatService] Access clauses count: ${clauses.length}`);
@@ -333,9 +407,11 @@ export class ChatService {
    * LEVEL_4 → REGION/COMMON + REGION/DEPARTMENT
    * LEVEL_5 → NATIONAL/COMMON + NATIONAL/DEPARTMENT
    *
+   * PLUS: All VERIFIED + ACTIVE teachers can access Discussion Room (NETWORK/COMMON)
+   *
    * Teachers see communities ONLY at their own level, not all levels below.
    */
-  private accessibleCommunityClauses(teacher: TeacherProfile): any[] {
+  private accessibleCommunityClauses(teacher: TeacherProfile & { verified: boolean; verificationStatus: string; status: string }): any[] {
     const rank = LEVEL_RANK[teacher.level] ?? 1;
     const clauses: any[] = [];
 
@@ -347,26 +423,37 @@ export class ChatService {
           school: { equals: teacher.school, mode: 'insensitive' as const },
         });
       }
-      return clauses;
+    } else {
+      const type = RANK_TO_TYPE[rank];
+      if (type) {
+        const geoClause = this.geoClauseForRank(rank, teacher);
+
+        // COMMON community
+        clauses.push({ type, subtype: CommunitySubtype.COMMON, ...geoClause });
+
+        // DEPARTMENT community — only if teacher has a department
+        if (teacher.department) {
+          clauses.push({
+            type,
+            subtype: CommunitySubtype.DEPARTMENT,
+            ...geoClause,
+            department: {
+              equals: teacher.department,
+              mode: 'insensitive' as const,
+            },
+          });
+        }
+      }
     }
 
-    const type = RANK_TO_TYPE[rank];
-    if (!type) return clauses;
-    const geoClause = this.geoClauseForRank(rank, teacher);
-
-    // COMMON community
-    clauses.push({ type, subtype: CommunitySubtype.COMMON, ...geoClause });
-
-    // DEPARTMENT community — only if teacher has a department
-    if (teacher.department) {
+    // NEW: Add global Discussion Room for VERIFIED + ACTIVE teachers
+    const isVerified = teacher.verified && teacher.verificationStatus === 'APPROVED';
+    const isActive = teacher.status === 'ACTIVE';
+    
+    if (isVerified && isActive) {
       clauses.push({
-        type,
-        subtype: CommunitySubtype.DEPARTMENT,
-        ...geoClause,
-        department: {
-          equals: teacher.department,
-          mode: 'insensitive' as const,
-        },
+        type: CommunityType.NETWORK,
+        subtype: CommunitySubtype.COMMON,
       });
     }
 

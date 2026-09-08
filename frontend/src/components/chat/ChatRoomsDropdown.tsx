@@ -73,6 +73,12 @@ export function ChatRoomsDropdown() {
   const handleRoomClick = (group: ChatGroup, e?: React.MouseEvent) => {
     if (!handleProtectedAction(e)) return;
     
+    // Handle Discussion Room (NETWORK type)
+    if (group.type === "NETWORK") {
+      router.push(`/community/type/network/chat`);
+      return;
+    }
+    
     // Navigate to the appropriate chat route based on community type and subtype
     const typeMap: Record<string, string> = {
       SCHOOL: "school",
@@ -100,11 +106,17 @@ export function ChatRoomsDropdown() {
       ZONE: "Zone",
       REGION: "Region",
       NATIONAL: "National",
+      NETWORK: "Discussion Room",
     };
     return labels[type] || type;
   };
 
   const getRoomDisplayName = (group: ChatGroup) => {
+    // Handle Discussion Room (NETWORK type)
+    if (group.type === "NETWORK") {
+      return "Discussion Room";
+    }
+    
     if (group.type === "SCHOOL") {
       return "School Chat";
     }
@@ -116,6 +128,11 @@ export function ChatRoomsDropdown() {
   };
 
   const getRoomDescription = (group: ChatGroup) => {
+    // Handle Discussion Room (NETWORK type)
+    if (group.type === "NETWORK") {
+      return group.description || "For all verified teachers";
+    }
+    
     if (group.type === "SCHOOL") {
       return "Your school community";
     }
@@ -300,8 +317,11 @@ export function ChatRoomsDropdown() {
                             items-center
                             justify-center
                             rounded-xl
+                            relative
                             ${
-                              group.subtype === "DEPARTMENT"
+                              group.type === "NETWORK"
+                                ? "bg-gradient-to-br from-purple-500 to-purple-600 shadow-md"
+                                : group.subtype === "DEPARTMENT"
                                 ? "bg-gradient-to-br from-[#FFC107] to-amber-400 shadow-md"
                                 : group.type === "SCHOOL"
                                 ? "bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-md"
@@ -311,12 +331,17 @@ export function ChatRoomsDropdown() {
                         >
                           <Users className="h-5 w-5 text-white" />
                           {/* Badge for type */}
-                          {group.subtype === "DEPARTMENT" && (
+                          {group.type === "NETWORK" && (
+                            <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-white text-[9px] font-bold text-purple-600 shadow-sm">
+                              💬
+                            </span>
+                          )}
+                          {group.subtype === "DEPARTMENT" && group.type !== "NETWORK" && (
                             <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-white text-[9px] font-bold text-[#FFC107] shadow-sm">
                               D
                             </span>
                           )}
-                          {group.subtype === "COMMON" && group.type !== "SCHOOL" && (
+                          {group.subtype === "COMMON" && group.type !== "SCHOOL" && group.type !== "NETWORK" && (
                             <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-white text-[9px] font-bold text-[#043658] shadow-sm">
                               C
                             </span>
