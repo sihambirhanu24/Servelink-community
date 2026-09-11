@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
-import { Settings, Bell, Lock, Globe, Users, Database, Mail, Shield, Save, X, Check } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Globe, Users, Shield, Save, X, Check, Loader2, AlertCircle } from 'lucide-react';
+import { toast } from 'sonner';
 import AdminLayout from '@/components/admin/layout';
 
 interface SettingSection {
@@ -11,173 +12,187 @@ interface SettingSection {
   icon: React.ReactNode;
 }
 
-interface Setting {
-  id: string;
-  label: string;
-  description?: string;
-  type: 'toggle' | 'input' | 'select' | 'textarea';
-  value: string | boolean;
-  options?: Array<{ label: string; value: string }>;
+interface PlatformSettings {
+  // General settings
+  platformName: string;
+  platformUrl: string;
+  supportEmail: string;
+  timezone: string;
+  // Security settings
+  sessionTimeout: number;
+  strongPasswordRequired: boolean;
+  twoFactorEnabled: boolean;
+  maxLoginAttempts: number;
+  // Moderation settings
+  autoFlagSpam: boolean;
+  spamThreshold: string;
+  profanityFilter: boolean;
+  requirePostApproval: boolean;
 }
 
 const settingSections: SettingSection[] = [
   { id: 'general', title: 'General Settings', description: 'Platform name, logo, and basic configuration', icon: <Globe className="h-5 w-5" /> },
-  { id: 'notifications', title: 'Notification Settings', description: 'Email and notification preferences', icon: <Bell className="h-5 w-5" /> },
   { id: 'security', title: 'Security Settings', description: 'Authentication and access control', icon: <Shield className="h-5 w-5" /> },
   { id: 'moderation', title: 'Moderation Settings', description: 'Content moderation policies and filters', icon: <Users className="h-5 w-5" /> },
-  { id: 'email', title: 'Email Configuration', description: 'SMTP and email delivery settings', icon: <Mail className="h-5 w-5" /> },
-  { id: 'backup', title: 'Backup & Database', description: 'Data backup and database management', icon: <Database className="h-5 w-5" /> },
 ];
 
-const settingsData: Record<string, Setting[]> = {
-  general: [
-    { id: 'platform-name', label: 'Platform Name', type: 'input', value: 'ServeLink' },
-    { id: 'platform-url', label: 'Platform URL', type: 'input', value: 'https://servelink.edu' },
-    { id: 'support-email', label: 'Support Email', type: 'input', value: 'support@servelink.edu' },
-    { id: 'timezone', label: 'Default Timezone', type: 'select', value: 'UTC', options: [
-      { label: 'UTC', value: 'UTC' },
-      { label: 'EST', value: 'EST' },
-      { label: 'CST', value: 'CST' },
-      { label: 'PST', value: 'PST' },
-    ]},
-  ],
-  notifications: [
-    { id: 'email-notifications', label: 'Email Notifications', description: 'Send email alerts to admins', type: 'toggle', value: true },
-    { id: 'digest-emails', label: 'Digest Emails', description: 'Enable weekly digest emails', type: 'toggle', value: true },
-    { id: 'report-alerts', label: 'Report Alerts', description: 'Notify on new content reports', type: 'toggle', value: true },
-    { id: 'digest-day', label: 'Digest Email Day', type: 'select', value: 'monday', options: [
-      { label: 'Monday', value: 'monday' },
-      { label: 'Wednesday', value: 'wednesday' },
-      { label: 'Friday', value: 'friday' },
-    ]},
-  ],
-  security: [
-    { id: 'require-2fa', label: 'Require Two-Factor Auth', description: 'Enforce 2FA for all admins', type: 'toggle', value: true },
-    { id: 'session-timeout', label: 'Session Timeout (minutes)', type: 'input', value: '30' },
-    { id: 'password-expiry', label: 'Password Expiry (days)', type: 'input', value: '90' },
-    { id: 'ip-whitelist', label: 'IP Whitelist', description: 'Enable IP restriction for admin access', type: 'toggle', value: false },
-  ],
-  moderation: [
-    { id: 'auto-flag-spam', label: 'Auto-flag Spam', description: 'Automatically flag suspected spam posts', type: 'toggle', value: true },
-    { id: 'spam-threshold', label: 'Spam Detection Threshold', type: 'select', value: 'medium', options: [
-      { label: 'Low', value: 'low' },
-      { label: 'Medium', value: 'medium' },
-      { label: 'High', value: 'high' },
-    ]},
-    { id: 'profanity-filter', label: 'Profanity Filter', description: 'Enable content filter', type: 'toggle', value: true },
-    { id: 'require-approval', label: 'Require Post Approval', description: 'New user posts need approval', type: 'toggle', value: false },
-  ],
-  email: [
-    { id: 'smtp-host', label: 'SMTP Host', type: 'input', value: 'smtp.gmail.com' },
-    { id: 'smtp-port', label: 'SMTP Port', type: 'input', value: '587' },
-    { id: 'smtp-user', label: 'SMTP Username', type: 'input', value: 'admin@servelink.edu' },
-    { id: 'from-name', label: 'From Name', type: 'input', value: 'ServeLink Admin' },
-  ],
-  backup: [
-    { id: 'auto-backup', label: 'Automatic Backups', description: 'Enable automatic daily backups', type: 'toggle', value: true },
-    { id: 'backup-frequency', label: 'Backup Frequency', type: 'select', value: 'daily', options: [
-      { label: 'Daily', value: 'daily' },
-      { label: 'Weekly', value: 'weekly' },
-      { label: 'Monthly', value: 'monthly' },
-    ]},
-    { id: 'backup-retention', label: 'Backup Retention (days)', type: 'input', value: '30' },
-  ],
-};
+const timezones = [
+  { label: 'UTC', value: 'UTC' },
+  { label: 'Africa/Addis_Ababa (EAT)', value: 'Africa/Addis_Ababa' },
+  { label: 'EST (UTC-5)', value: 'EST' },
+  { label: 'CST (UTC-6)', value: 'CST' },
+  { label: 'PST (UTC-8)', value: 'PST' },
+];
+
+const sessionTimeoutOptions = [
+  { label: '15 minutes', value: 15 },
+  { label: '30 minutes', value: 30 },
+  { label: '1 hour', value: 60 },
+  { label: '4 hours', value: 240 },
+];
 
 export default function AdminSettingsPage() {
   const [activeTab, setActiveTab] = useState('general');
-  const [settings, setSettings] = useState(settingsData);
+  const [settings, setSettings] = useState<PlatformSettings | null>(null);
+  const [originalSettings, setOriginalSettings] = useState<PlatformSettings | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
-  const [showSaved, setShowSaved] = useState(false);
+  const [error, setError] = useState('');
 
-  const currentSettings = settings[activeTab] || [];
+  // Fetch settings on mount
+  useEffect(() => {
+    fetchSettings();
+  }, []);
 
-  const handleSettingChange = (settingId: string, value: string | boolean) => {
-    setSettings((prev) => ({
-      ...prev,
-      [activeTab]: prev[activeTab].map((s) => (s.id === settingId ? { ...s, value } : s)),
-    }));
-    setHasChanges(true);
-  };
-
-  const handleSave = () => {
-    setShowSaved(true);
-    setHasChanges(false);
-    setTimeout(() => setShowSaved(false), 3000);
-  };
-
-  const renderSetting = (setting: Setting) => {
-    switch (setting.type) {
-      case 'toggle':
-        return (
-          <div key={setting.id} className="flex items-center justify-between p-4 rounded-lg border border-[#E8EEF3] hover:bg-[#F8FAFC] transition-colors">
-            <div>
-              <p className="text-sm font-semibold text-[#043658]">{setting.label}</p>
-              {setting.description && <p className="text-xs text-[#6B7C93] mt-1">{setting.description}</p>}
-            </div>
-            <button
-              onClick={() => handleSettingChange(setting.id, !setting.value)}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                setting.value ? 'bg-[#043658]' : 'bg-[#D9E2EC]'
-              }`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  setting.value ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
-          </div>
-        );
-
-      case 'input':
-        return (
-          <div key={setting.id} className="p-4 rounded-lg border border-[#E8EEF3]">
-            <label className="text-sm font-semibold text-[#043658] block mb-2">{setting.label}</label>
-            <input
-              type="text"
-              value={setting.value as string}
-              onChange={(e) => handleSettingChange(setting.id, e.target.value)}
-              className="w-full px-3 py-2.5 rounded-lg border border-[#D9E2EC] bg-white text-sm text-[#043658] placeholder:text-[#6B7C93] outline-none focus:border-[#043658]/40"
-            />
-          </div>
-        );
-
-      case 'select':
-        return (
-          <div key={setting.id} className="p-4 rounded-lg border border-[#E8EEF3]">
-            <label className="text-sm font-semibold text-[#043658] block mb-2">{setting.label}</label>
-            <select
-              value={setting.value as string}
-              onChange={(e) => handleSettingChange(setting.id, e.target.value)}
-              className="w-full px-3 py-2.5 rounded-lg border border-[#D9E2EC] bg-white text-sm text-[#043658] outline-none focus:border-[#043658]/40"
-            >
-              {setting.options?.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        );
-
-      case 'textarea':
-        return (
-          <div key={setting.id} className="p-4 rounded-lg border border-[#E8EEF3]">
-            <label className="text-sm font-semibold text-[#043658] block mb-2">{setting.label}</label>
-            <textarea
-              value={setting.value as string}
-              onChange={(e) => handleSettingChange(setting.id, e.target.value)}
-              rows={4}
-              className="w-full px-3 py-2.5 rounded-lg border border-[#D9E2EC] bg-white text-sm text-[#043658] placeholder:text-[#6B7C93] outline-none focus:border-[#043658]/40 resize-none"
-            />
-          </div>
-        );
-
-      default:
-        return null;
+  const fetchSettings = async () => {
+    try {
+      setIsLoading(true);
+      setError('');
+      const token = localStorage.getItem('admin_token');
+      const res = await fetch('http://localhost:5000/api/admin/settings', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('Failed to load settings');
+      const data = await res.json();
+      setSettings(data);
+      setOriginalSettings(data);
+    } catch (err: any) {
+      console.error('Failed to fetch settings:', err);
+      setError('Failed to load settings. Please try again.');
+      toast.error('Failed to load settings');
+    } finally {
+      setIsLoading(false);
     }
   };
+
+  const handleChange = (field: keyof PlatformSettings, value: any) => {
+    if (!settings) return;
+    const newSettings = { ...settings, [field]: value };
+    setSettings(newSettings);
+    setHasChanges(JSON.stringify(newSettings) !== JSON.stringify(originalSettings));
+  };
+
+  const handleSave = async () => {
+    if (!settings || !hasChanges) return;
+
+    try {
+      setIsSaving(true);
+      const token = localStorage.getItem('admin_token');
+      
+      let endpoint = '';
+      let payload: any = {};
+
+      if (activeTab === 'general') {
+        endpoint = 'http://localhost:5000/api/admin/settings/general';
+        payload = {
+          platformName: settings.platformName,
+          platformUrl: settings.platformUrl,
+          supportEmail: settings.supportEmail,
+          timezone: settings.timezone,
+        };
+      } else if (activeTab === 'security') {
+        endpoint = 'http://localhost:5000/api/admin/settings/security';
+        payload = {
+          sessionTimeout: settings.sessionTimeout,
+          strongPasswordRequired: settings.strongPasswordRequired,
+          maxLoginAttempts: settings.maxLoginAttempts,
+        };
+      } else if (activeTab === 'moderation') {
+        endpoint = 'http://localhost:5000/api/admin/settings/moderation';
+        payload = {
+          autoFlagSpam: settings.autoFlagSpam,
+          spamThreshold: settings.spamThreshold,
+          profanityFilter: settings.profanityFilter,
+          requirePostApproval: settings.requirePostApproval,
+        };
+      }
+
+      const res = await fetch(endpoint, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      console.log('Settings save response:', res.status, res.statusText);
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ message: 'Failed to save settings' }));
+        console.error('Settings save error:', errorData);
+        throw new Error(errorData.message || 'Failed to save settings');
+      }
+
+      const updatedData = await res.json();
+      setSettings(updatedData);
+      setOriginalSettings(updatedData);
+      setHasChanges(false);
+      toast.success('Settings saved successfully!');
+    } catch (err: any) {
+      console.error('Failed to save settings:', err);
+      toast.error(err.message || 'Failed to save settings');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCancel = () => {
+    if (originalSettings) {
+      setSettings(originalSettings);
+      setHasChanges(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <AdminLayout>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <Loader2 className="h-8 w-8 animate-spin text-[#043658]" />
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  if (error && !settings) {
+    return (
+      <AdminLayout>
+        <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+          <AlertCircle className="h-12 w-12 text-red-600" />
+          <p className="text-lg font-semibold text-[#043658]">{error}</p>
+          <button
+            onClick={fetchSettings}
+            className="rounded-lg bg-[#043658] px-6 py-2.5 text-sm font-semibold text-white hover:bg-[#05456F] transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  if (!settings) return null;
 
   return (
     <AdminLayout>
@@ -187,14 +202,6 @@ export default function AdminSettingsPage() {
           <h1 className="text-3xl font-bold text-[#043658]">Settings</h1>
           <p className="mt-1 text-sm text-[#6B7C93]">Configure platform settings and preferences.</p>
         </div>
-
-        {/* Success Notification */}
-        {showSaved && (
-          <div className="flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3">
-            <Check className="h-5 w-5 text-green-700 shrink-0" />
-            <p className="text-sm font-semibold text-green-700">Settings saved successfully</p>
-          </div>
-        )}
 
         {/* Settings Layout */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
@@ -243,13 +250,217 @@ export default function AdminSettingsPage() {
 
               {/* Settings List */}
               <div className="space-y-4 mb-6">
-                {currentSettings.map((setting) => renderSetting(setting))}
+                {activeTab === 'general' && (
+                  <>
+                    {/* Platform Name */}
+                    <div className="p-4 rounded-lg border border-[#E8EEF3]">
+                      <label className="text-sm font-semibold text-[#043658] block mb-2">Platform Name</label>
+                      <input
+                        type="text"
+                        value={settings.platformName}
+                        onChange={(e) => handleChange('platformName', e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-lg border border-[#D9E2EC] bg-white text-sm text-[#043658] placeholder:text-[#6B7C93] outline-none focus:border-[#043658]/40"
+                      />
+                    </div>
+
+                    {/* Platform URL */}
+                    <div className="p-4 rounded-lg border border-[#E8EEF3]">
+                      <label className="text-sm font-semibold text-[#043658] block mb-2">Platform URL</label>
+                      <input
+                        type="url"
+                        value={settings.platformUrl}
+                        onChange={(e) => handleChange('platformUrl', e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-lg border border-[#D9E2EC] bg-white text-sm text-[#043658] placeholder:text-[#6B7C93] outline-none focus:border-[#043658]/40"
+                      />
+                    </div>
+
+                    {/* Support Email */}
+                    <div className="p-4 rounded-lg border border-[#E8EEF3]">
+                      <label className="text-sm font-semibold text-[#043658] block mb-2">Support Email</label>
+                      <input
+                        type="email"
+                        value={settings.supportEmail}
+                        onChange={(e) => handleChange('supportEmail', e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-lg border border-[#D9E2EC] bg-white text-sm text-[#043658] placeholder:text-[#6B7C93] outline-none focus:border-[#043658]/40"
+                      />
+                    </div>
+
+                    {/* Default Timezone */}
+                    <div className="p-4 rounded-lg border border-[#E8EEF3]">
+                      <label className="text-sm font-semibold text-[#043658] block mb-2">Default Timezone</label>
+                      <select
+                        value={settings.timezone}
+                        onChange={(e) => handleChange('timezone', e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-lg border border-[#D9E2EC] bg-white text-sm text-[#043658] outline-none focus:border-[#043658]/40"
+                      >
+                        {timezones.map((tz) => (
+                          <option key={tz.value} value={tz.value}>
+                            {tz.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </>
+                )}
+
+                {activeTab === 'security' && (
+                  <>
+                    {/* Session Timeout */}
+                    <div className="p-4 rounded-lg border border-[#E8EEF3]">
+                      <label className="text-sm font-semibold text-[#043658] block mb-2">Session Timeout</label>
+                      <select
+                        value={settings.sessionTimeout}
+                        onChange={(e) => handleChange('sessionTimeout', Number(e.target.value))}
+                        className="w-full px-3 py-2.5 rounded-lg border border-[#D9E2EC] bg-white text-sm text-[#043658] outline-none focus:border-[#043658]/40"
+                      >
+                        {sessionTimeoutOptions.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Strong Password Requirement */}
+                    <div className="flex items-center justify-between p-4 rounded-lg border border-[#E8EEF3] hover:bg-[#F8FAFC] transition-colors">
+                      <div>
+                        <p className="text-sm font-semibold text-[#043658]">Require Strong Passwords</p>
+                        <p className="text-xs text-[#6B7C93] mt-1">Enforce strong password requirements for all users</p>
+                      </div>
+                      <button
+                        onClick={() => handleChange('strongPasswordRequired', !settings.strongPasswordRequired)}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          settings.strongPasswordRequired ? 'bg-[#043658]' : 'bg-[#D9E2EC]'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                            settings.strongPasswordRequired ? 'translate-x-6' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
+                    </div>
+
+                    {/* Max Login Attempts */}
+                    <div className="p-4 rounded-lg border border-[#E8EEF3]">
+                      <label className="text-sm font-semibold text-[#043658] block mb-2">Max Login Attempts</label>
+                      <input
+                        type="number"
+                        min="3"
+                        max="10"
+                        value={settings.maxLoginAttempts}
+                        onChange={(e) => handleChange('maxLoginAttempts', Number(e.target.value))}
+                        className="w-full px-3 py-2.5 rounded-lg border border-[#D9E2EC] bg-white text-sm text-[#043658] placeholder:text-[#6B7C93] outline-none focus:border-[#043658]/40"
+                      />
+                      <p className="text-xs text-[#6B7C93] mt-1">Number of failed login attempts before account is locked</p>
+                    </div>
+
+                    {/* Two-Factor Authentication Status */}
+                    <div className="p-4 rounded-lg border border-[#E8EEF3] bg-[#F8FAFC]">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-semibold text-[#043658]">Two-Factor Authentication</p>
+                          <p className="text-xs text-[#6B7C93] mt-1">
+                            Status: {settings.twoFactorEnabled ? 'Enabled' : 'Not Configured'}
+                          </p>
+                        </div>
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${settings.twoFactorEnabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                          {settings.twoFactorEnabled ? 'Active' : 'Disabled'}
+                        </span>
+                      </div>
+                      {!settings.twoFactorEnabled && (
+                        <p className="text-xs text-[#6B7C93] mt-3">
+                          Two-factor authentication is not currently configured for the platform. This feature requires additional setup.
+                        </p>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {activeTab === 'moderation' && (
+                  <>
+                    {/* Auto-flag Spam */}
+                    <div className="flex items-center justify-between p-4 rounded-lg border border-[#E8EEF3] hover:bg-[#F8FAFC] transition-colors">
+                      <div>
+                        <p className="text-sm font-semibold text-[#043658]">Auto-flag Spam</p>
+                        <p className="text-xs text-[#6B7C93] mt-1">Automatically flag suspected spam posts</p>
+                      </div>
+                      <button
+                        onClick={() => handleChange('autoFlagSpam', !settings.autoFlagSpam)}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          settings.autoFlagSpam ? 'bg-[#043658]' : 'bg-[#D9E2EC]'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                            settings.autoFlagSpam ? 'translate-x-6' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
+                    </div>
+
+                    {/* Spam Detection Threshold */}
+                    <div className="p-4 rounded-lg border border-[#E8EEF3]">
+                      <label className="text-sm font-semibold text-[#043658] block mb-2">Spam Detection Threshold</label>
+                      <select
+                        value={settings.spamThreshold}
+                        onChange={(e) => handleChange('spamThreshold', e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-lg border border-[#D9E2EC] bg-white text-sm text-[#043658] outline-none focus:border-[#043658]/40"
+                      >
+                        <option value="low">Low - More sensitive</option>
+                        <option value="medium">Medium - Balanced</option>
+                        <option value="high">High - Less sensitive</option>
+                      </select>
+                    </div>
+
+                    {/* Profanity Filter */}
+                    <div className="flex items-center justify-between p-4 rounded-lg border border-[#E8EEF3] hover:bg-[#F8FAFC] transition-colors">
+                      <div>
+                        <p className="text-sm font-semibold text-[#043658]">Profanity Filter</p>
+                        <p className="text-xs text-[#6B7C93] mt-1">Enable content filter for inappropriate language</p>
+                      </div>
+                      <button
+                        onClick={() => handleChange('profanityFilter', !settings.profanityFilter)}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          settings.profanityFilter ? 'bg-[#043658]' : 'bg-[#D9E2EC]'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                            settings.profanityFilter ? 'translate-x-6' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
+                    </div>
+
+                    {/* Require Post Approval */}
+                    <div className="flex items-center justify-between p-4 rounded-lg border border-[#E8EEF3] hover:bg-[#F8FAFC] transition-colors">
+                      <div>
+                        <p className="text-sm font-semibold text-[#043658]">Require Post Approval</p>
+                        <p className="text-xs text-[#6B7C93] mt-1">New user posts need admin approval before going live</p>
+                      </div>
+                      <button
+                        onClick={() => handleChange('requirePostApproval', !settings.requirePostApproval)}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          settings.requirePostApproval ? 'bg-[#043658]' : 'bg-[#D9E2EC]'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                            settings.requirePostApproval ? 'translate-x-6' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Action Buttons */}
               <div className="flex items-center justify-between pt-6 border-t border-[#E8EEF3]">
                 <button
-                  disabled={!hasChanges}
+                  onClick={handleCancel}
+                  disabled={!hasChanges || isSaving}
                   className="flex items-center gap-2 rounded-lg border border-[#D9E2EC] px-4 py-2.5 text-sm font-semibold text-[#043658] hover:bg-[#F8FAFC] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <X className="h-4 w-4" />
@@ -257,11 +468,20 @@ export default function AdminSettingsPage() {
                 </button>
                 <button
                   onClick={handleSave}
-                  disabled={!hasChanges}
+                  disabled={!hasChanges || isSaving}
                   className="flex items-center gap-2 rounded-lg bg-[#043658] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#05456F] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <Save className="h-4 w-4" />
-                  Save Changes
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4" />
+                      Save Changes
+                    </>
+                  )}
                 </button>
               </div>
             </div>
@@ -286,11 +506,11 @@ export default function AdminSettingsPage() {
             </div>
             <div className="p-4 rounded-lg bg-[#F8FAFC] border border-[#E8EEF3]">
               <p className="text-xs text-[#6B7C93] font-semibold mb-1">Last Updated</p>
-              <p className="text-lg font-bold text-[#043658]">Aug 12, 2026</p>
+              <p className="text-lg font-bold text-[#043658]">Aug 17, 2026</p>
             </div>
             <div className="p-4 rounded-lg bg-[#F8FAFC] border border-[#E8EEF3]">
-              <p className="text-xs text-[#6B7C93] font-semibold mb-1">Database Size</p>
-              <p className="text-lg font-bold text-[#043658]">2.4 GB</p>
+              <p className="text-xs text-[#6B7C93] font-semibold mb-1">Current Timezone</p>
+              <p className="text-lg font-bold text-[#043658]">{settings.timezone}</p>
             </div>
             <div className="p-4 rounded-lg bg-[#F8FAFC] border border-[#E8EEF3]">
               <p className="text-xs text-[#6B7C93] font-semibold mb-1">API Status</p>

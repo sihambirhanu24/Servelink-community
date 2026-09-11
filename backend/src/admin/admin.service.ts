@@ -2,7 +2,10 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  BadRequestException,
+  UnauthorizedException,
 } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { TeacherProgressService } from '../progress/teacher-progress.service';
@@ -961,4 +964,498 @@ export class AdminService {
   }
 
   // Post moderation (stats, listing, moderate, reports) lives in AdminPostsService.
+
+  /**
+   * Get admin profile by ID
+   */
+  async getAdminProfile(adminId: string) {
+    const admin = await this.prisma.admin.findUnique({
+      where: { id: adminId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    if (!admin) {
+      throw new NotFoundException('Admin not found');
+    }
+
+    return admin;
+  }
+
+  /**
+   * Update admin profile
+   */
+  async updateAdminProfile(adminId: string, data: { name?: string; email?: string }) {
+    // Check if email is being changed to one that already exists
+    if (data.email) {
+      const existingAdmin = await this.prisma.admin.findFirst({
+        where: {
+          email: data.email,
+          NOT: { id: adminId },
+        },
+      });
+
+      if (existingAdmin) {
+        throw new BadRequestException('Email already in use');
+      }
+    }
+
+    return this.prisma.admin.update({
+      where: { id: adminId },
+      data,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+  }
+
+  /**
+   * Change admin password
+   */
+  async changePassword(adminId: string, currentPassword: string, newPassword: string) {
+    const admin = await this.prisma.admin.findUnique({
+      where: { id: adminId },
+    });
+
+    if (!admin) {
+      throw new NotFoundException('Admin not found');
+    }
+
+    // Verify current password
+    const isPasswordValid = await bcrypt.compare(currentPassword, admin.password);
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update password
+    await this.prisma.admin.update({
+      where: { id: adminId },
+      data: { password: hashedPassword },
+    });
+
+    return { message: 'Password changed successfully' };
+  }
+
+  // ─── Platform Settings Management ─────────────────────────────────────────
+
+  /**
+   * Get platform settings (creates default if not exists)
+   */
+  async getSettings() {
+    let settings = await this.prisma.platformSettings.findFirst();
+    
+    if (!settings) {
+      // Create default settings if none exist
+      settings = await this.prisma.platformSettings.create({
+        data: {},
+      });
+    }
+
+    // Exclude sensitive fields from response
+    const { chapaPublicKey, chapaSecretKey, ...safeSettings } = settings;
+    return safeSettings;
+  }
+
+  /**
+   * Update general settings
+   */
+  async updateGeneralSettings(data: {
+    platformName?: string;
+    platformUrl?: string;
+    supportEmail?: string;
+    timezone?: string;
+  }) {
+    let settings = await this.prisma.platformSettings.findFirst();
+    
+    if (!settings) {
+      settings = await this.prisma.platformSettings.create({
+        data: {},
+      });
+    }
+
+    const updated = await this.prisma.platformSettings.update({
+      where: { id: settings.id },
+      data,
+    });
+
+    const { chapaPublicKey, chapaSecretKey, ...safeSettings } = updated;
+    return safeSettings;
+  }
+
+  /**
+   * Update security settings
+   */
+  async updateSecuritySettings(data: {
+    sessionTimeout?: number;
+    strongPasswordRequired?: boolean;
+    maxLoginAttempts?: number;
+  }) {
+    let settings = await this.prisma.platformSettings.findFirst();
+    
+    if (!settings) {
+      settings = await this.prisma.platformSettings.create({
+        data: {},
+      });
+    }
+
+    const updated = await this.prisma.platformSettings.update({
+      where: { id: settings.id },
+      data,
+    });
+
+    const { chapaPublicKey, chapaSecretKey, ...safeSettings } = updated;
+    return safeSettings;
+  }
+
+  /**
+   * Update moderation settings
+   */
+  async updateModerationSettings(data: {
+    autoFlagSpam?: boolean;
+    spamThreshold?: string;
+    profanityFilter?: boolean;
+    requirePostApproval?: boolean;
+  }) {
+    let settings = await this.prisma.platformSettings.findFirst();
+    
+    if (!settings) {
+      settings = await this.prisma.platformSettings.create({
+        data: {},
+      });
+    }
+
+    const updated = await this.prisma.platformSettings.update({
+      where: { id: settings.id },
+      data,
+    });
+
+    const { chapaPublicKey, chapaSecretKey, ...safeSettings } = updated;
+    return safeSettings;
+  }
+
+  // ─── Platform Analytics ─────────────────────────────────────────────────
+
+  /**
+   * Get comprehensive platform analytics
+   */
+  async getAnalytics(range: string = '30d') {
+    const now = new Date();
+    let startDate: Date;
+    let previousStartDate: Date;
+    let groupByFormat: 'day' | 'week' | 'month' = 'day';
+
+    // Determine date range
+    switch (range) {
+      case '7d':
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        previousStartDate = new Date(startDate.getTime() - 7 * 24 * 60 * 60 * 1000);
+        groupByFormat = 'day';
+        break;
+      case '90d':
+        startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+        previousStartDate = new Date(startDate.getTime() - 90 * 24 * 60 * 60 * 1000);
+        groupByFormat = 'week';
+        break;
+      case '6m':
+        startDate = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000);
+        previousStartDate = new Date(startDate.getTime() - 180 * 24 * 60 * 60 * 1000);
+        groupByFormat = 'month';
+        break;
+      case '1y':
+        startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+        previousStartDate = new Date(startDate.getTime() - 365 * 24 * 60 * 60 * 1000);
+        groupByFormat = 'month';
+        break;
+      default: // '30d'
+        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        previousStartDate = new Date(startDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+        groupByFormat = 'day';
+    }
+
+    // Run all queries in parallel for performance
+    const [
+      totalTeachers,
+      previousTotalTeachers,
+      activeCommunities,
+      previousActiveCommunities,
+      totalPosts,
+      previousTotalPosts,
+      totalLikes,
+      totalComments,
+      totalBookmarks,
+      teacherRegistrations,
+      postsCreated,
+      likesData,
+      commentsData,
+      bookmarksData,
+      communityTypes,
+    ] = await Promise.all([
+      // Current period teachers
+      this.prisma.teacher.count({
+        where: { createdAt: { lte: now } },
+      }),
+      // Previous period teachers
+      this.prisma.teacher.count({
+        where: { createdAt: { lte: startDate } },
+      }),
+      // Current active communities
+      this.prisma.community.count({
+        where: { isActive: true },
+      }),
+      // Previous active communities (approximate)
+      this.prisma.community.count({
+        where: {
+          isActive: true,
+          createdAt: { lte: startDate },
+        },
+      }),
+      // Current posts
+      this.prisma.communityPost.count({
+        where: { createdAt: { lte: now } },
+      }),
+      // Previous posts
+      this.prisma.communityPost.count({
+        where: { createdAt: { lte: startDate } },
+      }),
+      // Total engagement metrics
+      this.prisma.communityLike.count(),
+      this.prisma.communityComment.count(),
+      this.prisma.communityBookmark.count(),
+      // Teacher registrations over time
+      this.prisma.teacher.findMany({
+        where: { createdAt: { gte: startDate } },
+        select: { createdAt: true },
+        orderBy: { createdAt: 'asc' },
+      }),
+      // Posts created over time
+      this.prisma.communityPost.findMany({
+        where: { createdAt: { gte: startDate } },
+        select: { createdAt: true },
+        orderBy: { createdAt: 'asc' },
+      }),
+      // Likes over time
+      this.prisma.communityLike.findMany({
+        where: { createdAt: { gte: startDate } },
+        select: { createdAt: true },
+      }),
+      // Comments over time
+      this.prisma.communityComment.findMany({
+        where: { createdAt: { gte: startDate } },
+        select: { createdAt: true },
+      }),
+      // Bookmarks over time
+      this.prisma.communityBookmark.findMany({
+        where: { createdAt: { gte: startDate } },
+        select: { createdAt: true },
+      }),
+      // Community distribution by type
+      this.prisma.community.groupBy({
+        by: ['type'],
+        _count: true,
+      }),
+    ]);
+
+    // Calculate percentage changes
+    const teacherChange = previousTotalTeachers > 0
+      ? ((totalTeachers - previousTotalTeachers) / previousTotalTeachers) * 100
+      : 0;
+
+    const communityChange = previousActiveCommunities > 0
+      ? ((activeCommunities - previousActiveCommunities) / previousActiveCommunities) * 100
+      : 0;
+
+    const postChange = previousTotalPosts > 0
+      ? ((totalPosts - previousTotalPosts) / previousTotalPosts) * 100
+      : 0;
+
+    // Calculate engagement
+    const totalEngagement = totalLikes + totalComments + totalBookmarks;
+    const avgEngagement = totalPosts > 0 ? (totalEngagement / totalPosts) : 0;
+
+    // Group data by period
+    const registrationGroups = this.groupByPeriod(
+      teacherRegistrations,
+      groupByFormat,
+      startDate,
+      now,
+    );
+
+    const postGroups = this.groupByPeriod(
+      postsCreated,
+      groupByFormat,
+      startDate,
+      now,
+    );
+
+    // Group engagement data
+    const engagementGroups = this.groupEngagementByPeriod(
+      [...likesData, ...commentsData, ...bookmarksData],
+      groupByFormat,
+      startDate,
+      now,
+    );
+
+    // Combine chart data
+    const chartData = registrationGroups.map((reg, index) => ({
+      date: reg.name,
+      teachers: reg.value,
+      posts: postGroups[index]?.value || 0,
+      engagement: engagementGroups[index]?.value || 0,
+    }));
+
+    // Calculate community type percentages
+    const totalCommunities = communityTypes.reduce((sum, ct) => sum + ct._count, 0);
+    const communityCategories = communityTypes.map((ct) => ({
+      name: this.formatCommunityType(ct.type),
+      count: ct._count,
+      percentage: totalCommunities > 0 ? ((ct._count / totalCommunities) * 100).toFixed(1) : '0',
+    }));
+
+    return {
+      overview: {
+        totalTeachers,
+        teacherChange: Number(teacherChange.toFixed(1)),
+        activeCommunities,
+        communityChange: Number(communityChange.toFixed(1)),
+        totalPosts,
+        postChange: Number(postChange.toFixed(1)),
+        avgEngagement: Number(avgEngagement.toFixed(2)),
+        engagementChange: 0, // Would need historical data to calculate
+      },
+      engagement: {
+        likes: totalLikes,
+        comments: totalComments,
+        bookmarks: totalBookmarks,
+        total: totalEngagement,
+        likesPercentage: totalEngagement > 0 ? ((totalLikes / totalEngagement) * 100).toFixed(0) : '0',
+        commentsPercentage: totalEngagement > 0 ? ((totalComments / totalEngagement) * 100).toFixed(0) : '0',
+        bookmarksPercentage: totalEngagement > 0 ? ((totalBookmarks / totalEngagement) * 100).toFixed(0) : '0',
+      },
+      teacherGrowth: registrationGroups,
+      communityCategories,
+      chartData, // NEW: Chart data for the graph
+      range,
+    };
+  }
+
+  /**
+   * Group engagement data by period
+   */
+  private groupEngagementByPeriod(
+    data: { createdAt: Date }[],
+    format: 'day' | 'week' | 'month',
+    startDate: Date,
+    endDate: Date,
+  ) {
+    const groups = new Map<string, number>();
+
+    // Initialize all periods with 0
+    const current = new Date(startDate);
+    while (current <= endDate) {
+      const key = this.formatPeriodKey(current, format);
+      groups.set(key, 0);
+
+      // Move to next period
+      if (format === 'day') {
+        current.setDate(current.getDate() + 1);
+      } else if (format === 'week') {
+        current.setDate(current.getDate() + 7);
+      } else {
+        current.setMonth(current.getMonth() + 1);
+      }
+    }
+
+    // Count actual engagement
+    data.forEach((item) => {
+      const key = this.formatPeriodKey(item.createdAt, format);
+      groups.set(key, (groups.get(key) || 0) + 1);
+    });
+
+    // Convert to array
+    return Array.from(groups.entries()).map(([name, value]) => ({
+      name,
+      value,
+    }));
+  }
+
+  /**
+   * Group data by period (day, week, month)
+   */
+  private groupByPeriod(
+    data: { createdAt: Date }[],
+    format: 'day' | 'week' | 'month',
+    startDate: Date,
+    endDate: Date,
+  ) {
+    const groups = new Map<string, number>();
+
+    // Initialize all periods with 0
+    const current = new Date(startDate);
+    while (current <= endDate) {
+      const key = this.formatPeriodKey(current, format);
+      groups.set(key, 0);
+
+      // Move to next period
+      if (format === 'day') {
+        current.setDate(current.getDate() + 1);
+      } else if (format === 'week') {
+        current.setDate(current.getDate() + 7);
+      } else {
+        current.setMonth(current.getMonth() + 1);
+      }
+    }
+
+    // Count actual data
+    data.forEach((item) => {
+      const key = this.formatPeriodKey(item.createdAt, format);
+      groups.set(key, (groups.get(key) || 0) + 1);
+    });
+
+    // Convert to array
+    return Array.from(groups.entries()).map(([name, value]) => ({
+      name,
+      value,
+    }));
+  }
+
+  /**
+   * Format period key based on format
+   */
+  private formatPeriodKey(date: Date, format: 'day' | 'week' | 'month'): string {
+    if (format === 'month') {
+      return date.toLocaleString('en-US', { month: 'short', year: 'numeric' });
+    } else if (format === 'week') {
+      const weekNum = Math.ceil((date.getDate()) / 7);
+      return `Week ${weekNum}`;
+    } else {
+      return date.toLocaleString('en-US', { month: 'short', day: 'numeric' });
+    }
+  }
+
+  /**
+   * Format community type for display
+   */
+  private formatCommunityType(type: string): string {
+    const typeMap: Record<string, string> = {
+      NETWORK: 'Network Communities',
+      NATIONAL: 'National Communities',
+      REGION: 'Regional Communities',
+      ZONE: 'Zone Communities',
+      WOREDA: 'Woreda Communities',
+      SCHOOL: 'School Communities',
+    };
+    return typeMap[type] || type;
+  }
 }

@@ -13,7 +13,7 @@ import {
   UseGuards,
   ParseIntPipe,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -317,5 +317,63 @@ export class AdminController {
       `inline; filename="${document.fileName}"`,
     );
     res.sendFile(filePath, { root: '.' });
+  }
+
+  // ==================== ADMIN PROFILE ====================
+
+  @Get('profile')
+  @ApiOperation({ summary: 'Get current admin profile' })
+  async getProfile(@Request() req) {
+    return this.adminService.getAdminProfile(req.user.sub);
+  }
+
+  @Patch('profile')
+  @ApiOperation({ summary: 'Update admin profile' })
+  async updateProfile(@Request() req, @Body() updateDto: any) {
+    return this.adminService.updateAdminProfile(req.user.sub, updateDto);
+  }
+
+  @Post('change-password')
+  @ApiOperation({ summary: 'Change admin password' })
+  async changePassword(@Request() req, @Body() changePasswordDto: any) {
+    return this.adminService.changePassword(
+      req.user.sub,
+      changePasswordDto.currentPassword,
+      changePasswordDto.newPassword,
+    );
+  }
+
+  // ==================== PLATFORM SETTINGS ====================
+
+  @Get('settings')
+  @ApiOperation({ summary: 'Get platform settings' })
+  getSettings() {
+    return this.adminService.getSettings();
+  }
+
+  @Patch('settings/general')
+  @ApiOperation({ summary: 'Update general settings' })
+  updateGeneralSettings(@Body() dto: any) {
+    return this.adminService.updateGeneralSettings(dto);
+  }
+
+  @Patch('settings/security')
+  @ApiOperation({ summary: 'Update security settings' })
+  updateSecuritySettings(@Body() dto: any) {
+    return this.adminService.updateSecuritySettings(dto);
+  }
+
+  @Patch('settings/moderation')
+  @ApiOperation({ summary: 'Update moderation settings' })
+  updateModerationSettings(@Body() dto: any) {
+    return this.adminService.updateModerationSettings(dto);
+  }
+
+  // ==================== PLATFORM ANALYTICS ====================
+
+  @Get('analytics')
+  @ApiOperation({ summary: 'Get platform analytics' })
+  getAnalytics(@Query('range') range?: string) {
+    return this.adminService.getAnalytics(range || '30d');
   }
 }
