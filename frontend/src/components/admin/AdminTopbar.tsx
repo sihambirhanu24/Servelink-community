@@ -9,14 +9,13 @@ import {
   ChevronDown,
   LogOut,
   Plus,
-  Search,
   Settings,
   User,
   MenuIcon,
   Megaphone,
 } from "lucide-react";
 
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 
 import { useAuth } from "@/context/AuthContext";
 
@@ -24,16 +23,61 @@ import { useProfile } from "@/hooks/useProfile";
 
 import { Avatar } from "@/components/common/Avatar";
 
-import { NotificationBell } from "@/components/notification/NotificationBell";
+import { AdminNotificationBell } from "@/components/notification/AdminNotificationBell";
 
 interface AdminTopbarProps {
   onMenuClick?: () => void;
+}
+
+// Route to page title mapping
+const PAGE_TITLES: Record<string, { title: string; subtitle?: string }> = {
+  '/admin': { title: 'Admin Dashboard', subtitle: 'Platform administration' },
+  '/admin/teachers': { title: 'Teachers' },
+  '/admin/communities': { title: 'Communities' },
+  '/admin/posts': { title: 'Posts' },
+  '/admin/reports': { title: 'Reports' },
+  '/admin/analytics': { title: 'Analytics' },
+  '/admin/settings': { title: 'Settings' },
+  '/admin/appeals': { title: 'Suspension Appeals' },
+  '/admin/profile': { title: 'Admin Profile' },
+  '/admin/live-sessions': { title: 'Live Sessions' },
+  '/admin/pending-teachers': { title: 'Pending Teachers' },
+  '/admin/location-requests': { title: 'Location Requests' },
+  '/admin/announcements': { title: 'Announcements' },
+  '/admin/categories': { title: 'Categories' },
+  '/admin/notifications': { title: 'Notifications' },
+  '/admin/verification': { title: 'Teacher Verification' },
+  '/admin/teacher-levels': { title: 'Teacher Levels' },
+  '/admin/finance': { title: 'Finance' },
+};
+
+function getPageInfo(pathname: string) {
+  // Exact match first
+  if (PAGE_TITLES[pathname]) {
+    return PAGE_TITLES[pathname];
+  }
+  
+  // Handle dynamic routes (e.g., /admin/teachers/[id])
+  const segments = pathname.split('/').filter(Boolean);
+  if (segments.length > 2) {
+    const baseRoute = `/${segments[0]}/${segments[1]}`;
+    if (PAGE_TITLES[baseRoute]) {
+      return PAGE_TITLES[baseRoute];
+    }
+  }
+  
+  // Default fallback
+  return { title: 'Admin Panel' };
 }
 
 export default function AdminTopbar({ onMenuClick }: AdminTopbarProps) {
   const { user, logout } = useAuth();
   const { data: profile } = useProfile();
   const router = useRouter();
+  const pathname = usePathname();
+
+  // Get current page info
+  const pageInfo = getPageInfo(pathname);
 
   // Use real authenticated user/profile data
   const firstName = profile?.firstName ?? user?.firstName ?? "";
@@ -73,81 +117,20 @@ export default function AdminTopbar({ onMenuClick }: AdminTopbarProps) {
             </button>
           )}
 
-          {/* Mobile title */}
-          <div className="lg:hidden min-w-0">
-            <p className="text-sm font-bold text-white truncate">
-              ServeLink
-            </p>
-            <p className="text-[10px] text-white/60">
-              Admin Dashboard
-            </p>
-          </div>
-          {/* Desktop search */}
-          <div
-            className="
-              hidden
-              sm:flex
-              w-48
-              md:w-64
-              lg:w-80
-              items-center
-              gap-2
-              rounded-xl
-              border
-              border-white/15
-              bg-white/10
-              px-3
-              py-2
-              transition-all
-              focus-within:border-[#FFC107]
-              focus-within:bg-white/15
-              focus-within:ring-2
-              focus-within:ring-[#FFC107]/20
-            "
-          >
-            <Search
-              className="h-4 w-4 shrink-0 text-white/60"
-              aria-hidden="true"
-            />
-            <input
-              type="search"
-              placeholder="Search teachers, communities..."
-              aria-label="Search teachers and communities"
-              className="
-                min-w-0
-                flex-1
-                bg-transparent
-                text-sm
-                text-white
-                outline-none
-                placeholder:text-white/50
-              "
-            />
+          {/* Page Title - Dynamic based on current route */}
+          <div className="min-w-0 flex-1">
+            <h1 className="text-base sm:text-lg font-bold text-white truncate">
+              {pageInfo.title}
+            </h1>
+            {pageInfo.subtitle && (
+              <p className="hidden sm:block text-xs text-white/60 truncate">
+                {pageInfo.subtitle}
+              </p>
+            )}
           </div>
         </div>
         {/* ================= RIGHT ================= */}
         <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-          {/* Mobile search */}
-          <button
-            type="button"
-            aria-label="Search"
-            title="Search"
-            className="
-              flex
-              h-9
-              w-9
-              items-center
-              justify-center
-              rounded-lg
-              text-white/70
-              transition
-              hover:bg-white/10
-              hover:text-[#FFC107]
-              sm:hidden
-            "
-          >
-            <Search className="h-5 w-5" />
-          </button>
           {/* Quick action — dropdown */}
           <Menu as="div" className="relative">
             <Menu.Button
@@ -221,7 +204,7 @@ export default function AdminTopbar({ onMenuClick }: AdminTopbarProps) {
               text-white
             "
           >
-            <NotificationBell />
+            <AdminNotificationBell />
           </div>
           {/* Divider */}
           <div
