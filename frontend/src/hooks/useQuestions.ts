@@ -21,9 +21,7 @@ import {
   type QuestionListResponse,
   type AnswersResponse,
 } from "@/services/questions";
-import type { CommunityTypeKey } from "@/services/community";
 
-// ─── Query keys ──────────────────────────────────────────────────────────────
 
 export const QA_KEYS = {
   list:    (params?: object)   => ["questions", "list",    params ?? {}] as const,
@@ -40,7 +38,6 @@ export function useQuestions(params?: {
   mine?: boolean;
   page?: number;
   limit?: number;
-  communityType?: CommunityTypeKey;
 }) {
   const { token, isInitializing } = useAuth();
 
@@ -107,9 +104,6 @@ export function useCreateQuestion() {
       qc.invalidateQueries({ queryKey: ["questions"] });
       qc.invalidateQueries({ queryKey: ["community-feed"] });
       qc.invalidateQueries({ queryKey: ["network-overview"] });
-      // Invalidate progress queries to update points
-      qc.invalidateQueries({ queryKey: ["progress"] });
-      qc.invalidateQueries({ queryKey: ["activityHistory"] });
     },
   });
 }
@@ -194,9 +188,6 @@ export function useSelectBestAnswer(questionId: string) {
       qc.invalidateQueries({ queryKey: QA_KEYS.detail(questionId) });
       qc.invalidateQueries({ queryKey: QA_KEYS.answers(questionId) });
       qc.invalidateQueries({ queryKey: ["questions", "list"] });
-      // Invalidate progress queries for best answer points
-      qc.invalidateQueries({ queryKey: ["progress"] });
-      qc.invalidateQueries({ queryKey: ["activityHistory"] });
     },
   });
 }

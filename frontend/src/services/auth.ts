@@ -7,6 +7,7 @@ import {
 import { useMutation } from "@tanstack/react-query";
 
 export async function login(values: LoginFormValues) {
+  // Unified login - backend checks both Teacher and Admin tables
   const { data } = await api.post('/auth/login', values);
   setAccessToken(data.accessToken);
 
@@ -16,9 +17,7 @@ export async function login(values: LoginFormValues) {
     localStorage.setItem('admin', JSON.stringify(data.admin));
     document.cookie = `admin_token=${data.accessToken}; path=/; max-age=${7 * 24 * 3600}; SameSite=Lax`;
   } else {
-    // Teacher login — store in both localStorage AND a cookie so the proxy
-    // can gate access to protected routes (proxy runs on the server/edge and
-    // can only read cookies, not localStorage).
+    // Teacher login — store in both localStorage AND a cookie
     localStorage.setItem('token', data.accessToken);
     localStorage.setItem('teacher', JSON.stringify(data.teacher));
     document.cookie = `token=${data.accessToken}; path=/; max-age=${7 * 24 * 3600}; SameSite=Lax`;
