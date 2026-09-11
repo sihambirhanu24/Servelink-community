@@ -6,8 +6,10 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
+import { AdminNotificationService } from '../notification/admin-notification.service';
 import { SuspensionService } from './suspension.service';
 import { NotificationEvent } from '../notification/notification.types';
+import { AdminNotificationEvent } from '../notification/admin-notification.types';
 
 export interface CreateAppealDto {
   teacherId: string;
@@ -31,6 +33,7 @@ export class AppealService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
+    private readonly adminNotificationService: AdminNotificationService,
     private readonly suspensionService: SuspensionService,
   ) {}
 
@@ -85,8 +88,26 @@ export class AppealService {
       type: NotificationEvent.APPEAL_SUBMITTED,
     });
 
-    // TODO: Notify admins about new appeal
-    // This would require getting all admin users
+    // Notify all admins about new appeal
+    try {
+      await this.adminNotificationService.createForAllAdmins(
+        'Suspension Appeal Submitted',
+        `${teacher.firstName} ${teacher.lastName} has submitted an appeal for their suspension.`,
+        AdminNotificationEvent.SUSPENSION_APPEAL,
+        {
+          referenceId: appeal.id,
+          link: '/admin/appeals',
+          metadata: {
+            teacherId: dto.teacherId,
+            appealId: appeal.id,
+            teacherName: `${teacher.firstName} ${teacher.lastName}`,
+            subject: dto.subject,
+          },
+        },
+      );
+    } catch (error) {
+      this.logger.error(`Failed to create admin notification for appeal ${appeal.id}`, error);
+    }
 
     this.logger.log(`Appeal created by teacher ${dto.teacherId}`);
 
