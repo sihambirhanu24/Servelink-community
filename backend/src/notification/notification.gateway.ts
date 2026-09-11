@@ -77,6 +77,10 @@ export class NotificationGateway
     this.server.to(`user:${userId}`).emit(event, data);
   }
 
+  emitToAdmin(adminId: string, event: string, data: unknown) {
+    this.server.to(`user:${adminId}`).emit(event, data);
+  }
+
   @SubscribeMessage('ping')
   handlePing(@ConnectedSocket() client: Socket, @MessageBody() _data: unknown) {
     client.emit('pong', { time: Date.now() });
