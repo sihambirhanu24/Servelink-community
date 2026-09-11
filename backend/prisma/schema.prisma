@@ -135,15 +135,15 @@ model TeacherFollow {
   @@index([followerId])
   @@index([followingId])
 }
-
 model Admin {
-  id           String        @id @default(cuid())
-  email        String        @unique
-  password     String
-  name         String
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  liveSessions LiveSession[]
+  id                String              @id @default(cuid())
+  email             String              @unique
+  password          String
+  name              String
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  liveSessions      LiveSession[]
+  adminNotifications AdminNotification[]
 }
 
 /// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
@@ -395,6 +395,28 @@ model Notification {
   senderId    String?
   senderName  String?
   receiver    Teacher          @relation(fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([receiverId, isRead])
+  @@index([createdAt])
+}
+
+model AdminNotification {
+  id          String                 @id @default(cuid())
+  title       String
+  message     String
+  isRead      Boolean                @default(false)
+  createdAt   DateTime               @default(now())
+  adminId     String
+  referenceId String?
+  type        AdminNotificationType
+  updatedAt   DateTime               @updatedAt
+  link        String?
+  metadata    Json?
+  admin       Admin                  @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId, isRead])
+  @@index([createdAt])
+  @@index([type])
 }
 
 model ChatRoom {
@@ -913,14 +935,35 @@ model Payout {
 }
 
 model PlatformSettings {
-  id                 String   @id @default(cuid())
-  platformFeePercent Decimal  @default(15.00) @db.Decimal(5, 2)
-  minPayoutAmount    Decimal  @default(100.00) @db.Decimal(10, 2)
-  chapaPublicKey     String?
-  chapaSecretKey     String?
-  chapaTestMode      Boolean  @default(true)
-  updatedAt          DateTime @updatedAt
-  autoApprovePayouts Boolean  @default(false)
+  id                      String   @id @default(cuid())
+  // Financial settings
+  platformFeePercent      Decimal  @default(15.00) @db.Decimal(5, 2)
+  minPayoutAmount         Decimal  @default(100.00) @db.Decimal(10, 2)
+  chapaPublicKey          String?
+  chapaSecretKey          String?
+  chapaTestMode           Boolean  @default(true)
+  autoApprovePayouts      Boolean  @default(false)
+  
+  // General settings
+  platformName            String   @default("ServeLink")
+  platformUrl             String   @default("https://servelink.edu")
+  supportEmail            String   @default("support@servelink.edu")
+  timezone                String   @default("UTC")
+  
+  // Security settings
+  sessionTimeout          Int      @default(30) // minutes
+  strongPasswordRequired  Boolean  @default(true)
+  twoFactorEnabled        Boolean  @default(false)
+  maxLoginAttempts        Int      @default(5)
+  
+  // Moderation settings
+  autoFlagSpam            Boolean  @default(true)
+  spamThreshold           String   @default("medium") // low, medium, high
+  profanityFilter         Boolean  @default(true)
+  requirePostApproval     Boolean  @default(false)
+  
+  updatedAt               DateTime @updatedAt
+  createdAt               DateTime @default(now())
 }
 
 model FinancialAuditLog {
@@ -1165,6 +1208,21 @@ enum NotificationType {
   APPEAL_REJECTED
   ACCOUNT_RESTORED
   LIVE_SESSION
+}
+
+enum AdminNotificationType {
+  TEACHER_VERIFICATION
+  LOCATION_CHANGE_REQUEST
+  SUSPENSION_APPEAL
+  POST_REPORT
+  SUPPORT_REQUEST
+  PAYMENT_ISSUE
+  PAYOUT_ISSUE
+  LIVE_SESSION_ISSUE
+  SYSTEM
+  COMMUNITY_FLAGGED
+  TEACHER_FLAGGED
+  CONTENT_MODERATION
 }
 
 enum SuspensionType {
