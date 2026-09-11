@@ -1,23 +1,57 @@
-import { useQuery } from "@tanstack/react-query";
-import { getAdminDashboard } from "@/services/admin";
+'use client';
 
-export function useAdminAnalytics() {
-  return useQuery({
-    queryKey: ["admin-analytics"],
-    queryFn: getAdminDashboard,
-  });
+import { useQuery } from '@tanstack/react-query';
+import { adminApi } from '@/lib/axios';
+
+export type AnalyticsRange = '7d' | '30d' | '90d' | '6m' | '1y';
+
+interface ChartDataPoint {
+  date: string;
+  teachers: number;
+  posts: number;
+  engagement: number;
 }
 
-export function useTeacherGrowth() {
-  return useQuery({
-    queryKey: ["teacher-growth"],
-    queryFn: getAdminDashboard,
-  });
+interface AnalyticsResponse {
+  overview: {
+    totalTeachers: number;
+    teacherChange: number;
+    activeCommunities: number;
+    communityChange: number;
+    totalPosts: number;
+    postChange: number;
+    avgEngagement: number;
+    engagementChange: number;
+  };
+  engagement: {
+    likes: number;
+    comments: number;
+    bookmarks: number;
+    total: number;
+    likesPercentage: string;
+    commentsPercentage: string;
+    bookmarksPercentage: string;
+  };
+  teacherGrowth: Array<{ name: string; value: number }>;
+  communityCategories: Array<{
+    name: string;
+    count: number;
+    percentage: string;
+  }>;
+  chartData: ChartDataPoint[];
+  range: string;
 }
 
-export function useCommunityCategories() {
+export function useAdminAnalytics(range: AnalyticsRange = '30d') {
   return useQuery({
-    queryKey: ["community-categories"],
-    queryFn: () => import('@/services/admin').then(m => m.getAdminTeachers()),
+    queryKey: ['admin-analytics', range],
+    queryFn: async () => {
+      const { data } = await adminApi.get<AnalyticsResponse>('/admin/analytics', {
+        params: { range },
+      });
+      return data;
+    },
+    staleTime: 60_000, // 1 minute
+    retry: 2,
   });
 }
