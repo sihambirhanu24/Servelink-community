@@ -6,7 +6,9 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
+import { AdminNotificationService } from '../notification/admin-notification.service';
 import { NotificationEvent } from '../notification/notification.types';
+import { AdminNotificationEvent } from '../notification/admin-notification.types';
 import { TeacherProgressService } from '../progress/teacher-progress.service';
 import { CreateDiscussionDto } from './dto/create-discussion.dto';
 import { UpdateDiscussionDto } from './dto/update-discussion.dto';
@@ -25,6 +27,7 @@ export class DiscussionService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
+    private readonly adminNotificationService: AdminNotificationService,
     private readonly progressService: TeacherProgressService,
   ) {}
 
@@ -445,13 +448,8 @@ export class DiscussionService {
       },
     });
 
-    // Get admin users
-    const admins = await this.prisma.admin.findMany({
-      select: { id: true },
-    });
-
-    // Notify admins about the report
-    if (admins.length > 0) {
+    // Notify all admins about the report
+    try {
       const reporter = await this.prisma.teacher.findUnique({
         where: { id: teacherId },
         select: { firstName: true, lastName: true },
@@ -461,19 +459,27 @@ export class DiscussionService {
         ? `${reporter.firstName} ${reporter.lastName}`
         : 'A teacher';
 
-      await Promise.all(
-        admins.map((admin) =>
-          this.notificationService.create({
-            receiverId: admin.id,
-            senderId: teacherId,
-            senderName: reporterName,
-            title: 'New Discussion Report',
-            message: `${reporterName} reported a discussion: "${discussion.title.substring(0, 50)}..." for ${dto.reason}`,
-            type: NotificationEvent.REPORT,
-            referenceId: report.id,
-          }),
-        ),
+      await this.adminNotificationService.createForAllAdmins(
+        'Discussion Reported',
+        `${reporterName} reported a discussion: "${discussion.title.substring(0, 50)}..." for ${dto.reason}`,
+        AdminNotificationEvent.POST_REPORT,
+        {
+          referenceId: report.id,
+          link: '/admin/reports',
+          metadata: {
+            reportId: report.id,
+            discussionId,
+            reporterId: teacherId,
+            reporterName,
+            reason: dto.reason,
+            discussionTitle: discussion.title,
+            authorName: `${discussion.author.firstName} ${discussion.author.lastName}`,
+          },
+        },
       );
+    } catch (error) {
+      // Don't fail the main operation if notification fails
+      console.error('Failed to create admin notification for discussion report:', error);
     }
 
     return { success: true };

@@ -7,7 +7,9 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
+import { AdminNotificationService } from '../notification/admin-notification.service';
 import { NotificationEvent } from '../notification/notification.types';
+import { AdminNotificationEvent } from '../notification/admin-notification.types';
 import {
   TeacherVerificationStatus,
   VerificationDocumentType,
@@ -28,6 +30,7 @@ export class TeacherVerificationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
+    private readonly adminNotificationService: AdminNotificationService,
   ) {}
 
   /**
@@ -433,6 +436,22 @@ export class TeacherVerificationService {
       });
 
       this.logger.log(`Teacher ${teacherId} resubmitted verification`);
+
+      // Notify all admins about the verification request
+      try {
+        await this.adminNotificationService.createForAllAdmins(
+          'Teacher Verification Request',
+          `A teacher has submitted verification documents for review.`,
+          AdminNotificationEvent.TEACHER_VERIFICATION,
+          {
+            referenceId: teacherId,
+            link: '/admin/pending-teachers',
+            metadata: { teacherId, action: 'resubmit' },
+          },
+        );
+      } catch (error) {
+        this.logger.error(`Failed to create admin notification for teacher ${teacherId} verification`, error);
+      }
 
       return updated;
     });

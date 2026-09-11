@@ -7,7 +7,9 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
+import { AdminNotificationService } from '../notification/admin-notification.service';
 import { NotificationEvent } from '../notification/notification.types';
+import { AdminNotificationEvent } from '../notification/admin-notification.types';
 import { LocationChangeStatus, Teacher } from '@prisma/client';
 import { CreateLocationChangeDto } from './dto/create-location-change.dto';
 import { RejectLocationChangeDto } from './dto/reject-location-change.dto';
@@ -20,6 +22,7 @@ export class LocationChangeService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
+    private readonly adminNotificationService: AdminNotificationService,
   ) {}
 
   async getAvailableSchools() {
@@ -73,7 +76,7 @@ export class LocationChangeService {
       throw new NotFoundException('Teacher not found');
     }
 
-    return this.prisma.teacherLocationChangeRequest.create({
+    const createdRequest = await this.prisma.teacherLocationChangeRequest.create({
       data: {
         teacherId,
         currentSchool: teacher.school || null,
@@ -94,6 +97,30 @@ export class LocationChangeService {
         status: LocationChangeStatus.PENDING,
       },
     });
+
+    // Notify all admins about the location change request
+    try {
+      await this.adminNotificationService.createForAllAdmins(
+        'Location Change Request',
+        `${teacher.firstName} ${teacher.lastName} has requested a location transfer to ${dto.requestedSchool || 'a new location'}.`,
+        AdminNotificationEvent.LOCATION_CHANGE_REQUEST,
+        {
+          referenceId: createdRequest.id,
+          link: '/admin/location-requests',
+          metadata: {
+            teacherId,
+            requestId: createdRequest.id,
+            teacherName: `${teacher.firstName} ${teacher.lastName}`,
+            from: teacher.school,
+            to: dto.requestedSchool,
+          },
+        },
+      );
+    } catch (error) {
+      this.logger.error(`Failed to create admin notification for location change request ${createdRequest.id}`, error);
+    }
+
+    return createdRequest;
   }
 
   async cancelRequest(requestId: string, teacherId: string) {
