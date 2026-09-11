@@ -11,7 +11,6 @@ import { DashboardLevelCard } from '@/components/dashboard/DashboardLevelCard';
 import { DashboardStatsRow } from '@/components/dashboard/DashboardStatsRow';
 import { DashboardRecentPosts } from '@/components/dashboard/DashboardRecentPosts';
 import { DashboardCommunityFeed } from '@/components/dashboard/DashboardCommunityFeed';
-import { DashboardRecentActivity } from '@/components/dashboard/DashboardRecentActivity';
 import { DashboardSuggestedCommunities } from '@/components/dashboard/DashboardSuggestedCommunities';
 import { AnnouncementsWidget } from '@/components/dashboard/AnnouncementsWidget';
 import { ProgressWidget } from '@/components/progress/ProgressWidget';
@@ -96,7 +95,6 @@ export default function DashboardPage() {
         <div className="space-y-4 sm:space-y-6 min-w-0 lg:max-w-[300px]">
           <AnnouncementsWidget />
           <ProgressWidget />
-          <DashboardRecentActivity notifications={recentNotifications} />
           <DashboardSuggestedCommunities />
         </div>
       </div>

@@ -119,7 +119,7 @@ export function ProfileHeaderCard({
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       {/* ── Banner ─────────────────────────────────────────────────── */}
-      <div className="relative h-32 bg-gradient-to-r from-[#043658] via-[#055a87] to-[#043658] overflow-hidden">
+      <div className="relative h-32 sm:h-40 bg-gradient-to-br from-[#043658] to-[#064a7a] overflow-hidden">
         {/* Subtle grid texture */}
         <div
           className="absolute inset-0 opacity-[0.07]"
@@ -145,12 +145,12 @@ export function ProfileHeaderCard({
         <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-5 -mt-12">
           {/* Avatar + camera */}
           <div className="relative shrink-0">
-            <div className="rounded-full ring-4 ring-white shadow-lg">
+            <div className="h-24 w-24 sm:h-32 sm:w-32 rounded-full ring-4 ring-white shadow-lg overflow-hidden">
               <Avatar
                 name={name}
                 profileImage={profile?.profileImage}
                 size="xl"
-                className="rounded-full"
+                className="h-full w-full"
               />
             </div>
             <button
@@ -177,7 +177,7 @@ export function ProfileHeaderCard({
           </div>
 
           {/* Identity */}
-          <div className="flex-1 min-w-0 pt-14 sm:pt-14">
+          <div className="flex-1 min-w-0 pt-14 sm:pt-16">
             {/* Name + level + verified + suspension */}
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="font-['Lexend'] text-xl font-bold text-[#043658] sm:text-2xl truncate">
@@ -212,27 +212,29 @@ export function ProfileHeaderCard({
             </div>
 
             {/* Profession + subject */}
-            <p className="mt-1 text-sm text-slate-600 truncate">
-              {profile?.profession ?? "Teacher"}
-              {profile?.department ? ` · ${profile.department}` : ""}
-              {profile?.subject    ? ` · ${profile.subject}`    : ""}
-            </p>
+            <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600 mt-1">
+              <span className="font-medium">{profile?.profession ?? "Teacher"}</span>
+              {profile?.department && <span>· {profile.department}</span>}
+              {profile?.subject && <span>· {profile.subject}</span>}
+            </div>
 
             {/* Bio */}
             {profile?.bio && (
-              <p className="mt-1.5 text-sm text-slate-500 leading-relaxed line-clamp-2">
+              <p className="mt-2 text-sm text-slate-600 leading-relaxed line-clamp-2">
                 {profile.bio}
               </p>
             )}
 
             {/* Location */}
             {profile?.region && (
-              <p className="mt-1.5 flex items-center gap-1 text-xs text-slate-500">
-                <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                {[profile.school, profile.woreda, profile.zone, profile.region]
-                  .filter(Boolean)
-                  .join(", ")}
-              </p>
+              <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
+                <span className="flex items-center gap-1">
+                  <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                  {profile.school}
+                </span>
+                {profile.region && <span>· {profile.region}</span>}
+                {profile.woreda && <span>· {profile.woreda}</span>}
+              </div>
             )}
           </div>
         </div>
