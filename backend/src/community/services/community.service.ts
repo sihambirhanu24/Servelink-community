@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  HttpException,
   Injectable,
   NotFoundException,
   ForbiddenException,
@@ -683,7 +684,7 @@ export class CommunityService {
         select: { id: true },
       });
 
-      // Notify admins about the report
+      // Notify admins via the AdminNotification table (separate from teacher Notifications)
       if (admins.length > 0) {
         const reporter = await this.prisma.teacher.findUnique({
           where: { id: teacherId },
@@ -694,19 +695,16 @@ export class CommunityService {
           ? `${reporter.firstName} ${reporter.lastName}`
           : 'A teacher';
 
-        await Promise.all(
-          admins.map((admin) =>
-            this.notificationService.create({
-              receiverId: admin.id,
-              senderId: teacherId,
-              senderName: reporterName,
-              title: 'New Post Report',
-              message: `${reporterName} reported a post: "${post.title.substring(0, 50)}..." for ${dto.reason}`,
-              type: NotificationEvent.REPORT,
-              referenceId: report.id,
-            }),
-          ),
-        );
+        await this.prisma.adminNotification.createMany({
+          data: admins.map((admin) => ({
+            adminId: admin.id,
+            title: 'New Post Report',
+            message: `${reporterName} reported a post: "${post.title.substring(0, 50)}..." for ${dto.reason}`,
+            type: 'POST_REPORT' as any,
+            referenceId: report.id,
+          })),
+          skipDuplicates: true,
+        });
       }
 
       // ── Notify the REPORTER (confirmation — do NOT mention who owns the post) ──
@@ -736,7 +734,9 @@ export class CommunityService {
 
       return { success: true, reportId: report.id };
     } catch (error) {
-      // Log and rethrow database errors
+      // Re-throw NestJS HTTP exceptions (e.g. self-report, not-found) unchanged
+      if (error instanceof HttpException) throw error;
+      // Wrap unexpected DB / runtime errors
       console.error('Error creating report:', error);
       throw new BadRequestException(
         'Failed to submit report. Please try again.',
@@ -1244,7 +1244,75 @@ export class CommunityService {
 
     const skip = (page - 1) * limit;
 
-    // Build dynamic search filter if user types in search box
+    const communityTypeEnum = type.toUpperCase() as any;
+
+    // NETWORK community membership = all approved teachers.
+    // The overview stat counts approved teachers directly, so the Members tab
+    // must use the same source to stay consistent.
+    if (communityTypeEnum === 'NETWORK') {
+      const teacherSearchWhere = search
+        ? {
+            OR: [
+              { firstName: { contains: search, mode: 'insensitive' as const } },
+              { lastName: { contains: search, mode: 'insensitive' as const } },
+              { subject: { contains: search, mode: 'insensitive' as const } },
+            ],
+          }
+        : {};
+
+      const where = {
+        verificationStatus: 'APPROVED' as const,
+        ...teacherSearchWhere,
+      };
+
+      const [teachers, total] = await Promise.all([
+        this.prisma.teacher.findMany({
+          where,
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            profileImage: true,
+            level: true,
+            school: true,
+            subject: true,
+            verified: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: 'desc' },
+          skip,
+          take: limit,
+        }),
+        this.prisma.teacher.count({ where }),
+      ]);
+
+      // Normalise to the same shape the frontend expects from CommunityMember
+      return {
+        data: teachers.map((t) => ({
+          id: t.id,
+          teacherId: t.id,
+          createdAt: t.createdAt,
+          teacher: {
+            id: t.id,
+            firstName: t.firstName,
+            lastName: t.lastName,
+            profileImage: t.profileImage,
+            level: t.level,
+            school: t.school,
+            subject: t.subject,
+            verified: t.verified,
+          },
+        })),
+        meta: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
+        },
+      };
+    }
+
+    // Build dynamic search filter for non-NETWORK community types
     const searchFilter = search
       ? {
           OR: [
@@ -1267,13 +1335,12 @@ export class CommunityService {
         }
       : {};
 
-    const communityTypeEnum = type.toUpperCase() as any;
-
     // Run queries in parallel for efficiency
     const [members, total] = await Promise.all([
       this.prisma.communityMember.findMany({
         where: {
           community: { type: communityTypeEnum },
+          status: 'APPROVED',
           ...searchFilter,
         },
         include: {
@@ -1298,6 +1365,7 @@ export class CommunityService {
       this.prisma.communityMember.count({
         where: {
           community: { type: communityTypeEnum },
+          status: 'APPROVED',
           ...searchFilter,
         },
       }),

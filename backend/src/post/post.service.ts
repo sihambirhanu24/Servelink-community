@@ -362,14 +362,14 @@ export class PostService {
       type = AttachmentType.DOCX;
     }
 
-    const normalizedUrl = file.path.replace(/\\/g, '/');
+    const normalizedUrl = file.path
+      .replace(/\\/g, '/')   // Windows backslash → forward slash
+      .replace(/^\.\//, ''); // strip leading ./
 
     return this.prisma.attachment.create({
       data: {
         fileName: file.originalname,
-        url: normalizedUrl.startsWith('uploads/')
-          ? `/${normalizedUrl}`
-          : normalizedUrl,
+        url: normalizedUrl, // store as 'uploads/images/file.jpg' — no leading slash
         fileSize: file.size,
         type,
         postId,
