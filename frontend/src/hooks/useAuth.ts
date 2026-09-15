@@ -31,17 +31,16 @@ export function useResetPassword() {
 }
 
 export function useLogin() {
-  const router = useRouter();
   const { updateAuth } = useAuth();
 
   return useMutation({
     mutationFn: login,
     onSuccess(data) {
-      // Admin login — token is stored in localStorage by login(), middleware
-      // handles cookie-based route protection.  No AuthContext update needed
-      // for admin because admin pages use adminApi (separate axios instance).
+      // Admin login — token is stored in localStorage by login(), proxy
+      // handles cookie-based route protection. Use full navigation so the
+      // browser sends the freshly-written admin_token cookie on the request.
       if (data?.admin) {
-        router.push("/admin");
+        window.location.href = "/admin";
         return;
       }
 
@@ -57,11 +56,13 @@ export function useLogin() {
       // response; a suspended teacher goes straight to the suspension screen
       // (where they can read the reason and appeal), never to the dashboard.
       if (isSuspendedStatus(data?.teacher?.status)) {
-        router.replace("/suspended");
+        window.location.href = "/suspended";
         return;
       }
 
-      router.push("/dashboard");
+      // Use full navigation (not router.push) so the browser includes the
+      // freshly-written `token` cookie in the request that the proxy checks.
+      window.location.href = "/dashboard";
     },
     onError(error) {
       console.error(error);
@@ -70,7 +71,6 @@ export function useLogin() {
 }
 
 export function useRegister() {
-  const router = useRouter();
   const { updateAuth } = useAuth();
 
   return useMutation({
@@ -81,7 +81,8 @@ export function useRegister() {
         updateAuth(data.accessToken, data.teacher);
       }
 
-      router.push("/dashboard");
+      // Full navigation so the browser sends the freshly-written cookie.
+      window.location.href = "/dashboard";
     },
     onError(error) {
       console.error(error);

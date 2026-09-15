@@ -5,12 +5,9 @@ export function proxy(request: NextRequest) {
 
   // ── Admin routes ───────────────────────────────────────────────────────────
   if (pathname.startsWith('/admin')) {
-    if (pathname === '/admin/login') {
-      return NextResponse.next();
-    }
     const adminToken = request.cookies.get('admin_token')?.value;
     if (!adminToken) {
-      return NextResponse.redirect(new URL('/admin/login', request.url));
+      return NextResponse.redirect(new URL('/auth/login', request.url));
     }
     return NextResponse.next();
   }

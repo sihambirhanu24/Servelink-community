@@ -106,7 +106,7 @@ adminApi.interceptors.response.use(
       localStorage.removeItem('admin_token');
       localStorage.removeItem('admin');
       document.cookie = 'admin_token=; path=/; max-age=0; SameSite=Lax';
-      window.location.href = '/admin/login';
+      window.location.href = '/auth/login';
     }
     return Promise.reject(error);
   }
