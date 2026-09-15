@@ -85,6 +85,8 @@ export function ReportPostModal({
     return () => setMounted(false);
   }, []);
 
+  const [alreadyReported, setAlreadyReported] = useState(false);
+
   // Reset state whenever the modal opens
   useEffect(() => {
     if (isOpen) {
@@ -92,6 +94,7 @@ export function ReportPostModal({
       setDescription("");
       setError(null);
       setShowSuccess(false);
+      setAlreadyReported(false);
     }
   }, [isOpen]);
 
@@ -131,29 +134,28 @@ export function ReportPostModal({
       }, 1500);
     },
     onError: (err: any) => {
+      // 409 = already reported — show a distinct state, no console noise
+      if (err?.response?.status === 409) {
+        setAlreadyReported(true);
+        setError(null);
+        return;
+      }
+
       console.error('Report post error:', err);
-      
+
       // Extract the most detailed error message available
-      let errorMessage = 'Failed to submit report';
+      let errorMessage = 'Failed to submit report. Please try again.';
       
       if (err?.response?.data) {
         const data = err.response.data;
-        
-        // Handle class-validator array errors
         if (Array.isArray(data.message)) {
           errorMessage = data.message.join(', ');
-        } 
-        // Handle single error message
-        else if (typeof data.message === 'string') {
+        } else if (typeof data.message === 'string') {
           errorMessage = data.message;
-        }
-        // Handle error with specific field
-        else if (data.error) {
+        } else if (data.error) {
           errorMessage = data.error;
         }
-      } 
-      // Handle network errors
-      else if (err?.message) {
+      } else if (err?.message) {
         errorMessage = err.message;
       }
       
@@ -302,8 +304,23 @@ export function ReportPostModal({
             </div>
           )}
 
+          {/* Already reported */}
+          {alreadyReported && (
+            <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
+              <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+              <div>
+                <p className="text-sm font-semibold text-amber-900">
+                  Already reported
+                </p>
+                <p className="text-xs text-amber-700">
+                  You have already submitted a report for this post.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Error */}
-          {error && !showSuccess && (
+          {error && !showSuccess && !alreadyReported && (
             <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
               <p className="text-sm text-red-700">{error}</p>
@@ -345,7 +362,7 @@ export function ReportPostModal({
               type="button"
               onClick={handleSubmit}
               disabled={
-                !selectedReason || reportMutation.isPending || showSuccess
+                !selectedReason || reportMutation.isPending || showSuccess || alreadyReported
               }
               className="flex flex-1 items-center justify-center gap-2 rounded-full bg-[#043658] px-4 py-2.5
                          text-sm font-semibold text-white hover:bg-[#032742] disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
@@ -359,6 +376,11 @@ export function ReportPostModal({
                 <>
                   <CheckCircle className="h-4 w-4" />
                   Sent
+                </>
+              ) : alreadyReported ? (
+                <>
+                  <CheckCircle className="h-4 w-4" />
+                  Already Reported
                 </>
               ) : (
                 "Submit Report"

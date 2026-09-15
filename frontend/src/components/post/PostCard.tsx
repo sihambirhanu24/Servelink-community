@@ -75,7 +75,7 @@ export default function PostCard({ post, onDelete, onToast, feedMode = false }: 
   const { user } = useAuth();
   const { status } = useVerification();
   const isVerified = status?.verificationStatus === "APPROVED";
-  const isOwner = !feedMode && !!user?.id && !!post.teacher?.id && user.id === post.teacher.id;
+  const isOwner = !!user?.id && !!post.teacher?.id && user.id === post.teacher.id;
   const router = useRouter();
   const queryClient = useQueryClient();
 
