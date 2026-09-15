@@ -6,8 +6,25 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
+import * as fs from 'fs';
 
 async function bootstrap() {
+  // Ensure required upload directories exist before the app starts
+  const uploadDirs = [
+    './uploads/profile',
+    './uploads/verification-documents',
+    './uploads/images',
+    './uploads/avatars',
+    './uploads/pdfs',
+    './uploads/docs',
+    './uploads/videos',
+  ];
+  for (const dir of uploadDirs) {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+  }
+
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   app.setGlobalPrefix('api');
