@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { Search, MessageCircle, Users, Loader2 } from 'lucide-react';
 import { useDirectConversations } from '@/hooks/useDirectMessages';
-import Avatar from '@/components/ui/Avatar';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/Avatar';
 import { formatDistanceToNow } from 'date-fns';
 import { DashboardSidebar } from '@/components/layout/Sidebar';
 import Topbar from '@/components/layout/Topbar';
@@ -99,10 +99,16 @@ export default function MessagesPage() {
                   <div className="flex items-start gap-4">
                     <div className="relative flex-shrink-0">
                       <Avatar
-                        image={conversation.otherParticipant.profileImage || undefined}
-                        name={`${conversation.otherParticipant.firstName} ${conversation.otherParticipant.lastName}`}
                         className="h-12 w-12"
-                      />
+                      >
+                        <AvatarImage
+                          src={conversation.otherParticipant.profileImage || undefined}
+                          alt={`${conversation.otherParticipant.firstName} ${conversation.otherParticipant.lastName}`}
+                        />
+                        <AvatarFallback>
+                          {conversation.otherParticipant.firstName[0]}{conversation.otherParticipant.lastName[0]}
+                        </AvatarFallback>
+                      </Avatar>
                       {conversation.otherParticipant.verified && (
                         <div className="absolute bottom-0 right-0 w-3 h-3 bg-[#FFC107] rounded-full border-2 border-white flex items-center justify-center">
                           <span className="text-[8px] text-[#043658] font-bold">✓</span>

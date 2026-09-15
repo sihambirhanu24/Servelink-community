@@ -8,7 +8,7 @@ import { useDirectMessagesSocket } from '@/hooks/useDirectMessagesSocket';
 import { useAuth } from '@/context/AuthContext';
 import { DashboardSidebar } from '@/components/layout/Sidebar';
 import Topbar from '@/components/layout/Topbar';
-import Avatar from '@/components/ui/Avatar';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/Avatar';
 import { formatDistanceToNow } from 'date-fns';
 import type { DirectMessage } from '@/services/direct-messages';
 import type { DirectConversationParticipant } from '@/services/direct-messages';
@@ -194,11 +194,15 @@ export default function ConversationPage() {
                 onClick={handleProfileClick}
                 className="flex items-center gap-3 flex-1 min-w-0 hover:bg-slate-50 rounded-lg px-3 py-2 transition-colors"
               >
-                <Avatar
-                  image={otherParticipant.profileImage || undefined}
-                  name={teacherName}
-                  className="h-12 w-12 flex-shrink-0"
-                />
+                <Avatar className="h-12 w-12 flex-shrink-0">
+                  <AvatarImage
+                    src={otherParticipant.profileImage || undefined}
+                    alt={teacherName}
+                  />
+                  <AvatarFallback>
+                    {teacherName.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
+                  </AvatarFallback>
+                </Avatar>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <h2 className="font-semibold text-[#043658] truncate">{teacherName}</h2>
