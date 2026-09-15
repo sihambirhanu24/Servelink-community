@@ -130,7 +130,7 @@ export function ChatRoomsDropdown() {
   const getRoomDescription = (group: ChatGroup) => {
     // Handle Discussion Room (NETWORK type)
     if (group.type === "NETWORK") {
-      return group.description || "For all verified teachers";
+      return "For all verified teachers";
     }
     
     if (group.type === "SCHOOL") {

@@ -107,7 +107,7 @@ export default function SupportPage() {
     
     setLoadingBalance(true);
     try {
-      console.log("Fetching wallet balance for user:", user.sub);
+      console.log("Fetching wallet balance for authenticated user");
       const balance = await walletApi.getBalance();
       console.log("Raw balance response:", balance);
       const availableBalance = Number(balance.availableBalance);
@@ -289,8 +289,8 @@ export default function SupportPage() {
                     key={request.id}
                     request={request}
                     onContribute={handleContribute}
-                    currentUserId={user?.sub || ""}
-                    isOwner={request.requesterId === user?.sub}
+                    currentUserId={user?.id || ""}
+                    isOwner={request.requesterId === user?.id}
                   />
                 ))}
               </div>

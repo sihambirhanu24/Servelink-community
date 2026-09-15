@@ -2,28 +2,10 @@
 
 import { useEffect, useState, useRef } from 'react';
 import Card from '@/components/ui/Card';
-import { paymentsApi } from '@/services/payments';
+import { paymentsApi, type Payout } from '@/services/payments';
 import { useAuth } from '@/context/AuthContext';
 import { Download, FileText, RefreshCw, CheckCircle, Clock, XCircle, AlertCircle, X, Printer } from 'lucide-react';
 import { format } from 'date-fns';
-
-interface Payout {
-  id: string;
-  reference: string;
-  amount: number;
-  netAmount: number | null;
-  feeAmount: number | null;
-  currency: string;
-  status: 'PENDING' | 'APPROVED' | 'PROCESSING' | 'COMPLETED' | 'REJECTED' | 'CANCELLED' | 'FAILED';
-  bankCode: string | null;
-  bankName: string | null;
-  bankAccountNumber: string | null;
-  bankAccountName: string | null;
-  bankReference: string | null;
-  completedAt: string | null;
-  createdAt: string;
-  rejectionReason: string | null;
-}
 
 export default function PayoutsPage() {
   const { token, user } = useAuth();
@@ -256,7 +238,7 @@ export default function PayoutsPage() {
                 <div>
                   <div className="text-xs font-medium text-gray-500 mb-1">Account</div>
                   <div className="text-sm font-semibold text-gray-900">
-                    {formatAccountNumber(payout.bankAccountNumber)}
+                    {formatAccountNumber(payout.bankAccountNumber ?? null)}
                   </div>
                 </div>
 
@@ -418,8 +400,8 @@ export default function PayoutsPage() {
                 <div className="flex justify-between py-3 border-b border-gray-200">
                   <span className="font-semibold text-gray-600">Account Number</span>
                   <span className="text-gray-900 font-mono">
-                    {formatAccountNumber(selectedPayout.bankAccountNumber)}
-                  </span>
+                   {formatAccountNumber(selectedPayout.bankAccountNumber ?? null)}       
+             </span>
                 </div>
 
                 {selectedPayout.bankAccountName && (

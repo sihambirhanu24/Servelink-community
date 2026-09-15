@@ -81,6 +81,7 @@ export default function LiveSessionDetailsPage() {
 
 
   const handleEnterClassroom = () => {
+    if (!session) return;
     // Google Meet: host opens the external URL directly — no LiveKit room
     if (session.provider === 'GOOGLE_MEET' && session.meetingUrl) {
       window.open(session.meetingUrl, '_blank', 'noopener,noreferrer');

@@ -102,7 +102,7 @@ export default function TeacherProfilePage() {
                   <Avatar
                     name={name}
                     profileImage={profile.profileImage}
-                    size="2xl"
+                    size="xl"
                     className="ring-4 ring-white"
                   />
                 </div>
@@ -114,7 +114,7 @@ export default function TeacherProfilePage() {
                       <div className="flex items-center gap-2">
                         <h1 className="text-2xl font-bold text-[#043658]">{name}</h1>
                         {profile.isVerified && (
-                          <BadgeCheck className="h-6 w-6 text-[#043658]" title="Verified Teacher" />
+                          <BadgeCheck className="h-6 w-6 text-[#043658]" aria-label="Verified Teacher" />
                         )}
                       </div>
 

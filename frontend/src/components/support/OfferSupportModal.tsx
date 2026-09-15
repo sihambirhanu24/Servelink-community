@@ -108,9 +108,7 @@ export function OfferSupportModal({ isOpen, onClose }: OfferSupportModalProps) {
       return;
     }
 
-    const data:
-      | CreateProviderProfileDto
-      | UpdateProviderProfileDto = {
+    const data = {
       expertise,
       experience: experience.trim(),
       description: description.trim(),
@@ -123,13 +121,19 @@ export function OfferSupportModal({ isOpen, onClose }: OfferSupportModalProps) {
       isAvailable,
     };
 
-    const mutation = existingProfile ? updateProfile : createProfile;
-
-    mutation.mutate(data, {
-      onSuccess: () => {
-        onClose();
-      },
-    });
+    if (existingProfile) {
+      updateProfile.mutate(data as UpdateProviderProfileDto, {
+        onSuccess: () => {
+          onClose();
+        },
+      });
+    } else {
+      createProfile.mutate(data as CreateProviderProfileDto, {
+        onSuccess: () => {
+          onClose();
+        },
+      });
+    }
   };
 
   if (!isOpen) return null;

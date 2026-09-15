@@ -1,6 +1,6 @@
 "use client";
 
-import Avatar from "../ui/Avatar";
+import { Avatar, AvatarImage, AvatarFallback } from "../ui/Avatar";
 import Button from "../ui/Button";
 import { LogOut, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
@@ -15,10 +15,12 @@ export default function SidebarFooter() {
 
       <div className="mb-6 flex items-center gap-3">
 
-        <Avatar
-          name={user?.firstName || "Teacher"}
-          image={user?.profileImage}
-        />
+        <Avatar className="w-10 h-10">
+          <AvatarImage src={user?.profileImage || undefined} />
+          <AvatarFallback>
+            {user?.firstName?.[0]}{user?.lastName?.[0]}
+          </AvatarFallback>
+        </Avatar>
 
         <div className="flex-1 min-w-0">
 

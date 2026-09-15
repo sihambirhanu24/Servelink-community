@@ -151,7 +151,7 @@ export default function FinancialSupportCard({
           <Button
             onClick={() => onContribute(request)}
             className="w-full"
-            variant="default"
+            variant="primary"
           >
             <Heart className="w-4 h-4 mr-2" />
             Contribute

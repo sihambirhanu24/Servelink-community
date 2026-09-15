@@ -21,6 +21,7 @@ import {
   type QuestionListResponse,
   type AnswersResponse,
 } from "@/services/questions";
+import type { CommunityTypeKey } from "@/services/community";
 
 
 export const QA_KEYS = {
@@ -38,6 +39,7 @@ export function useQuestions(params?: {
   mine?: boolean;
   page?: number;
   limit?: number;
+  communityType?: CommunityTypeKey;
 }) {
   const { token, isInitializing } = useAuth();
 

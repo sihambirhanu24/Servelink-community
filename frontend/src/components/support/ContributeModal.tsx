@@ -248,37 +248,37 @@ export default function ContributeModal({
               <div className="grid grid-cols-4 gap-2">
                 <Button
                   type="button"
-                  variant="outline"
-                  size="sm"
+                  variant="secondary"
                   onClick={() => setQuickAmount(25)}
                   disabled={remaining <= 0}
+                  className="text-sm py-2"
                 >
                   25%
                 </Button>
                 <Button
                   type="button"
-                  variant="outline"
-                  size="sm"
+                  variant="secondary"
                   onClick={() => setQuickAmount(50)}
                   disabled={remaining <= 0}
+                  className="text-sm py-2"
                 >
                   50%
                 </Button>
                 <Button
                   type="button"
-                  variant="outline"
-                  size="sm"
+                  variant="secondary"
                   onClick={() => setQuickAmount(75)}
                   disabled={remaining <= 0}
+                  className="text-sm py-2"
                 >
                   75%
                 </Button>
                 <Button
                   type="button"
-                  variant="outline"
-                  size="sm"
+                  variant="secondary"
                   onClick={() => setQuickAmount(100)}
                   disabled={remaining <= 0}
+                  className="text-sm py-2"
                 >
                   100%
                 </Button>
@@ -303,7 +303,7 @@ export default function ContributeModal({
 
             {/* Actions */}
             <div className="flex justify-end gap-3 pt-4">
-              <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
+              <Button type="button" variant="secondary" onClick={onClose} disabled={loading}>
                 Cancel
               </Button>
               <Button type="submit" disabled={loading || !amount || amount <= 0}>

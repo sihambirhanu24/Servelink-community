@@ -309,7 +309,6 @@ export default function FinancialSupportPage() {
             setSelectedRequest(null);
           }}
           request={selectedRequest}
-          walletBalance={walletBalance}
           onSuccess={handleContributionSuccess}
         />
       )}

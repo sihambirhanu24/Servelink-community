@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   Bell, Bookmark, CheckCheck, ChevronRight, Heart,
   MessageCircle, RefreshCw, Search, Settings2, Trash2,
-  Users, X, Award, Flag, CornerDownRight, AlertCircle,
+  Users, X, Award, Flag, CornerDownRight, AlertCircle, Video
 } from 'lucide-react';
 import Link from 'next/link';
 import { DashboardSidebar } from '@/components/layout/Sidebar';
@@ -41,6 +41,12 @@ const TYPE_CONFIG: Record<NotificationType, { icon: React.ElementType; bg: strin
   APPEAL_APPROVED:   { icon: CheckCheck,       bg: 'bg-green-50',    color: 'text-green-500',   label: 'Approved'       },
   APPEAL_REJECTED:   { icon: X,                bg: 'bg-red-50',      color: 'text-red-500',     label: 'Rejected'       },
   ACCOUNT_RESTORED:   { icon: Award,            bg: 'bg-green-50',    color: 'text-green-500',   label: 'Restored'       },
+  LIVE_SESSION: {
+  icon: Video,
+  bg: 'bg-blue-50',
+  color: 'text-blue-500',
+  label: 'Live Session',
+},
 };
 
 const FILTER_TABS: { label: string; value: NotificationFilterType; unreadOnly?: boolean }[] = [
