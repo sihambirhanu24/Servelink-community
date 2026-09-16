@@ -34,23 +34,37 @@ async function bootstrap() {
     prefix: '/uploads/',
   });
 
-  app.enableCors({
-    origin: (origin, callback) => {
-      // Allow localhost on any port in development
-      if (
-        process.env.NODE_ENV === 'development' &&
-        (!origin || origin.includes('localhost'))
-      ) {
-        callback(null, true);
-      } else if (origin === process.env.FRONTEND_URL) {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'), false);
-      }
-    },
-    credentials: true,
-  });
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  'https://servelink-frontend-rho.vercel.app',
+].filter(Boolean);
 
+app.enableCors({
+  origin: (origin, callback) => {
+    // Allow server-to-server requests / tools without an Origin header
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    console.log('❌ CORS blocked origin:', origin);
+    console.log('✅ Allowed origins:', allowedOrigins);
+
+    return callback(new Error(`CORS blocked: ${origin}`), false);
+  },
+  credentials: true,
+  methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'Accept',
+    'Origin',
+    'X-Requested-With',
+  ],
+});
   app.useWebSocketAdapter(new IoAdapter(app));
 
   app.useGlobalPipes(
