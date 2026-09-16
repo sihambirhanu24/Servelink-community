@@ -34,6 +34,7 @@ import configuration from './config/configuration';
 import { validationSchema } from './config/validation';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
+import { HealthController } from './health/health.controller';
 
 @Module({
   imports: [
@@ -77,5 +78,6 @@ import { join } from 'path';
     MailModule,
   ],
   providers: [DatabaseService],
+  controllers: [HealthController],
 })
 export class AppModule {}
