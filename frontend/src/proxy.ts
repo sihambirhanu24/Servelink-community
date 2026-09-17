@@ -3,6 +3,12 @@ import { NextRequest, NextResponse } from 'next/server';
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // ── Public routes (landing page, etc.) ────────────────────────────────────
+  // Root and landing page are public - no authentication required
+  if (pathname === '/' || pathname === '/landing' || pathname === '/access') {
+    return NextResponse.next();
+  }
+
   // ── Admin routes ───────────────────────────────────────────────────────────
   if (pathname.startsWith('/admin')) {
     const adminToken = request.cookies.get('admin_token')?.value;
@@ -42,6 +48,9 @@ export function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
+    '/',
+    '/landing',
+    '/access',
     '/admin/:path*',
     '/dashboard/:path*',
     '/community/:path*',
