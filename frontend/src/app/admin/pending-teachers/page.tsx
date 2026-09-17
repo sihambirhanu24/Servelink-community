@@ -8,6 +8,7 @@ import { approveTeacherVerification, rejectTeacherVerification } from '@/service
 import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
 import { adminApi } from '@/lib/axios';
+import { API_URL } from '@/lib/config';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -39,7 +40,7 @@ function VerificationDocumentsList({ teacherId }: { teacherId: string }) {
 
   async function viewDocument(documentId: string) {
     const token = localStorage.getItem('admin_token') || '';
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+    const baseUrl = API_URL;
     
     try {
       const docUrl = `${baseUrl}/admin/teachers/${teacherId}/documents/${documentId}`;

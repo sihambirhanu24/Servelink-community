@@ -4,6 +4,7 @@ import { Loader2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import Link from 'next/link';
+import { API_URL } from '@/lib/config';
 
 export function DashboardSuggestedCommunities() {
   const { user } = useAuth();
@@ -13,7 +14,7 @@ export function DashboardSuggestedCommunities() {
     queryKey: ['user-communities'],
     queryFn: async () => {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/community/accessible', {
+      const response = await fetch(`${API_URL}/community/accessible`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },

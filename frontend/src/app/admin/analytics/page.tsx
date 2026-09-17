@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { BarChart3, TrendingUp, Users, MessageSquare, Heart, Download, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import AdminLayout from '@/components/admin/layout';
+import { API_URL } from '@/lib/config';
 
 interface AnalyticsData {
   overview: {
@@ -45,7 +46,7 @@ export default function AdminAnalyticsPage() {
       setIsLoading(true);
       setError('');
       const token = localStorage.getItem('admin_token');
-      const res = await fetch(`http://localhost:5000/api/admin/analytics?range=${dateRange}`, {
+      const res = await fetch(`${API_URL}/admin/analytics?range=${dateRange}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 

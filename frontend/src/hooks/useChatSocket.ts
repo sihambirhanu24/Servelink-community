@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import io, { Socket } from 'socket.io-client';
+import { API_BASE_URL } from '@/lib/config';
 
 export interface ChatMessage {
   id: string;
@@ -53,8 +54,7 @@ export function useChatSocket(communityId?: string) {
 
     setState((prev) => ({ ...prev, isLoading: true }));
 
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000';
-    const socket = io(`${backendUrl}/chat`, {
+    const socket = io(`${API_BASE_URL}/chat`, {
       auth: { token },
       reconnection: true,
       reconnectionDelay: 1000,

@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
+import { API_URL } from "@/lib/config";
 
 interface Community {
   id: string;
@@ -52,7 +53,7 @@ export function DashboardRightSidebar() {
   const { data: communitiesData } = useQuery({
     queryKey: ["dashboard-communities"],
     queryFn: async () => {
-      const response = await fetch("http://localhost:5000/api/community/accessible", {
+      const response = await fetch(`${API_URL}/community/accessible`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
@@ -79,7 +80,7 @@ export function DashboardRightSidebar() {
   const { data: statsData } = useQuery({
     queryKey: ["user-engagement-stats"],
     queryFn: async () => {
-      const response = await fetch("http://localhost:5000/api/profile/posts", {
+      const response = await fetch(`${API_URL}/profile/posts`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token")}`,
         },

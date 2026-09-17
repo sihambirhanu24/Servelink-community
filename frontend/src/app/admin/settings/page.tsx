@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Globe, Users, Shield, Save, X, Check, Loader2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import AdminLayout from '@/components/admin/layout';
+import { API_URL } from '@/lib/config';
 
 interface SettingSection {
   id: string;
@@ -70,7 +71,7 @@ export default function AdminSettingsPage() {
       setIsLoading(true);
       setError('');
       const token = localStorage.getItem('admin_token');
-      const res = await fetch('http://localhost:5000/api/admin/settings', {
+      const res = await fetch(`${API_URL}/admin/settings`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error('Failed to load settings');
@@ -104,7 +105,7 @@ export default function AdminSettingsPage() {
       let payload: any = {};
 
       if (activeTab === 'general') {
-        endpoint = 'http://localhost:5000/api/admin/settings/general';
+        endpoint = `${API_URL}/admin/settings/general`;
         payload = {
           platformName: settings.platformName,
           platformUrl: settings.platformUrl,
@@ -112,14 +113,14 @@ export default function AdminSettingsPage() {
           timezone: settings.timezone,
         };
       } else if (activeTab === 'security') {
-        endpoint = 'http://localhost:5000/api/admin/settings/security';
+        endpoint = `${API_URL}/admin/settings/security`;
         payload = {
           sessionTimeout: settings.sessionTimeout,
           strongPasswordRequired: settings.strongPasswordRequired,
           maxLoginAttempts: settings.maxLoginAttempts,
         };
       } else if (activeTab === 'moderation') {
-        endpoint = 'http://localhost:5000/api/admin/settings/moderation';
+        endpoint = `${API_URL}/admin/settings/moderation`;
         payload = {
           autoFlagSpam: settings.autoFlagSpam,
           spamThreshold: settings.spamThreshold,

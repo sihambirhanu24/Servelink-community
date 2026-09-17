@@ -63,10 +63,11 @@ function formatSize(bytes: number) {
   return (bytes / (1024 * 1024)).toFixed(1) + " MB";
 }
 
+import { API_BASE_URL } from "@/lib/config";
+
 export function ResourceCard({ resource }: ResourceCardProps) {
   const att = resource.attachments?.[0];
-  const apiBase = process.env.NEXT_PUBLIC_API_URL?.replace("/api", "") ?? "http://localhost:5000";
-  const fileUrl = att ? `${apiBase}/${att.url}` : null;
+  const fileUrl = att ? `${API_BASE_URL}/${att.url}` : null;
 
   const likesCount =
     resource._count?.communityLikes ??

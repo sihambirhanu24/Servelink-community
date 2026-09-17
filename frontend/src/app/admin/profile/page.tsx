@@ -19,6 +19,7 @@ import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { Avatar } from '@/components/common/Avatar';
 import AdminLayout from '@/components/admin/layout';
+import { API_URL } from '@/lib/config';
 
 interface AdminProfile {
   id: string;
@@ -62,7 +63,7 @@ export default function AdminProfilePage() {
         router.push('/auth/login');
         throw new Error('No authentication token found');
       }
-      const res = await fetch('http://localhost:5000/api/admin/profile', {
+      const res = await fetch(`${API_URL}/admin/profile`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -91,7 +92,7 @@ export default function AdminProfilePage() {
   const updateProfileMutation = useMutation({
     mutationFn: async (data: { name?: string; email?: string }) => {
       const token = localStorage.getItem('admin_token');
-      const res = await fetch('http://localhost:5000/api/admin/profile', {
+      const res = await fetch(`${API_URL}/admin/profile`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -121,7 +122,7 @@ export default function AdminProfilePage() {
   const changePasswordMutation = useMutation({
     mutationFn: async (data: { currentPassword: string; newPassword: string }) => {
       const token = localStorage.getItem('admin_token');
-      const res = await fetch('http://localhost:5000/api/admin/change-password', {
+      const res = await fetch(`${API_URL}/admin/change-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
