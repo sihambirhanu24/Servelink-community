@@ -30,7 +30,7 @@ export function Navbar({ scrolled, menuOpen, setMenuOpen }: Props) {
     >
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-6 px-4 sm:px-6 lg:px-10">
         {/* Logo */}
-        <Link href="/landing" className="flex shrink-0 items-center gap-2.5 focus:outline-none">
+        <Link href="/" className="flex shrink-0 items-center gap-2.5 focus:outline-none">
           <img 
             src="/logo.png" 
             alt="ServeLink Logo" 

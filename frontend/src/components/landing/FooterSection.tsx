@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 
 const PLATFORM_LINKS = [
-  { label: 'Home', href: '/landing' },
+  { label: 'Home', href: '/' },
   { label: 'About ServeLink', href: '#about' },
   { label: 'Communities', href: '#communities' },
   { label: 'Features', href: '#features' },
@@ -81,7 +81,7 @@ export function FooterSection() {
 
           {/* Column 1 — Brand */}
           <div className="lg:col-span-1">
-            <Link href="/landing" className="inline-flex items-center gap-2.5">
+            <Link href="/" className="inline-flex items-center gap-2.5">
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#043658] shadow-md">
                 <GraduationCap className="h-5 w-5 text-[#FFC107]" />
               </div>

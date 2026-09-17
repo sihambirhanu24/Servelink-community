@@ -1,5 +1,7 @@
-import { redirect } from 'next/navigation';
+'use client';
+
+import LandingPage from '@/components/landing/LandingPage';
 
 export default function RootPage() {
-  redirect('/auth/login');
+  return <LandingPage />;
 }

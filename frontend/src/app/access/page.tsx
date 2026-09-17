@@ -29,7 +29,7 @@ function AccessPageContent() {
       {/* ── Navbar ── */}
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-10">
-          <Link href="/landing" className="flex items-center gap-2.5">
+          <Link href="/" className="flex items-center gap-2.5">
             <img 
               src="/logo.png" 
               alt="ServeLink Logo" 
@@ -130,7 +130,7 @@ function AccessPageContent() {
 
           {/* Back link */}
           <p className="mt-6 text-center text-sm text-slate-500">
-            <Link href="/landing" className="inline-flex items-center gap-1.5 font-semibold text-[#043658] transition-colors hover:text-[#032d4a] hover:underline">
+            <Link href="/" className="inline-flex items-center gap-1.5 font-semibold text-[#043658] transition-colors hover:text-[#032d4a] hover:underline">
               <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
